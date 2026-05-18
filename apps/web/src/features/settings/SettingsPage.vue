@@ -73,6 +73,16 @@
         <FolderPlus :size="16" />
       </div>
 
+      <div class="root-list" :aria-label="preferences.t('configuredRootsTitle')">
+        <div v-if="roots.length === 0" class="muted-block">{{ preferences.t("noRootsConfigured") }}</div>
+        <div v-for="root in roots" :key="root.id" class="root-row">
+          <span>{{ root.path }}</span>
+          <button class="icon-button" :title="preferences.t('removeRoot')" @click="deleteRoot(root.id)">
+            <Trash2 :size="16" />
+          </button>
+        </div>
+      </div>
+
       <div class="root-form">
         <label>
           {{ preferences.t("rootPath") }}
@@ -89,18 +99,53 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
-import { Check, FolderPlus, Palette, Plus } from "lucide-vue-next";
-import { addRoot } from "../../api";
+import { onMounted, ref } from "vue";
+import { Check, FolderPlus, Palette, Plus, Trash2 } from "lucide-vue-next";
+import { addRoot, getRoots, removeRoot, type RootEntry } from "../../api";
+import { useNotificationsStore } from "../../stores/notifications";
 import { accentOptions, localeOptions, themeOptions, usePreferencesStore } from "../../stores/preferences";
 
 const preferences = usePreferencesStore();
+const notifications = useNotificationsStore();
 const rootPath = ref("");
 const message = ref("");
+const roots = ref<RootEntry[]>([]);
+
+onMounted(() => {
+  void loadRoots();
+});
+
+async function loadRoots(): Promise<void> {
+  try {
+    roots.value = await getRoots();
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    notifications.error(preferences.t("rootActionFailedNotice", { message: errorMessage }));
+  }
+}
 
 async function submitRoot() {
   if (!rootPath.value.trim()) return;
-  await addRoot(rootPath.value.trim());
-  message.value = preferences.t("rootSaved");
+  try {
+    await addRoot(rootPath.value.trim());
+    rootPath.value = "";
+    message.value = preferences.t("rootSaved");
+    await loadRoots();
+    notifications.success(preferences.t("rootAddedNotice"));
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    notifications.error(preferences.t("rootActionFailedNotice", { message: errorMessage }));
+  }
+}
+
+async function deleteRoot(rootId: string): Promise<void> {
+  try {
+    await removeRoot(rootId);
+    await loadRoots();
+    notifications.success(preferences.t("rootRemovedNotice"));
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    notifications.error(preferences.t("rootActionFailedNotice", { message: errorMessage }));
+  }
 }
 </script>

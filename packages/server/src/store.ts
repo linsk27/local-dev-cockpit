@@ -59,7 +59,7 @@ export class JsonStore {
 
   async removeRoot(id: string): Promise<AppConfig> {
     const config = await this.readConfig();
-    config.roots = config.roots.filter((root) => Buffer.from(root, "utf8").toString("base64url") !== id);
+    config.roots = config.roots.filter((root) => rootId(root) !== id);
     await this.writeConfig(config);
     return config;
   }
@@ -89,6 +89,10 @@ export class JsonStore {
     await fs.mkdir(path.dirname(this.paths.statePath), { recursive: true });
     await fs.writeFile(this.paths.statePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
   }
+}
+
+export function rootId(root: string): string {
+  return Buffer.from(root, "utf8").toString("base64url");
 }
 
 async function exists(filePath: string): Promise<boolean> {

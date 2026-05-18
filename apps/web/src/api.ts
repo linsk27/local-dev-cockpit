@@ -10,6 +10,11 @@ export interface ContextResponse {
   recovery: RecoveryCard;
 }
 
+export interface RootEntry {
+  id: string;
+  path: string;
+}
+
 export async function getProjects(): Promise<Project[]> {
   const response = await fetch("/api/projects");
   if (!response.ok) throw new Error(`Failed to load projects: ${response.status}`);
@@ -58,4 +63,17 @@ export async function addRoot(path: string) {
   });
   if (!response.ok) throw new Error(`Failed to add root: ${response.status}`);
   return response.json();
+}
+
+export async function getRoots(): Promise<RootEntry[]> {
+  const response = await fetch("/api/roots");
+  if (!response.ok) throw new Error(`Failed to load roots: ${response.status}`);
+  return ((await response.json()) as { roots: RootEntry[] }).roots;
+}
+
+export async function removeRoot(rootId: string): Promise<void> {
+  const response = await fetch(`/api/roots/${encodeURIComponent(rootId)}`, {
+    method: "DELETE"
+  });
+  if (!response.ok) throw new Error(`Failed to remove root: ${response.status}`);
 }

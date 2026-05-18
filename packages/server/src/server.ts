@@ -21,7 +21,7 @@ import { EventBus } from "./events.js";
 import { stripAnsiControlSequences } from "./log-decoder.js";
 import { resolveAppPaths } from "./paths.js";
 import { ProcessManager } from "./process-manager.js";
-import { JsonStore } from "./store.js";
+import { JsonStore, rootId } from "./store.js";
 
 const addRootSchema = z.object({ path: z.string().min(1) });
 
@@ -89,6 +89,17 @@ async function route(
   if (method === "GET" && url.pathname === "/api/projects") {
     const projects = await loadProjects(context.store, context.processManager);
     sendJson(res, 200, { projects });
+    return;
+  }
+
+  if (method === "GET" && url.pathname === "/api/roots") {
+    const config = await context.store.readConfig();
+    sendJson(res, 200, {
+      roots: config.roots.map((root) => ({
+        id: rootId(root),
+        path: root
+      }))
+    });
     return;
   }
 
