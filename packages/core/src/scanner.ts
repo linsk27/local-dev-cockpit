@@ -22,6 +22,8 @@ const DEFAULT_IGNORE_NAMES = new Set([
   "usersettings"
 ]);
 
+const CHILD_PROJECT_DIRECTORY_HINTS = new Set(["frontend", "front", "backend", "api", "server", "client", "web", "apps", "packages", "services"]);
+
 const COMMON_PORTS_BY_KIND: Record<ProjectKind, number[]> = {
   node: [3000, 5173, 4173, 8080],
   python: [5000, 8000, 8080],
@@ -74,7 +76,7 @@ export async function scanRoot(
     const hasMarker = hasProjectMarker(entries);
     if (hasMarker) {
       projectCandidates.push({ path: dir, reason: "marker" });
-      return;
+      if (!shouldDescendIntoMarkedDirectory(entries)) return;
     }
     if (hasGitDirectory) {
       projectCandidates.push({ path: dir, reason: "git-root" });
@@ -129,6 +131,14 @@ function hasProjectMarker(entries: Array<{ name: string; isDirectory: boolean; i
   ].some((marker) => names.has(marker));
 }
 
+function shouldDescendIntoMarkedDirectory(entries: Array<{ name: string; isDirectory: boolean; isFile: boolean }>): boolean {
+  const fileNames = new Set(entries.filter((entry) => entry.isFile).map((entry) => entry.name));
+  const directoryNames = new Set(entries.filter((entry) => entry.isDirectory).map((entry) => entry.name.toLowerCase()));
+  const hasContainerMarker = ["docker-compose.yml", "compose.yml", "Dockerfile"].some((marker) => fileNames.has(marker));
+  if (!hasContainerMarker) return false;
+  return [...CHILD_PROJECT_DIRECTORY_HINTS].some((name) => directoryNames.has(name));
+}
+
 function shouldKeepScannedProject(project: Project, reason: "marker" | "git-root"): boolean {
   if (reason === "git-root") return true;
   if (project.commands.length > 0) return true;
@@ -170,8 +180,10 @@ async function detectMarkers(projectPath: string, fs: FileSystemAdapter): Promis
     "requirements.txt",
     "pyproject.toml",
     "manage.py",
+    "run.py",
     "app.py",
     "main.py",
+    "app/main.py",
     "go.mod",
     "Cargo.toml",
     "docker-compose.yml",
@@ -190,7 +202,7 @@ async function detectMarkers(projectPath: string, fs: FileSystemAdapter): Promis
 function resolveProjectKind(markers: string[]): ProjectKind {
   const kinds = new Set<ProjectKind>();
   if (markers.includes("package.json")) kinds.add("node");
-  if (markers.some((marker) => ["requirements.txt", "pyproject.toml", "manage.py", "app.py", "main.py"].includes(marker))) {
+  if (markers.some((marker) => ["requirements.txt", "pyproject.toml", "manage.py", "run.py", "app.py", "main.py", "app/main.py"].includes(marker))) {
     kinds.add("python");
   }
   if (markers.includes("go.mod")) kinds.add("go");
@@ -225,10 +237,27 @@ async function detectCommands(
   if (markers.includes("manage.py")) {
     commands.push(command("python-django", "Django dev server", "python", ["manage.py", "runserver"], projectPath, "detected", "dev"));
   }
-  if (markers.includes("app.py")) {
+  const fastApiEntrypoint = await detectFastApiEntrypoint(projectPath, markers, fs);
+  if (fastApiEntrypoint) {
+    commands.push(
+      command(
+        `python-fastapi-${fastApiEntrypoint.module.replace(/\W/g, "-")}`,
+        `Uvicorn ${fastApiEntrypoint.module}`,
+        "python",
+        ["-m", "uvicorn", `${fastApiEntrypoint.module}:app`, "--host", "127.0.0.1", "--port", "8000"],
+        projectPath,
+        "detected",
+        "dev"
+      )
+    );
+  }
+  if (markers.includes("run.py")) {
+    commands.push(command("python-run", "Run run.py", "python", ["run.py"], projectPath, "detected", "dev"));
+  }
+  if (markers.includes("app.py") && fastApiEntrypoint?.marker !== "app.py") {
     commands.push(command("python-app", "Run app.py", "python", ["app.py"], projectPath, "detected", "dev"));
   }
-  if (markers.includes("main.py")) {
+  if (markers.includes("main.py") && fastApiEntrypoint?.marker !== "main.py") {
     commands.push(command("python-main", "Run main.py", "python", ["main.py"], projectPath, "detected", "dev"));
   }
   if (markers.includes("go.mod")) {
@@ -242,6 +271,24 @@ async function detectCommands(
   }
 
   return dedupeCommands(commands);
+}
+
+async function detectFastApiEntrypoint(
+  projectPath: string,
+  markers: string[],
+  fs: FileSystemAdapter
+): Promise<{ marker: string; module: string } | undefined> {
+  for (const marker of ["app/main.py", "main.py", "app.py"]) {
+    if (!markers.includes(marker)) continue;
+    try {
+      const source = await fs.readFile(path.join(projectPath, marker));
+      if (!/\bFastAPI\s*\(/.test(source)) continue;
+      return { marker, module: marker.replace(/\.py$/, "").replace(/[\\/]/g, ".") };
+    } catch {
+      // If an entrypoint disappears during scanning, skip it and continue.
+    }
+  }
+  return undefined;
 }
 
 async function readPackageScripts(projectPath: string, packageManager: NonNullable<Project["packageManager"]>, fs: FileSystemAdapter): Promise<Command[]> {

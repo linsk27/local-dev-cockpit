@@ -17,7 +17,13 @@ export function projectIsOnline(project: Project): boolean {
 }
 
 export function projectHasFailed(project: Project): boolean {
+  if (projectHasAlreadyRunningConflict(project)) return false;
   return Boolean(project.lastError) || project.lastRun?.status === "failed";
+}
+
+export function projectHasAlreadyRunningConflict(project: Project): boolean {
+  const message = project.lastError?.message ?? "";
+  return visibleProjectPorts(project).length > 0 && /address.*already in use|eaddrinuse|only one usage|通常每个套接字|port \d+ is in use/i.test(message);
 }
 
 export function recommendedProjectCommand(project: Project): Command | undefined {

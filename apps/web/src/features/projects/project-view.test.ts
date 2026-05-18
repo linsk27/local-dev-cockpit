@@ -3,6 +3,7 @@ import type { Project } from "@local-dev-cockpit/core";
 import {
   formatDisplayPath,
   formatPortUrl,
+  projectHasAlreadyRunningConflict,
   projectBelongsToRoot,
   projectHasFailed,
   projectMatchesQuery,
@@ -65,6 +66,28 @@ describe("project dashboard view helpers", () => {
         })
       )
     ).toBe(true);
+  });
+
+  it("treats an already-running port conflict as online instead of failed", () => {
+    const alreadyRunning = project({
+      lastRun: {
+        id: "run-1",
+        projectId: "project",
+        commandId: "python-fastapi-app-main",
+        status: "failed",
+        startedAt: new Date().toISOString(),
+        logPath: "run.log"
+      },
+      lastError: {
+        commandId: "python-fastapi-app-main",
+        message: "error while attempting to bind on address ('127.0.0.1', 8000): address already in use",
+        occurredAt: new Date().toISOString()
+      },
+      ports: [{ port: 8000, status: "open", source: "detected" }]
+    });
+
+    expect(projectHasAlreadyRunningConflict(alreadyRunning)).toBe(true);
+    expect(projectHasFailed(alreadyRunning)).toBe(false);
   });
 
   it("formats ipv6 hosts as browser-safe URLs", () => {

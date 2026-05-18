@@ -3,6 +3,7 @@
     <div class="recovery-copy">
       <p class="eyebrow">{{ preferences.t("recoveryCard") }}</p>
       <h2>{{ project.name }}</h2>
+      <p class="project-path" :title="project.path">{{ project.path }}</p>
       <p>{{ summary }}</p>
       <div class="port-overview">
         <div class="port-group">
@@ -56,6 +57,7 @@ import {
   detectedProjectPorts,
   formatPortEndpoint,
   formatPortUrl,
+  projectHasAlreadyRunningConflict,
   recommendedProjectCommand,
   runningProjectPorts,
   visibleProjectPorts
@@ -74,6 +76,7 @@ const detectedPorts = computed(() => detectedProjectPorts(props.project));
 const recommendedCommand = computed(() => recommendedProjectCommand(props.project));
 
 const summary = computed(() => {
+  if (projectHasAlreadyRunningConflict(props.project)) return "服务已在检测到的端口运行；上次启动命令因为端口占用退出。";
   if (props.project.lastError) return props.project.lastError.message;
   if (props.project.lastRun?.status === "failed") return "命令运行失败，请查看日志。";
   if (props.project.lastRun?.status === "running") return preferences.t("commandRunning");

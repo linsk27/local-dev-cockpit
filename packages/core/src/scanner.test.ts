@@ -99,6 +99,51 @@ describe("scanRoot", () => {
     expect(result.projects.find((project) => project.name === "backend")?.kind).toBe("python");
   });
 
+  it("continues scanning inside Docker workspace roots and detects child apps", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-docker-workspace-"));
+    const repo = path.join(root, "agent-workbench");
+    await fs.mkdir(path.join(repo, "frontend"), { recursive: true });
+    await fs.mkdir(path.join(repo, "backend", "app"), { recursive: true });
+    await fs.writeFile(path.join(repo, "docker-compose.yml"), "services:\n  postgres:\n    image: postgres\n", "utf8");
+    await fs.writeFile(
+      path.join(repo, "frontend", "package.json"),
+      JSON.stringify({ name: "frontend", scripts: { dev: "next dev" } }),
+      "utf8"
+    );
+    await fs.writeFile(path.join(repo, "backend", "pyproject.toml"), "[project]\nname='backend'\n", "utf8");
+    await fs.writeFile(path.join(repo, "backend", "app", "main.py"), "from fastapi import FastAPI\napp = FastAPI()\n", "utf8");
+
+    const result = await scanRoot(root, { maxDepth: 4 });
+    const names = result.projects.map((project) => project.name);
+    const backend = result.projects.find((project) => project.name === "backend");
+
+    expect(names).toContain("agent-workbench");
+    expect(names).toContain("frontend");
+    expect(names).toContain("backend");
+    expect(backend?.commands.find((command) => command.id === "python-fastapi-app-main")?.args).toEqual([
+      "-m",
+      "uvicorn",
+      "app.main:app",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "8000"
+    ]);
+  });
+
+  it("detects run.py as a Python backend entrypoint", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-python-run-"));
+    const backend = path.join(root, "api");
+    await fs.mkdir(backend, { recursive: true });
+    await fs.writeFile(path.join(backend, "requirements.txt"), "flask\n", "utf8");
+    await fs.writeFile(path.join(backend, "run.py"), "print('running')\n", "utf8");
+
+    const result = await scanRoot(root, { maxDepth: 2 });
+    const project = result.projects.find((item) => item.name === "api");
+
+    expect(project?.commands.find((command) => command.id === "python-run")?.args).toEqual(["run.py"]);
+  });
+
   it("renders recovery and AI context without external AI calls", async () => {
     const result = await scanRoot(fixtureRoot, { maxDepth: 2 });
     const project = result.projects.find((item) => item.name === "vue-app");

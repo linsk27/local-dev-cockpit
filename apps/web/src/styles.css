@@ -633,6 +633,17 @@ h2 {
   line-height: 1.55;
 }
 
+.recovery-copy .project-path {
+  width: min(760px, 100%);
+  margin: -2px 0 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
 .port-overview {
   display: grid;
   gap: 8px;

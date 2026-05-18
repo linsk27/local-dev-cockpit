@@ -49,6 +49,7 @@ export const useProjectsStore = defineStore("projects", {
         } else {
           this.projects = [...this.projects, project];
         }
+        this.error = "";
         return project;
       } catch (error) {
         this.error = error instanceof Error ? error.message : String(error);
@@ -57,6 +58,7 @@ export const useProjectsStore = defineStore("projects", {
     },
     select(projectId: string) {
       this.selectedId = projectId;
+      this.error = "";
       this.clearLogs();
       this.context = null;
     },
@@ -139,10 +141,15 @@ export const useProjectsStore = defineStore("projects", {
         return;
       }
       const targetProjectId = project.id;
-      const logs = await getLogs(targetProjectId, targetRun);
-      if (this.selectedId === targetProjectId) {
-        this.logs = logs;
-        this.logsRunId = targetRun;
+      try {
+        const logs = await getLogs(targetProjectId, targetRun);
+        if (this.selectedId === targetProjectId) {
+          this.logs = logs;
+          this.logsRunId = targetRun;
+          this.error = "";
+        }
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : String(error);
       }
     },
     clearLogs() {
@@ -154,6 +161,7 @@ export const useProjectsStore = defineStore("projects", {
       if (!project) return;
       try {
         this.context = await getContext(project.id);
+        this.error = "";
         return this.context;
       } catch (error) {
         this.error = error instanceof Error ? error.message : String(error);
