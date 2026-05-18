@@ -74,13 +74,21 @@ export const useProjectsStore = defineStore("projects", {
       if (actionKey) this.commandActions[actionKey] = "stopping";
       this.error = "";
       try {
-        await stopProcess(targetProjectId, runId);
-        if (project?.lastRun?.id === runId) {
+        const result = await stopProcess(targetProjectId, runId);
+        if (result.run) {
+          this.applyRun(targetProjectId, result.run);
+        } else if (project?.lastRun?.id === runId) {
           this.applyRun(targetProjectId, {
             ...project.lastRun,
             status: "stopped",
             exitedAt: new Date().toISOString()
           });
+        }
+        if (!result.stopped) {
+          const message = "当前命令不再由 Dev Cockpit 托管，已清理旧运行状态。若端口仍被占用，请在系统终端关闭对应进程。";
+          await this.refresh({ silent: true });
+          this.error = message;
+          return false;
         }
         await this.refresh({ silent: true });
         return true;

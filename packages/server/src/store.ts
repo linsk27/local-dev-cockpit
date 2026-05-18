@@ -81,6 +81,20 @@ export class JsonStore {
     await this.writeState(state);
   }
 
+  async markRunStopped(projectId: string, runId: string): Promise<ProcessRun | undefined> {
+    const state = await this.readState();
+    const run = state.runs[projectId];
+    if (!run || run.id !== runId) return undefined;
+    const stoppedRun: ProcessRun = {
+      ...run,
+      status: "stopped",
+      exitedAt: run.exitedAt ?? new Date().toISOString()
+    };
+    state.runs[projectId] = stoppedRun;
+    await this.writeState(state);
+    return stoppedRun;
+  }
+
   async recordError(projectId: string, error: ErrorSummary): Promise<void> {
     const state = await this.readState();
     state.errors[projectId] = error;

@@ -15,6 +15,11 @@ export interface RootEntry {
   path: string;
 }
 
+export interface StopProcessResponse {
+  stopped: boolean;
+  run?: ProcessRun;
+}
+
 export async function getProjects(): Promise<Project[]> {
   const response = await fetch("/api/projects");
   if (!response.ok) throw new Error(`Failed to load projects: ${response.status}`);
@@ -35,12 +40,12 @@ export async function startCommand(projectId: string, commandId: string) {
   return response.json() as Promise<{ run: ProcessRun }>;
 }
 
-export async function stopProcess(projectId: string, processId: string) {
+export async function stopProcess(projectId: string, processId: string): Promise<StopProcessResponse> {
   const response = await fetch(`/api/projects/${projectId}/processes/${encodeURIComponent(processId)}/stop`, {
     method: "POST"
   });
   if (!response.ok) throw new Error(`Failed to stop process: ${response.status}`);
-  return response.json() as Promise<{ stopped: boolean }>;
+  return response.json() as Promise<StopProcessResponse>;
 }
 
 export async function getLogs(projectId: string, runId: string): Promise<string> {

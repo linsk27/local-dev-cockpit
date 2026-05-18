@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import type { ProcessRun } from "@local-dev-cockpit/core";
 import { JsonStore, rootId, sanitizePathInput } from "./store.js";
 
 describe("JsonStore roots", () => {
@@ -29,5 +30,33 @@ describe("JsonStore roots", () => {
 
   it("strips wrapping quotes from copied paths", async () => {
     expect(sanitizePathInput('"C:\\Users\\EDY\\Desktop"')).toBe("C:\\Users\\EDY\\Desktop");
+  });
+
+  it("can clear a stale running state without a live process", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-store-"));
+    const store = new JsonStore(
+      {
+        dataDir: tmp,
+        configPath: path.join(tmp, "config.json"),
+        statePath: path.join(tmp, "state.json"),
+        logsDir: path.join(tmp, "logs")
+      },
+      tmp
+    );
+    const run: ProcessRun = {
+      id: "run-1",
+      projectId: "project-1",
+      commandId: "script-dev",
+      status: "running",
+      startedAt: new Date().toISOString(),
+      logPath: path.join(tmp, "run-1.log")
+    };
+
+    await store.recordRun(run);
+    const stopped = await store.markRunStopped(run.projectId, run.id);
+    const state = await store.readState();
+
+    expect(stopped?.status).toBe("stopped");
+    expect(state.runs[run.projectId]?.status).toBe("stopped");
   });
 });

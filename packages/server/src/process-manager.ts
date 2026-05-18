@@ -120,16 +120,16 @@ export class ProcessManager {
     return run;
   }
 
-  async stop(processId: string): Promise<boolean> {
+  async stop(processId: string): Promise<ProcessRun | undefined> {
     const entry = this.running.get(processId);
-    if (!entry) return false;
+    if (!entry) return undefined;
     entry.run.status = "stopped";
     entry.run.exitedAt = new Date().toISOString();
     await killProcessTree(entry.child);
     this.running.delete(processId);
     await this.store.recordRun(entry.run);
     this.events.emit("process.stopped", { run: entry.run });
-    return true;
+    return entry.run;
   }
 
   isRunning(processId: string): boolean {

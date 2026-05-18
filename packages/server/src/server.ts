@@ -139,8 +139,15 @@ async function route(
 
   const stopMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/processes\/([^/]+)\/stop$/);
   if (method === "POST" && stopMatch) {
-    const stopped = await context.processManager.stop(decodeURIComponent(stopMatch[2] ?? ""));
-    sendJson(res, 200, { stopped });
+    const projectId = decodeURIComponent(stopMatch[1] ?? "");
+    const runId = decodeURIComponent(stopMatch[2] ?? "");
+    const stoppedRun = await context.processManager.stop(runId);
+    if (stoppedRun) {
+      sendJson(res, 200, { stopped: true, run: stoppedRun });
+      return;
+    }
+    const staleRun = await context.store.markRunStopped(projectId, runId);
+    sendJson(res, 200, { stopped: false, run: staleRun });
     return;
   }
 
@@ -195,10 +202,11 @@ async function enrichProject(
   lastError: ErrorSummary | undefined,
   processManager: ProcessManager
 ): Promise<Project> {
-  const processPorts = lastRun
-    ? await extractPortsFromLogs(await processManager.readLogs(lastRun.id), lastRun.status)
+  const managedRun = normalizeManagedRun(lastRun, processManager);
+  const processPorts = managedRun
+    ? await extractPortsFromLogs(await processManager.readLogs(managedRun.id), managedRun.status)
     : [];
-  const currentRun = hydrateLastRun(lastRun, processPorts);
+  const currentRun = hydrateLastRun(managedRun, processPorts);
   const currentError = isStaleError(currentRun, lastError) ? undefined : lastError;
 
   return {
@@ -206,6 +214,15 @@ async function enrichProject(
     ports: mergePorts(project.ports, processPorts),
     lastRun: currentRun,
     lastError: currentError
+  };
+}
+
+function normalizeManagedRun(lastRun: ProcessRun | undefined, processManager: ProcessManager): ProcessRun | undefined {
+  if (!lastRun || lastRun.status !== "running" || processManager.isRunning(lastRun.id)) return lastRun;
+  return {
+    ...lastRun,
+    status: "stopped",
+    exitedAt: lastRun.exitedAt ?? new Date().toISOString()
   };
 }
 
