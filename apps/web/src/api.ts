@@ -20,6 +20,13 @@ export interface StopProcessResponse {
   run?: ProcessRun;
 }
 
+export interface StopPortResponse {
+  stopped: boolean;
+  port: number;
+  pids: number[];
+  error?: string;
+}
+
 export async function getProjects(): Promise<Project[]> {
   const response = await fetch("/api/projects");
   if (!response.ok) throw new Error(`Failed to load projects: ${response.status}`);
@@ -46,6 +53,14 @@ export async function stopProcess(projectId: string, processId: string): Promise
   });
   if (!response.ok) throw new Error(`Failed to stop process: ${response.status}`);
   return response.json() as Promise<StopProcessResponse>;
+}
+
+export async function stopPort(projectId: string, port: number): Promise<StopPortResponse> {
+  const response = await fetch(`/api/projects/${projectId}/ports/${port}/stop`, {
+    method: "POST"
+  });
+  if (!response.ok) throw new Error(`Failed to stop port: ${response.status}`);
+  return response.json() as Promise<StopPortResponse>;
 }
 
 export async function getLogs(projectId: string, runId: string): Promise<string> {

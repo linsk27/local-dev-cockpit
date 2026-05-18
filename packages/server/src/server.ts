@@ -151,6 +151,25 @@ async function route(
     return;
   }
 
+  const stopPortMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/ports\/(\d+)\/stop$/);
+  if (method === "POST" && stopPortMatch) {
+    const projectId = decodeURIComponent(stopPortMatch[1] ?? "");
+    const port = Number(stopPortMatch[2]);
+    if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+      sendJson(res, 400, { stopped: false, port, pids: [], error: "Invalid port" });
+      return;
+    }
+    const result = await stopPort(port);
+    if (result.stopped) {
+      const state = await context.store.readState();
+      const run = state.runs[projectId];
+      if (run) await context.store.markRunStopped(projectId, run.id);
+      await context.store.clearError(projectId);
+    }
+    sendJson(res, 200, result);
+    return;
+  }
+
   const logMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/logs$/);
   if (method === "GET" && logMatch) {
     const runId = url.searchParams.get("runId") ?? "";
@@ -390,4 +409,101 @@ async function listen(server: ReturnType<typeof createServer>, preferredPort: nu
     if (result === "ok") return port;
   }
   throw new Error(`No free port found near ${preferredPort}`);
+}
+
+interface StopPortResult {
+  stopped: boolean;
+  port: number;
+  pids: number[];
+  error?: string;
+}
+
+async function stopPort(port: number): Promise<StopPortResult> {
+  const processAdapter = new NodeProcessAdapter();
+  const pids = await findListeningPidsByPort(processAdapter, port);
+  const killablePids = pids.filter((pid) => pid > 0 && pid !== process.pid);
+  if (killablePids.length === 0) {
+    return { stopped: false, port, pids, error: pids.includes(process.pid) ? "Refusing to stop Dev Cockpit itself" : "No process found for port" };
+  }
+
+  const failures: string[] = [];
+  for (const pid of killablePids) {
+    const result =
+      process.platform === "win32"
+        ? await stopWindowsPid(processAdapter, pid)
+        : await stopUnixPid(processAdapter, pid);
+    if (!result.ok) {
+      failures.push(result.message);
+    }
+  }
+
+  await new Promise((resolve) => setTimeout(resolve, 800));
+  const stillOpen = await processAdapter.isPortOpen(port);
+  return {
+    stopped: failures.length === 0 && !stillOpen,
+    port,
+    pids: killablePids,
+    error: failures.length > 0 ? failures.join("\n") : stillOpen ? "Port is still open after stop attempt" : undefined
+  };
+}
+
+interface StopPidResult {
+  ok: boolean;
+  message: string;
+}
+
+async function stopWindowsPid(processAdapter: NodeProcessAdapter, pid: number): Promise<StopPidResult> {
+  const script = [
+    "$ErrorActionPreference = 'Stop'",
+    `$targetPid = ${pid}`,
+    "$targetProcess = Get-Process -Id $targetPid -ErrorAction SilentlyContinue",
+    "if (-not $targetProcess) { Write-Output 'PID_NOT_FOUND'; exit 2 }",
+    "Stop-Process -Id $targetPid -Force -ErrorAction Stop",
+    "Write-Output 'STOPPED'"
+  ].join("; ");
+  const result = await processAdapter.execFile("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
+    timeoutMs: 6000
+  });
+  if (result.exitCode === 0) return { ok: true, message: `Stopped PID ${pid}` };
+  if (result.stdout.includes("PID_NOT_FOUND")) {
+    return {
+      ok: false,
+      message: `Windows 报告端口属于 PID ${pid}，但系统进程列表中找不到该进程；可能是权限不足、进程已退出但端口表未刷新，或该端口由系统代理托管。`
+    };
+  }
+  return { ok: false, message: result.stderr || result.stdout || `停止 PID ${pid} 失败` };
+}
+
+async function stopUnixPid(processAdapter: NodeProcessAdapter, pid: number): Promise<StopPidResult> {
+  const result = await processAdapter.execFile("kill", ["-TERM", String(pid)], { timeoutMs: 6000 });
+  if (result.exitCode === 0) return { ok: true, message: `Stopped PID ${pid}` };
+  return { ok: false, message: result.stderr || result.stdout || `停止 PID ${pid} 失败` };
+}
+
+async function findListeningPidsByPort(processAdapter: NodeProcessAdapter, port: number): Promise<number[]> {
+  if (process.platform === "win32") {
+    const result = await processAdapter.execFile("netstat.exe", ["-ano"], { timeoutMs: 6000 });
+    return parseNetstatListeningPids(result.stdout, port);
+  }
+  const result = await processAdapter.execFile("lsof", ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-t"], { timeoutMs: 6000 });
+  return [...new Set(result.stdout.split(/\r?\n/).map((line) => Number(line.trim())).filter((pid) => Number.isInteger(pid) && pid > 0))];
+}
+
+export function parseNetstatListeningPids(output: string, port: number): number[] {
+  const pids = new Set<number>();
+  for (const line of output.split(/\r?\n/)) {
+    const columns = line.trim().split(/\s+/);
+    if (columns.length < 5 || columns[0]?.toUpperCase() !== "TCP") continue;
+    const localAddress = columns[1] ?? "";
+    const state = columns[3] ?? "";
+    const pid = Number(columns[4]);
+    if (state.toUpperCase() === "LISTENING" && addressUsesPort(localAddress, port) && Number.isInteger(pid)) {
+      pids.add(pid);
+    }
+  }
+  return [...pids];
+}
+
+function addressUsesPort(address: string, port: number): boolean {
+  return address.endsWith(`:${port}`) || address.endsWith(`]:${port}`);
 }

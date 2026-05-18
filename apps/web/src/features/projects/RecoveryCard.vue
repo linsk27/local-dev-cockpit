@@ -9,16 +9,31 @@
         <div class="port-group">
           <span>{{ preferences.t("runningEndpoints") }}</span>
           <template v-if="runningPorts.length > 0">
-            <a
+            <span
               v-for="port in runningPorts"
               :key="`${port.host ?? 'host'}:${port.port}`"
-              class="port-pill active"
-              :href="formatPortUrl(port)"
-              target="_blank"
-              rel="noreferrer"
+              class="port-action"
             >
-              {{ formatPortEndpoint(port) }}
-            </a>
+              <a
+                class="port-pill active"
+                :href="formatPortUrl(port)"
+                target="_blank"
+                rel="noreferrer"
+              >
+                {{ formatPortEndpoint(port) }}
+              </a>
+              <button
+                class="port-stop-button"
+                type="button"
+                :disabled="isStoppingPort(port.port)"
+                :title="`停止端口 ${port.port}`"
+                @click="stopPort(port.port)"
+              >
+                <Loader2 v-if="isStoppingPort(port.port)" :size="12" class="spin-icon" />
+                <Square v-else :size="12" />
+                <span>{{ isStoppingPort(port.port) ? "停止中" : "停止" }}</span>
+              </button>
+            </span>
           </template>
           <strong v-else>{{ preferences.t("noRunningEndpoint") }}</strong>
         </div>
@@ -51,8 +66,11 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
+import { Loader2, Square } from "lucide-vue-next";
 import type { Project } from "@local-dev-cockpit/core";
+import { useNotificationsStore } from "../../stores/notifications";
 import { usePreferencesStore } from "../../stores/preferences";
+import { useProjectsStore } from "../../stores/projects";
 import {
   detectedProjectPorts,
   formatPortEndpoint,
@@ -63,7 +81,9 @@ import {
 } from "./project-view";
 
 const props = defineProps<{ project: Project }>();
+const store = useProjectsStore();
 const preferences = usePreferencesStore();
+const notifications = useNotificationsStore();
 
 const ports = computed(() => {
   const open = visibleProjectPorts(props.project).map((port) => formatPortEndpoint(port));
@@ -86,4 +106,17 @@ const summary = computed(() => {
     ? preferences.t("suggestedNextStep", { command: recommendedCommand.value.label })
     : preferences.t("noCommandsSummary");
 });
+
+function isStoppingPort(port: number): boolean {
+  return store.portAction(props.project.id, port) === "stopping";
+}
+
+async function stopPort(port: number): Promise<void> {
+  const stopped = await store.stopPort(port, props.project.id);
+  if (stopped) {
+    notifications.success(`已停止端口 ${port}`);
+  } else {
+    notifications.error(`停止端口失败：${store.error || port}`);
+  }
+}
 </script>

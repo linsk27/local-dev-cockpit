@@ -95,6 +95,12 @@ export class JsonStore {
     return stoppedRun;
   }
 
+  async clearError(projectId: string): Promise<void> {
+    const state = await this.readState();
+    delete state.errors[projectId];
+    await this.writeState(state);
+  }
+
   async recordError(projectId: string, error: ErrorSummary): Promise<void> {
     const state = await this.readState();
     state.errors[projectId] = error;

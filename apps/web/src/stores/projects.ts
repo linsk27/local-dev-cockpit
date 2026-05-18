@@ -1,8 +1,9 @@
 import { defineStore } from "pinia";
 import type { ProcessRun, Project } from "@local-dev-cockpit/core";
-import { getContext, getLogs, getProject, getProjects, startCommand, stopProcess, type ContextResponse } from "../api";
+import { getContext, getLogs, getProject, getProjects, startCommand, stopPort as stopPortRequest, stopProcess, type ContextResponse } from "../api";
 
 export type CommandActionState = "starting" | "stopping";
+export type PortActionState = "stopping";
 
 export const useProjectsStore = defineStore("projects", {
   state: () => ({
@@ -14,6 +15,7 @@ export const useProjectsStore = defineStore("projects", {
     logs: "",
     logsRunId: "",
     commandActions: {} as Record<string, CommandActionState>,
+    portActions: {} as Record<string, PortActionState>,
     runtimeWatches: {} as Record<string, string>,
     context: null as ContextResponse | null
   }),
@@ -133,6 +135,27 @@ export const useProjectsStore = defineStore("projects", {
         if (actionKey) delete this.commandActions[actionKey];
       }
     },
+    async stopPort(port: number, projectId?: string): Promise<boolean> {
+      const targetProjectId = projectId ?? this.selectedProject?.id;
+      if (!targetProjectId) return false;
+      const actionKey = portActionKey(targetProjectId, port);
+      this.portActions[actionKey] = "stopping";
+      this.error = "";
+      try {
+        const result = await stopPortRequest(targetProjectId, port);
+        await this.refreshProject(targetProjectId);
+        if (!result.stopped) {
+          this.error = result.error || `未能停止端口 ${port}`;
+          return false;
+        }
+        return true;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : String(error);
+        return false;
+      } finally {
+        delete this.portActions[actionKey];
+      }
+    },
     async loadLogs(runId?: string) {
       const project = this.selectedProject;
       const targetRun = runId ?? project?.lastRun?.id;
@@ -171,6 +194,9 @@ export const useProjectsStore = defineStore("projects", {
     commandAction(projectId: string, commandId: string): CommandActionState | undefined {
       return this.commandActions[commandActionKey(projectId, commandId)];
     },
+    portAction(projectId: string, port: number): PortActionState | undefined {
+      return this.portActions[portActionKey(projectId, port)];
+    },
     watchRun(projectId: string, runId: string) {
       this.runtimeWatches = { ...this.runtimeWatches, [projectId]: runId };
     },
@@ -197,4 +223,8 @@ export const useProjectsStore = defineStore("projects", {
 
 function commandActionKey(projectId: string, commandId: string): string {
   return `${projectId}:${commandId}`;
+}
+
+function portActionKey(projectId: string, port: number): string {
+  return `${projectId}:port:${port}`;
 }

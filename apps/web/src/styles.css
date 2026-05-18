@@ -669,6 +669,13 @@ h2 {
   font-weight: 560;
 }
 
+.port-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
+
 .port-pill {
   display: inline-flex;
   align-items: center;
@@ -687,6 +694,32 @@ h2 {
   border-color: var(--accent-border);
   background: var(--accent-soft);
   color: var(--text-strong);
+}
+
+.port-stop-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--muted-strong);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.port-stop-button:hover {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+  color: var(--danger);
+}
+
+.port-stop-button:disabled {
+  cursor: wait;
+  opacity: 0.62;
 }
 
 .recovery-facts {
