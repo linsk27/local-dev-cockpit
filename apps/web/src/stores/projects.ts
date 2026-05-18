@@ -42,8 +42,8 @@ export const useProjectsStore = defineStore("projects", {
       this.clearLogs();
       this.context = null;
     },
-    async runCommand(commandId: string) {
-      const project = this.selectedProject;
+    async runCommand(commandId: string, projectId?: string) {
+      const project = projectId ? this.projects.find((item) => item.id === projectId) : this.selectedProject;
       if (!project) return;
       const actionKey = commandActionKey(project.id, commandId);
       this.commandActions[actionKey] = "starting";

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Project } from "@local-dev-cockpit/core";
-import { formatPortUrl, projectMatchesQuery, sortProjectsForDashboard } from "./project-view";
+import { formatPortUrl, projectMatchesQuery, recommendedProjectCommand, sortProjectsForDashboard } from "./project-view";
 
 describe("project dashboard view helpers", () => {
   it("sorts online projects before idle projects", () => {
@@ -29,6 +29,39 @@ describe("project dashboard view helpers", () => {
 
   it("formats ipv6 hosts as browser-safe URLs", () => {
     expect(formatPortUrl({ port: 5173, host: "::1" })).toBe("http://[::1]:5173");
+  });
+
+  it("recommends the failed command before falling back to dev", () => {
+    const target = project({
+      commands: [
+        {
+          id: "script-dev",
+          label: "dev",
+          command: "pnpm",
+          args: ["run", "dev"],
+          cwd: "D:\\personal\\project",
+          source: "package-script",
+          kind: "dev"
+        },
+        {
+          id: "script-start",
+          label: "start",
+          command: "pnpm",
+          args: ["run", "start"],
+          cwd: "D:\\personal\\project",
+          source: "package-script",
+          kind: "start"
+        }
+      ],
+      lastError: {
+        commandId: "script-start",
+        message: "Port already in use",
+        occurredAt: new Date().toISOString()
+      }
+    });
+
+    expect(recommendedProjectCommand(target)?.id).toBe("script-start");
+    expect(recommendedProjectCommand(project())?.id).toBe("script-dev");
   });
 });
 

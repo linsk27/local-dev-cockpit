@@ -1,4 +1,4 @@
-import type { PortStatus, Project } from "@local-dev-cockpit/core";
+import type { Command, PortStatus, Project } from "@local-dev-cockpit/core";
 
 export function visibleProjectPorts(project: Project): PortStatus[] {
   return project.ports.filter((port) => port.status === "open" && port.source !== "common");
@@ -8,12 +8,28 @@ export function runningProjectPorts(project: Project): PortStatus[] {
   return project.ports.filter((port) => port.status === "open" && port.source === "process");
 }
 
+export function primaryRunningPort(project: Project): PortStatus | undefined {
+  return runningProjectPorts(project)[0] ?? visibleProjectPorts(project)[0];
+}
+
 export function detectedProjectPorts(project: Project): PortStatus[] {
   return project.ports.filter((port) => port.status === "open" && port.source === "detected");
 }
 
 export function projectIsOnline(project: Project): boolean {
   return project.lastRun?.status === "running" || visibleProjectPorts(project).length > 0;
+}
+
+export function recommendedProjectCommand(project: Project): Command | undefined {
+  const failedCommand = project.lastError?.commandId
+    ? project.commands.find((command) => command.id === project.lastError?.commandId)
+    : undefined;
+  return (
+    failedCommand ??
+    project.commands.find((command) => command.kind === "dev") ??
+    project.commands.find((command) => command.kind === "start") ??
+    project.commands[0]
+  );
 }
 
 export function formatPortEndpoint(port: Pick<PortStatus, "port" | "host">): string {
