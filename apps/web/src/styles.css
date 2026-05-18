@@ -626,7 +626,16 @@ h2 {
   background: var(--accent-soft);
 }
 
+.command-row.pending {
+  background: color-mix(in srgb, var(--accent-soft) 72%, transparent);
+  opacity: 1;
+}
+
 .command-row.running svg {
+  color: var(--accent);
+}
+
+.command-row.pending svg {
   color: var(--accent);
 }
 

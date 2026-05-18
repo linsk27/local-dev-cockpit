@@ -247,7 +247,7 @@ async function readPackageScripts(projectPath: string, packageManager: NonNullab
 function buildPackageScriptArgs(packageManager: NonNullable<Project["packageManager"]>, scriptName: string, scriptBody: string): string[] {
   const args = ["run", scriptName];
   if (!shouldForceBrowserReachableHost(scriptName, scriptBody)) return args;
-  return packageManager === "yarn" ? [...args, "--host", "127.0.0.1"] : [...args, "--", "--host", "127.0.0.1"];
+  return packageManager === "npm" ? [...args, "--", "--host", "127.0.0.1"] : [...args, "--host", "127.0.0.1"];
 }
 
 function shouldForceBrowserReachableHost(scriptName: string, scriptBody: string): boolean {

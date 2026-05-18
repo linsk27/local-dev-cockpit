@@ -32,6 +32,29 @@ describe("scanRoot", () => {
     expect(vueProject?.commands.find((command) => command.id === "script-build")?.args).toEqual(["run", "build"]);
   });
 
+  it("passes Vite host arguments correctly for pnpm scripts", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-pnpm-"));
+    const projectPath = path.join(root, "pnpm-vite");
+    await fs.mkdir(projectPath, { recursive: true });
+    await fs.writeFile(path.join(projectPath, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n", "utf8");
+    await fs.writeFile(
+      path.join(projectPath, "package.json"),
+      JSON.stringify({ name: "pnpm-vite", scripts: { dev: "vite", build: "vite build" } }),
+      "utf8"
+    );
+
+    const result = await scanRoot(root, { maxDepth: 2 });
+    const project = result.projects.find((item) => item.name === "pnpm-vite");
+
+    expect(project?.commands.find((command) => command.id === "script-dev")?.args).toEqual([
+      "run",
+      "dev",
+      "--host",
+      "127.0.0.1"
+    ]);
+    expect(project?.commands.find((command) => command.id === "script-build")?.args).toEqual(["run", "build"]);
+  });
+
   it("continues scanning inside Git shell repositories without root stack markers", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-scan-"));
     const repo = path.join(root, "git-shell");

@@ -1,6 +1,8 @@
 import { defineStore } from "pinia";
-import type { Project } from "@local-dev-cockpit/core";
+import type { ProcessRun, Project } from "@local-dev-cockpit/core";
 import { getContext, getLogs, getProjects, startCommand, stopProcess, type ContextResponse } from "../api";
+
+export type CommandActionState = "starting" | "stopping";
 
 export const useProjectsStore = defineStore("projects", {
   state: () => ({
@@ -11,6 +13,7 @@ export const useProjectsStore = defineStore("projects", {
     error: "",
     logs: "",
     logsRunId: "",
+    commandActions: {} as Record<string, CommandActionState>,
     context: null as ContextResponse | null
   }),
   getters: {
@@ -42,15 +45,45 @@ export const useProjectsStore = defineStore("projects", {
     async runCommand(commandId: string) {
       const project = this.selectedProject;
       if (!project) return;
-      const result = await startCommand(project.id, commandId);
-      await this.refresh();
-      await this.loadLogs(result.run.id);
+      const actionKey = commandActionKey(project.id, commandId);
+      this.commandActions[actionKey] = "starting";
+      this.error = "";
+      try {
+        const result = await startCommand(project.id, commandId);
+        this.applyRun(project.id, result.run);
+        this.logs = "";
+        this.logsRunId = result.run.id;
+        await this.loadLogs(result.run.id);
+        await this.refresh({ silent: true });
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : String(error);
+      } finally {
+        delete this.commandActions[actionKey];
+      }
     },
     async stop(runId: string, projectId?: string) {
       const targetProjectId = projectId ?? this.selectedProject?.id;
       if (!targetProjectId) return;
-      await stopProcess(targetProjectId, runId);
-      await this.refresh();
+      const project = this.projects.find((item) => item.id === targetProjectId);
+      const commandId = project?.lastRun?.id === runId ? project.lastRun.commandId : undefined;
+      const actionKey = commandId ? commandActionKey(targetProjectId, commandId) : undefined;
+      if (actionKey) this.commandActions[actionKey] = "stopping";
+      this.error = "";
+      try {
+        await stopProcess(targetProjectId, runId);
+        if (project?.lastRun?.id === runId) {
+          this.applyRun(targetProjectId, {
+            ...project.lastRun,
+            status: "stopped",
+            exitedAt: new Date().toISOString()
+          });
+        }
+        await this.refresh({ silent: true });
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : String(error);
+      } finally {
+        if (actionKey) delete this.commandActions[actionKey];
+      }
     },
     async loadLogs(runId?: string) {
       const project = this.selectedProject;
@@ -74,6 +107,16 @@ export const useProjectsStore = defineStore("projects", {
       const project = this.selectedProject;
       if (!project) return;
       this.context = await getContext(project.id);
+    },
+    commandAction(projectId: string, commandId: string): CommandActionState | undefined {
+      return this.commandActions[commandActionKey(projectId, commandId)];
+    },
+    applyRun(projectId: string, run: ProcessRun) {
+      this.projects = this.projects.map((project) => (project.id === projectId ? { ...project, lastRun: run, lastError: undefined } : project));
     }
   }
 });
+
+function commandActionKey(projectId: string, commandId: string): string {
+  return `${projectId}:${commandId}`;
+}

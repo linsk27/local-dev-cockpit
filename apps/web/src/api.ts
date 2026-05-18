@@ -1,4 +1,4 @@
-import type { Project, RecoveryCard } from "@local-dev-cockpit/core";
+import type { ProcessRun, Project, RecoveryCard } from "@local-dev-cockpit/core";
 
 export interface ProjectsResponse {
   projects: Project[];
@@ -27,7 +27,7 @@ export async function startCommand(projectId: string, commandId: string) {
     method: "POST"
   });
   if (!response.ok) throw new Error(`Failed to start command: ${response.status}`);
-  return response.json() as Promise<{ run: { id: string } }>;
+  return response.json() as Promise<{ run: ProcessRun }>;
 }
 
 export async function stopProcess(projectId: string, processId: string) {
@@ -59,4 +59,3 @@ export async function addRoot(path: string) {
   if (!response.ok) throw new Error(`Failed to add root: ${response.status}`);
   return response.json();
 }
-

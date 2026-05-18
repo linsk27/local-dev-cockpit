@@ -5,7 +5,7 @@ import type { Command, ErrorSummary, ProcessRun } from "@local-dev-cockpit/core"
 import type { AppPaths } from "./paths.js";
 import type { JsonStore } from "./store.js";
 import type { EventBus } from "./events.js";
-import { decodeProcessChunk } from "./log-decoder.js";
+import { decodeProcessChunk, stripAnsiControlSequences } from "./log-decoder.js";
 
 interface RunningProcess {
   run: ProcessRun;
@@ -138,10 +138,10 @@ export class ProcessManager {
 
   async readLogs(runId: string): Promise<string> {
     const live = this.running.get(runId);
-    if (live) return live.buffer.join("");
+    if (live) return stripAnsiControlSequences(live.buffer.join(""));
     const logPath = path.join(this.paths.logsDir, `${runId}.log`);
     try {
-      return await fs.readFile(logPath, "utf8");
+      return stripAnsiControlSequences(await fs.readFile(logPath, "utf8"));
     } catch {
       return "";
     }

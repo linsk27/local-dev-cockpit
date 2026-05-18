@@ -9,18 +9,19 @@
         v-for="command in project.commands"
         :key="command.id"
         class="command-row"
-        :class="{ running: isRunningCommand(command.id) }"
-        :disabled="isAnotherCommandRunning(command.id)"
+        :class="{ running: isRunningCommand(command.id), pending: Boolean(commandAction(command.id)) }"
+        :disabled="isAnotherCommandRunning(command.id) || Boolean(commandAction(command.id))"
         :title="commandTitle(command.id)"
         @click="toggleCommand(command.id)"
       >
-        <Square v-if="isRunningCommand(command.id)" :size="15" />
+        <Loader2 v-if="commandAction(command.id)" :size="15" class="spin-icon" />
+        <Square v-else-if="isRunningCommand(command.id)" :size="15" />
         <Play v-else :size="15" />
         <div>
           <strong>{{ command.label }}</strong>
           <span>{{ command.command }} {{ command.args.join(" ") }}</span>
         </div>
-        <em>{{ isRunningCommand(command.id) ? preferences.t("running") : command.kind }}</em>
+        <em>{{ commandStateLabel(command.id, command.kind) }}</em>
       </button>
       <div v-if="project.commands.length === 0" class="muted-block">{{ preferences.t("noCommands") }}</div>
     </div>
@@ -28,7 +29,7 @@
 </template>
 
 <script setup lang="ts">
-import { Play, Square, Terminal } from "lucide-vue-next";
+import { Loader2, Play, Square, Terminal } from "lucide-vue-next";
 import type { Project } from "@local-dev-cockpit/core";
 import { useProjectsStore } from "../../stores/projects";
 import { usePreferencesStore } from "../../stores/preferences";
@@ -45,8 +46,20 @@ function isAnotherCommandRunning(commandId: string): boolean {
   return props.project.lastRun?.status === "running" && props.project.lastRun.commandId !== commandId;
 }
 
+function commandAction(commandId: string) {
+  return store.commandAction(props.project.id, commandId);
+}
+
 function commandTitle(commandId: string): string {
+  if (commandAction(commandId) === "starting") return preferences.t("starting");
+  if (commandAction(commandId) === "stopping") return preferences.t("stopping");
   return isRunningCommand(commandId) ? preferences.t("stopCommand") : preferences.t("runCommand");
+}
+
+function commandStateLabel(commandId: string, fallback: string): string {
+  if (commandAction(commandId) === "starting") return preferences.t("starting");
+  if (commandAction(commandId) === "stopping") return preferences.t("stopping");
+  return isRunningCommand(commandId) ? preferences.t("running") : fallback;
 }
 
 async function toggleCommand(commandId: string): Promise<void> {
