@@ -64,8 +64,8 @@ export const useProjectsStore = defineStore("projects", {
       this.clearLogs();
       this.context = null;
     },
-    async runCommand(commandId: string): Promise<ProcessRun | undefined> {
-      const project = this.selectedProject;
+    async runCommand(commandId: string, projectId?: string): Promise<ProcessRun | undefined> {
+      const project = projectId ? this.projects.find((item) => item.id === projectId) : this.selectedProject;
       if (!project) return;
       const actionKey = commandActionKey(project.id, commandId);
       this.commandActions[actionKey] = "starting";
@@ -76,12 +76,12 @@ export const useProjectsStore = defineStore("projects", {
         this.applyRun(project.id, result.run);
         this.logs = "";
         this.logsRunId = result.run.id;
-        await this.loadLogs(result.run.id);
+        await this.loadLogs(result.run.id, project.id);
         const refreshedProject = await this.refreshProject(project.id);
         const refreshedRun = refreshedProject?.lastRun;
         if (refreshedRun?.id === result.run.id && refreshedRun.status !== "running") {
           this.unwatchRun(project.id, result.run.id);
-          await this.loadLogs(result.run.id);
+          await this.loadLogs(result.run.id, project.id);
           return refreshedRun;
         }
         if (result.run.status === "running" && (!refreshedRun || refreshedRun.id !== result.run.id)) {
@@ -89,7 +89,7 @@ export const useProjectsStore = defineStore("projects", {
         }
         if (result.run.status !== "running") {
           this.unwatchRun(project.id, result.run.id);
-          await this.loadLogs(result.run.id);
+          await this.loadLogs(result.run.id, project.id);
         }
         return result.run;
       } catch (error) {
@@ -156,8 +156,8 @@ export const useProjectsStore = defineStore("projects", {
         delete this.portActions[actionKey];
       }
     },
-    async loadLogs(runId?: string) {
-      const project = this.selectedProject;
+    async loadLogs(runId?: string, projectId?: string) {
+      const project = projectId ? this.projects.find((item) => item.id === projectId) : this.selectedProject;
       const targetRun = runId ?? project?.lastRun?.id;
       if (!project || !targetRun) {
         this.clearLogs();

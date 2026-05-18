@@ -89,13 +89,14 @@ async function toggleCommand(commandId: string): Promise<void> {
     }
     return;
   }
-  const run = await store.runCommand(commandId);
+  const run = await store.runCommand(commandId, props.project.id);
   if (run?.status === "running") {
     notifications.info(preferences.t("commandStartedNotice", { command: commandLabel }));
   } else if (run) {
+    const refreshedProject = store.projects.find((project) => project.id === props.project.id);
     notifications.error(
       preferences.t("commandActionFailedNotice", {
-        message: store.selectedProject?.lastError?.message ?? `${commandLabel} ${run.status}`
+        message: refreshedProject?.lastError?.message ?? `${commandLabel} ${run.status}`
       })
     );
   } else {
