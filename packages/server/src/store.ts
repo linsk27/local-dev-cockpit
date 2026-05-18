@@ -49,7 +49,9 @@ export class JsonStore {
 
   async addRoot(root: string): Promise<AppConfig> {
     const config = await this.readConfig();
-    const resolved = path.resolve(root);
+    const sanitized = sanitizePathInput(root);
+    if (!sanitized) throw new Error("Root path is empty");
+    const resolved = path.resolve(sanitized);
     if (!config.roots.includes(resolved)) {
       config.roots.push(resolved);
     }
@@ -93,6 +95,21 @@ export class JsonStore {
 
 export function rootId(root: string): string {
   return Buffer.from(root, "utf8").toString("base64url");
+}
+
+/**
+ * Paths pasted from browsers, chats, or rich text editors can contain hidden
+ * bidi/zero-width characters before the drive letter. Strip them before
+ * resolving so Windows absolute paths stay absolute.
+ */
+export function sanitizePathInput(input: string): string {
+  const cleaned = input
+    .normalize("NFKC")
+    .replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g, "")
+    .trim();
+  const unwrapped = cleaned.replace(/^["'`]+|["'`]+$/g, "").trim();
+  const drivePath = unwrapped.match(/^[^\w\\/]*([A-Za-z]:[\\/].*)$/);
+  return drivePath?.[1] ?? unwrapped;
 }
 
 async function exists(filePath: string): Promise<boolean> {
