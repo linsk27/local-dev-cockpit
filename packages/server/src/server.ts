@@ -1,4 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import http from "node:http";
+import https from "node:https";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { WebSocketServer } from "ws";
@@ -229,7 +231,7 @@ async function enrichProject(
   const logPorts = managedRun
     ? await extractPortsFromLogs(await processManager.readLogs(managedRun.id), managedRun.status, project.path)
     : [];
-  const externalPorts = findExternalProjectPorts(project, enrichment.externalPortOwnersByProject.get(project.id) ?? []);
+  const externalPorts = await findExternalProjectPorts(project, enrichment.externalPortOwnersByProject.get(project.id) ?? []);
   const processPorts = filterStaleLogPorts(project.id, managedRun, logPorts, externalPorts, enrichment.externalPortClaims);
   const scannedPorts = normalizeScannedPorts(project, externalPorts, enrichment.detectedPortCounts);
   const currentRun = hydrateLastRun(managedRun, processPorts);
@@ -341,15 +343,17 @@ export function filterStaleLogPorts(
   });
 }
 
-function findExternalProjectPorts(project: Project, owners: ExternalPortOwner[]): PortStatus[] {
+async function findExternalProjectPorts(project: Project, owners: ExternalPortOwner[]): Promise<PortStatus[]> {
   const ports = new Map<string, PortStatus>();
   for (const owner of owners) {
     if (!commandLineReferencesProject(owner.commandLine, project.path)) continue;
     const host = normalizeExternalHost(owner.host);
+    const url = formatLocalUrl(owner.port, host);
+    if (!(await isLocalHttpEndpointReachable({ port: owner.port, host, url }))) continue;
     const endpoint: PortStatus = {
       port: owner.port,
       host,
-      url: formatLocalUrl(owner.port, host),
+      url,
       status: "open",
       source: "detected"
     };
@@ -531,8 +535,50 @@ function formatLocalUrl(port: number, host: string): string {
 }
 
 async function isEndpointOpen(processAdapter: NodeProcessAdapter, endpoint: Pick<PortStatus, "port" | "host">): Promise<boolean> {
+  if ("url" in endpoint && typeof endpoint.url === "string") {
+    return isLocalHttpEndpointReachable(endpoint as Pick<PortStatus, "port" | "host" | "url">);
+  }
   if (!endpoint.host || endpoint.host === "localhost") return processAdapter.isPortOpen(endpoint.port);
   return processAdapter.isPortOpen(endpoint.port, endpoint.host);
+}
+
+export function isLocalHttpEndpointReachable(endpoint: Pick<PortStatus, "port" | "host" | "url">, timeoutMs = 2500): Promise<boolean> {
+  const targetUrl = endpoint.url ?? formatLocalUrl(endpoint.port, endpoint.host ?? "localhost");
+  return new Promise((resolve) => {
+    let finished = false;
+    let request: http.ClientRequest | undefined;
+    const finish = (reachable: boolean) => {
+      if (finished) return;
+      finished = true;
+      request?.destroy();
+      resolve(reachable);
+    };
+    let parsed: URL;
+    try {
+      parsed = new URL(targetUrl);
+    } catch {
+      resolve(false);
+      return;
+    }
+    const client = parsed.protocol === "https:" ? https : http;
+    const options: http.RequestOptions & { rejectUnauthorized?: boolean } = {
+      method: "GET",
+      timeout: timeoutMs,
+      headers: { "user-agent": "Dev-Cockpit/health-check" },
+      rejectUnauthorized: false
+    };
+    request = client.request(
+      parsed,
+      options,
+      (response) => {
+        response.resume();
+        finish(true);
+      }
+    );
+    request.once("timeout", () => finish(false));
+    request.once("error", () => finish(false));
+    request.end();
+  });
 }
 
 async function resolveReachableEndpoint(

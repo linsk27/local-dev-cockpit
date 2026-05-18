@@ -1,9 +1,11 @@
+import { createServer } from "node:http";
 import { describe, expect, it } from "vitest";
 import type { Project } from "@local-dev-cockpit/core";
 import {
   assignExternalPortOwners,
   commandLineReferencesProject,
   filterStaleLogPorts,
+  isLocalHttpEndpointReachable,
   logIndicatesExistingServer,
   parseExternalPortOwners,
   parseLocalEndpointsFromLogs,
@@ -145,6 +147,21 @@ describe("filterStaleLogPorts", () => {
   });
 });
 
+describe("isLocalHttpEndpointReachable", () => {
+  it("requires an HTTP response before a local endpoint is treated as reachable", async () => {
+    const server = createServer((_request, response) => {
+      response.end("ok");
+    });
+    const port = await listenOnRandomPort(server);
+    try {
+      await expect(isLocalHttpEndpointReachable({ port, host: "127.0.0.1", url: `http://127.0.0.1:${port}` })).resolves.toBe(true);
+      await expect(isLocalHttpEndpointReachable({ port: 9, host: "127.0.0.1", url: "http://127.0.0.1:9" }, 300)).resolves.toBe(false);
+    } finally {
+      await closeServer(server);
+    }
+  });
+});
+
 describe("logIndicatesExistingServer", () => {
   it("recognizes duplicate dev server and port-in-use failures", () => {
     expect(logIndicatesExistingServer("Another next dev server is already running.")).toBe(true);
@@ -173,4 +190,22 @@ function project(id: string, projectPath: string): Project {
     ports: [],
     markers: []
   };
+}
+
+function listenOnRandomPort(server: ReturnType<typeof createServer>): Promise<number> {
+  return new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      if (typeof address === "object" && address) {
+        resolve(address.port);
+        return;
+      }
+      reject(new Error("No server address"));
+    });
+  });
+}
+
+function closeServer(server: ReturnType<typeof createServer>): Promise<void> {
+  return new Promise((resolve) => server.close(() => resolve()));
 }
