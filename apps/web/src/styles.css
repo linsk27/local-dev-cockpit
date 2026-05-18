@@ -756,11 +756,17 @@ h2 {
   opacity: 1;
 }
 
+.command-row.online {
+  background: color-mix(in srgb, var(--success) 9%, transparent);
+  opacity: 1;
+}
+
 .command-row.running svg {
   color: var(--accent);
 }
 
-.command-row.pending svg {
+.command-row.pending svg,
+.command-row.online svg {
   color: var(--accent);
 }
 
@@ -771,6 +777,10 @@ h2 {
 
 .command-row:disabled:hover {
   background: transparent;
+}
+
+.command-row.online:disabled:hover {
+  background: color-mix(in srgb, var(--success) 9%, transparent);
 }
 
 .command-row strong,

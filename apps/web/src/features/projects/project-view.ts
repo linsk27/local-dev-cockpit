@@ -12,6 +12,15 @@ export function detectedProjectPorts(project: Project): PortStatus[] {
   return project.ports.filter((port) => port.status === "open" && port.source === "detected");
 }
 
+export function commandWouldReuseOpenPort(project: Project, command: Command): boolean {
+  if (project.lastRun?.status === "running") return false;
+  const openPorts = visibleProjectPorts(project);
+  if (openPorts.length === 0) return false;
+  const declaredPorts = commandDeclaredPorts(command);
+  if (declaredPorts.length > 0) return declaredPorts.some((port) => openPorts.some((item) => item.port === port));
+  return command.kind === "dev" || command.kind === "start";
+}
+
 export function projectIsOnline(project: Project): boolean {
   return project.lastRun?.status === "running" || visibleProjectPorts(project).length > 0;
 }
@@ -119,4 +128,14 @@ function normalizePath(value: string): string {
 
 function formatUrlHost(host: string): string {
   return host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
+}
+
+function commandDeclaredPorts(command: Command): number[] {
+  const text = `${command.command} ${command.args.join(" ")}`;
+  const ports = new Set<number>();
+  for (const match of text.matchAll(/(?:--port(?:=|\s+)|-p\s+|PORT=|:)(\d{2,5})/gi)) {
+    const port = Number(match[1]);
+    if (Number.isInteger(port) && port > 0 && port < 65536) ports.add(port);
+  }
+  return [...ports];
 }

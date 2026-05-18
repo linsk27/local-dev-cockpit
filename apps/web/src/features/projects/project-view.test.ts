@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Project } from "@local-dev-cockpit/core";
 import {
+  commandWouldReuseOpenPort,
   formatDisplayPath,
   formatPortUrl,
   projectHasAlreadyRunningConflict,
@@ -88,6 +89,25 @@ describe("project dashboard view helpers", () => {
 
     expect(projectHasAlreadyRunningConflict(alreadyRunning)).toBe(true);
     expect(projectHasFailed(alreadyRunning)).toBe(false);
+  });
+
+  it("blocks a command that would bind an already open declared port", () => {
+    expect(
+      commandWouldReuseOpenPort(
+        project({
+          ports: [{ port: 8000, status: "open", source: "detected" }]
+        }),
+        {
+          id: "python-fastapi-app-main",
+          label: "Uvicorn app.main",
+          command: "python",
+          args: ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8000"],
+          cwd: "backend",
+          source: "detected",
+          kind: "dev"
+        }
+      )
+    ).toBe(true);
   });
 
   it("formats ipv6 hosts as browser-safe URLs", () => {

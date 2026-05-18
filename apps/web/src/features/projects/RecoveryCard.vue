@@ -59,7 +59,6 @@ import {
   formatPortUrl,
   projectHasAlreadyRunningConflict,
   recommendedProjectCommand,
-  runningProjectPorts,
   visibleProjectPorts
 } from "./project-view";
 
@@ -71,8 +70,11 @@ const ports = computed(() => {
   return open.length > 0 ? open.join(", ") : preferences.t("none");
 });
 
-const runningPorts = computed(() => runningProjectPorts(props.project));
-const detectedPorts = computed(() => detectedProjectPorts(props.project));
+const runningPorts = computed(() => visibleProjectPorts(props.project));
+const detectedPorts = computed(() => {
+  const displayed = new Set(runningPorts.value.map((port) => `${port.host ?? ""}:${port.port}`));
+  return detectedProjectPorts(props.project).filter((port) => !displayed.has(`${port.host ?? ""}:${port.port}`));
+});
 const recommendedCommand = computed(() => recommendedProjectCommand(props.project));
 
 const summary = computed(() => {
