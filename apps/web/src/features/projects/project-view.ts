@@ -8,10 +8,6 @@ export function runningProjectPorts(project: Project): PortStatus[] {
   return project.ports.filter((port) => port.status === "open" && port.source === "process");
 }
 
-export function primaryRunningPort(project: Project): PortStatus | undefined {
-  return runningProjectPorts(project)[0] ?? visibleProjectPorts(project)[0];
-}
-
 export function detectedProjectPorts(project: Project): PortStatus[] {
   return project.ports.filter((port) => port.status === "open" && port.source === "detected");
 }

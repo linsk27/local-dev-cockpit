@@ -543,41 +543,6 @@ h2 {
   line-height: 1.55;
 }
 
-.recovery-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 16px;
-}
-
-.primary-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 126px;
-  min-height: 38px;
-  gap: 8px;
-  padding: 0 14px;
-  border: 1px solid var(--accent-border);
-  border-radius: 8px;
-  background: var(--accent);
-  color: var(--accent-contrast);
-  font-weight: 720;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.primary-action.secondary {
-  border-color: var(--border);
-  background: var(--surface-soft);
-  color: var(--text-strong);
-}
-
-.primary-action:disabled {
-  cursor: wait;
-  opacity: 0.72;
-}
-
 .port-overview {
   display: grid;
   gap: 8px;
