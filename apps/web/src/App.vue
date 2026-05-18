@@ -5,22 +5,22 @@
         <div class="brand-mark">DC</div>
         <div>
           <strong>Dev Cockpit</strong>
-          <span>Local workspace</span>
+          <span>{{ preferences.t("appSubtitle") }}</span>
         </div>
       </div>
       <nav class="nav">
         <RouterLink to="/" class="nav-link">
           <LayoutDashboard :size="17" />
-          Projects
+          {{ preferences.t("navProjects") }}
         </RouterLink>
         <RouterLink to="/settings" class="nav-link">
           <Settings :size="17" />
-          Settings
+          {{ preferences.t("navSettings") }}
         </RouterLink>
       </nav>
       <div class="sidebar-footer">
-        <span>Local only</span>
-        <span>No cloud sync</span>
+        <span>{{ preferences.t("localOnly") }}</span>
+        <span>{{ preferences.t("noCloudSync") }}</span>
       </div>
     </aside>
     <main class="main-surface">
@@ -31,5 +31,7 @@
 
 <script setup lang="ts">
 import { LayoutDashboard, Settings } from "lucide-vue-next";
-</script>
+import { usePreferencesStore } from "./stores/preferences";
 
+const preferences = usePreferencesStore();
+</script>

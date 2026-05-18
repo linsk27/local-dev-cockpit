@@ -1,7 +1,7 @@
 <template>
   <section class="project-list surface">
     <div class="surface-heading">
-      <span>Projects</span>
+      <span>{{ preferences.t("projectsHeading") }}</span>
       <strong>{{ projects.length }}</strong>
     </div>
     <button
@@ -19,7 +19,7 @@
         </div>
       </div>
       <div class="project-row-meta">
-        <span>{{ project.git.dirtyCount }} dirty</span>
+        <span>{{ project.git.dirtyCount }} {{ preferences.t("dirty") }}</span>
         <span>{{ openPorts(project) }}</span>
       </div>
     </button>
@@ -28,6 +28,9 @@
 
 <script setup lang="ts">
 import type { Project } from "@local-dev-cockpit/core";
+import { usePreferencesStore } from "../../stores/preferences";
+
+const preferences = usePreferencesStore();
 
 defineProps<{
   projects: Project[];
@@ -47,6 +50,6 @@ function statusClass(project: Project): string {
 
 function openPorts(project: Project): string {
   const open = project.ports.filter((port) => port.status === "open" && port.source !== "common").map((port) => port.port);
-  return open.length > 0 ? open.join(", ") : "idle";
+  return open.length > 0 ? open.join(", ") : preferences.t("idle");
 }
 </script>

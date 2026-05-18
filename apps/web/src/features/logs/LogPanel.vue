@@ -1,8 +1,10 @@
 <template>
   <section class="surface log-panel">
     <div class="surface-heading">
-      <span>Logs</span>
-      <button class="text-button" :disabled="!project.lastRun" @click="store.loadLogs()">Reload</button>
+      <span>{{ preferences.t("logs") }}</span>
+      <button class="text-button" :disabled="!project.lastRun" @click="store.loadLogs()">
+        {{ preferences.t("reload") }}
+      </button>
     </div>
     <pre>{{ store.logs || placeholder }}</pre>
   </section>
@@ -12,12 +14,14 @@
 import { computed, watch } from "vue";
 import type { Project } from "@local-dev-cockpit/core";
 import { useProjectsStore } from "../../stores/projects";
+import { usePreferencesStore } from "../../stores/preferences";
 
 const props = defineProps<{ project: Project }>();
 const store = useProjectsStore();
+const preferences = usePreferencesStore();
 
 const placeholder = computed(() =>
-  props.project.lastRun ? "Logs are empty for this run." : "Run a command to start collecting logs."
+  props.project.lastRun ? preferences.t("emptyRunLogs") : preferences.t("runCommandPrompt")
 );
 
 watch(
@@ -26,4 +30,3 @@ watch(
   { immediate: true }
 );
 </script>
-

@@ -14,6 +14,10 @@ http://localhost:8787
 
 ![Dev Cockpit Dashboard](docs/assets/dashboard.png)
 
+主题、强调色和语言可在设置页直接切换：
+
+![Dev Cockpit Appearance Settings](docs/assets/settings-themes.png)
+
 ## 它解决什么问题
 
 个人开发和 AI 编程的真实痛点不是“看不到代码”，而是经常丢失开发现场：
@@ -33,6 +37,7 @@ Dev Cockpit 只做一件事：本地项目现场恢复。它不接云端账号�
 - 显示 Git 分支、未提交文件数、最近提交、端口状态和最近失败。
 - 在面板里启动/停止命令，日志写入本地文件并实时显示。
 - 一键生成 `PROJECT_CONTEXT.md` 和 `AGENTS.md` 内容，方便交给 AI coding agent。
+- 支持中文/英文、多主题和多强调色，偏好保存在浏览器本地。
 - 默认端口 `8787`，占用时自动尝试 `8788-8799`。
 
 ## 快速使用
@@ -75,7 +80,7 @@ npx local-dev-cockpit context D:\个人\my-project --write
 
 - 项目列表：项目名、路径、技术栈、Git 分支、dirty 文件数、端口和运行状态。
 - 项目详情：恢复卡片、命令区、实时日志、端口区、Git 区、AI 上下文区。
-- 设置页：项目根目录、忽略规则、默认编辑器命令。
+- 设置页：项目根目录、语言、主题模式和强调色。
 
 ## 本地数据
 

@@ -1,7 +1,7 @@
 <template>
   <section class="surface command-panel">
     <div class="surface-heading">
-      <span>Commands</span>
+      <span>{{ preferences.t("commands") }}</span>
       <Terminal :size="16" />
     </div>
     <div class="command-list">
@@ -18,7 +18,7 @@
         </div>
         <em>{{ command.kind }}</em>
       </button>
-      <div v-if="project.commands.length === 0" class="muted-block">No commands detected.</div>
+      <div v-if="project.commands.length === 0" class="muted-block">{{ preferences.t("noCommands") }}</div>
     </div>
   </section>
 </template>
@@ -27,8 +27,9 @@
 import { Play, Terminal } from "lucide-vue-next";
 import type { Project } from "@local-dev-cockpit/core";
 import { useProjectsStore } from "../../stores/projects";
+import { usePreferencesStore } from "../../stores/preferences";
 
 defineProps<{ project: Project }>();
 const store = useProjectsStore();
+const preferences = usePreferencesStore();
 </script>
-

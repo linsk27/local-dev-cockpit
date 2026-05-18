@@ -20,6 +20,23 @@ packages/core
 
 `core` 是最稳定的边界。它不依赖 Vue、HTTP、CLI，也不直接假设桌面端存在。未来 Electron/Tauri 只需要复用 `apps/web` 和 `packages/server`。
 
+## 前端偏好
+
+语言、主题和强调色属于纯展示偏好，第一版保存在浏览器 `localStorage`，不写入 server 配置文件。这样做可以保持本地服务配置简单，也避免未来多设备同步前过早设计复杂 schema。
+
+相关代码：
+
+```txt
+apps/web/src/stores/preferences.ts
+apps/web/src/styles.css
+```
+
+当前支持：
+
+- 语言：中文、英文。
+- 主题：跟随系统、深色、浅色。
+- 强调色：紫色、青色、绿色、琥珀色、玫瑰色。
+
 ## 数据流
 
 ```mermaid

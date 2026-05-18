@@ -2,11 +2,11 @@
   <section class="workspace">
     <header class="workspace-header">
       <div>
-        <p class="eyebrow">PROJECTS</p>
-        <h1>Restore your local development state</h1>
+        <p class="eyebrow">{{ preferences.t("projectsEyebrow") }}</p>
+        <h1>{{ preferences.t("projectsTitle") }}</h1>
       </div>
       <div class="header-actions">
-        <button class="icon-button" title="Refresh projects" @click="store.refresh">
+        <button class="icon-button" :title="preferences.t('refreshProjects')" @click="store.refresh">
           <RefreshCw :size="18" />
         </button>
       </div>
@@ -19,8 +19,8 @@
       <ProjectDetail v-if="store.selectedProject" :project="store.selectedProject" />
       <section v-else class="empty-state">
         <FolderSearch :size="34" />
-        <h2>No projects found</h2>
-        <p>Add a root directory in Settings or run <code>local-dev-cockpit add-root &lt;dir&gt;</code>.</p>
+        <h2>{{ preferences.t("emptyTitle") }}</h2>
+        <p>{{ preferences.t("emptyDescription") }}</p>
       </section>
     </div>
   </section>
@@ -30,10 +30,11 @@
 import { onMounted } from "vue";
 import { FolderSearch, RefreshCw } from "lucide-vue-next";
 import { useProjectsStore } from "../../stores/projects";
+import { usePreferencesStore } from "../../stores/preferences";
 import ProjectDetail from "./ProjectDetail.vue";
 import ProjectList from "./ProjectList.vue";
 
 const store = useProjectsStore();
+const preferences = usePreferencesStore();
 onMounted(() => void store.refresh());
 </script>
-
