@@ -54,6 +54,7 @@ export async function scanRoot(
   const timeoutMs = options.timeoutMs ?? 15000;
   const projectCandidates: Array<{ path: string; reason: "marker" | "git-root" }> = [];
   const warnings: string[] = [];
+  const portProbeCache = new Map<string, Promise<boolean>>();
 
   async function walk(dir: string, depth: number): Promise<void> {
     if (Date.now() - startedAt > timeoutMs) {
@@ -95,7 +96,7 @@ export async function scanRoot(
 
   for (const candidate of projectCandidates) {
     try {
-      const project = await analyzeProject(candidate.path, { fs, process: processAdapter });
+      const project = await analyzeProject(candidate.path, { fs, process: processAdapter }, portProbeCache);
       if (shouldKeepScannedProject(project, candidate.reason)) {
         projects.push(project);
       }
@@ -145,13 +146,17 @@ function shouldKeepScannedProject(project: Project, reason: "marker" | "git-root
   return project.markers.some((marker) => marker !== "package.json");
 }
 
-export async function analyzeProject(projectPath: string, adapters: Required<ScannerAdapters>): Promise<Project> {
+export async function analyzeProject(
+  projectPath: string,
+  adapters: Required<ScannerAdapters>,
+  portProbeCache = new Map<string, Promise<boolean>>()
+): Promise<Project> {
   const markers = await detectMarkers(projectPath, adapters.fs);
   const kind = resolveProjectKind(markers);
   const packageManager = await detectPackageManager(projectPath, adapters.fs);
   const commands = await detectCommands(projectPath, markers, packageManager, adapters.fs);
   const git = await readGitInfo(projectPath, adapters.process);
-  const ports = await detectPorts(commands, kind, adapters.process);
+  const ports = await detectPorts(commands, kind, adapters.process, portProbeCache);
 
   return {
     id: encodeProjectId(projectPath),
@@ -367,7 +372,12 @@ async function readGitInfo(projectPath: string, processAdapter: ProcessAdapter):
   };
 }
 
-async function detectPorts(commands: Command[], kind: ProjectKind, processAdapter: ProcessAdapter): Promise<PortStatus[]> {
+async function detectPorts(
+  commands: Command[],
+  kind: ProjectKind,
+  processAdapter: ProcessAdapter,
+  portProbeCache: Map<string, Promise<boolean>>
+): Promise<PortStatus[]> {
   const fromCommands = new Set<number>();
   for (const item of commands) {
     const text = `${item.command} ${item.args.join(" ")}`;
@@ -381,15 +391,25 @@ async function detectPorts(commands: Command[], kind: ProjectKind, processAdapte
 
   const candidates = [...fromCommands, ...COMMON_PORTS_BY_KIND[kind]].slice(0, 8);
   const unique = [...new Set(candidates)];
-  const statuses: PortStatus[] = [];
-
-  for (const port of unique) {
-    statuses.push({
+  return Promise.all(
+    unique.map(async (port) => ({
       port,
-      status: (await processAdapter.isPortOpen(port)) ? "open" : "closed",
+      status: (await cachedPortProbe(processAdapter, port, undefined, portProbeCache)) ? "open" : "closed",
       source: fromCommands.has(port) ? "detected" : "common"
-    });
-  }
+    }))
+  );
+}
 
-  return statuses;
+function cachedPortProbe(
+  processAdapter: ProcessAdapter,
+  port: number,
+  host: string | undefined,
+  cache: Map<string, Promise<boolean>>
+): Promise<boolean> {
+  const key = `${host ?? "*"}:${port}`;
+  const cached = cache.get(key);
+  if (cached) return cached;
+  const probe = processAdapter.isPortOpen(port, host);
+  cache.set(key, probe);
+  return probe;
 }

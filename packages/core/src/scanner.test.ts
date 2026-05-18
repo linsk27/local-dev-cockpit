@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import { describe, expect, it } from "vitest";
 import { createRecoveryCard, renderProjectContext, scanRoot } from "./index.js";
+import type { ProcessAdapter } from "./adapters.js";
 
 const fixtureRoot = path.resolve("../../fixtures/projects");
 
@@ -142,6 +143,34 @@ describe("scanRoot", () => {
     const project = result.projects.find((item) => item.name === "api");
 
     expect(project?.commands.find((command) => command.id === "python-run")?.args).toEqual(["run.py"]);
+  });
+
+  it("deduplicates common port probes during a single scan", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-port-cache-"));
+    for (const name of ["app-a", "app-b"]) {
+      const app = path.join(root, name);
+      await fs.mkdir(app, { recursive: true });
+      await fs.writeFile(path.join(app, "package.json"), JSON.stringify({ name, scripts: { dev: "vite" } }), "utf8");
+    }
+
+    const probes = new Map<string, number>();
+    const processAdapter: ProcessAdapter = {
+      async execFile() {
+        return { stdout: "", stderr: "", exitCode: 0 };
+      },
+      async isPortOpen(port, host) {
+        const key = `${host ?? "*"}:${port}`;
+        probes.set(key, (probes.get(key) ?? 0) + 1);
+        return false;
+      }
+    };
+
+    const result = await scanRoot(root, { maxDepth: 2 }, { process: processAdapter });
+
+    expect(result.projects.map((project) => project.name).sort()).toEqual(["app-a", "app-b"]);
+    expect(probes.get("*:3000")).toBe(1);
+    expect(probes.get("*:5173")).toBe(1);
+    expect([...probes.values()].every((count) => count === 1)).toBe(true);
   });
 
   it("renders recovery and AI context without external AI calls", async () => {

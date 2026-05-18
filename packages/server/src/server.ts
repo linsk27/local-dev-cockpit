@@ -26,6 +26,8 @@ import { ProcessManager } from "./process-manager.js";
 import { JsonStore, rootId } from "./store.js";
 
 const addRootSchema = z.object({ path: z.string().min(1) });
+const PROJECT_SCAN_CACHE_TTL_MS = 20_000;
+const EXTERNAL_PORT_OWNER_CACHE_TTL_MS = 5_000;
 
 export interface DevCockpitServerOptions {
   cwd?: string;
@@ -45,11 +47,12 @@ export async function startDevCockpitServer(options: DevCockpitServerOptions = {
   await store.ensure();
   const eventBus = new EventBus();
   const processManager = new ProcessManager(paths, store, eventBus);
+  const projectCache = new ProjectScanCache();
   const webRoot = options.webRoot ? path.resolve(options.webRoot) : undefined;
 
   const server = createServer(async (req, res) => {
     try {
-      await route(req, res, { store, processManager, webRoot });
+      await route(req, res, { store, processManager, projectCache, webRoot });
     } catch (error) {
       sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
     }
@@ -78,7 +81,7 @@ export async function startDevCockpitServer(options: DevCockpitServerOptions = {
 async function route(
   req: IncomingMessage,
   res: ServerResponse,
-  context: { store: JsonStore; processManager: ProcessManager; webRoot?: string }
+  context: { store: JsonStore; processManager: ProcessManager; projectCache: ProjectScanCache; webRoot?: string }
 ): Promise<void> {
   const url = new URL(req.url ?? "/", "http://localhost");
   const method = req.method ?? "GET";
@@ -89,7 +92,8 @@ async function route(
   }
 
   if (method === "GET" && url.pathname === "/api/projects") {
-    const projects = await loadProjects(context.store, context.processManager);
+    const force = url.searchParams.get("force") === "1";
+    const projects = await context.projectCache.get(force, () => loadProjects(context.store, context.processManager));
     sendJson(res, 200, { projects });
     return;
   }
@@ -108,6 +112,7 @@ async function route(
   if (method === "POST" && url.pathname === "/api/roots") {
     const body = addRootSchema.parse(await readJson(req));
     const config = await context.store.addRoot(body.path);
+    context.projectCache.invalidate();
     sendJson(res, 200, { config });
     return;
   }
@@ -115,6 +120,7 @@ async function route(
   const rootDelete = url.pathname.match(/^\/api\/roots\/([^/]+)$/);
   if (method === "DELETE" && rootDelete) {
     const config = await context.store.removeRoot(rootDelete[1] ?? "");
+    context.projectCache.invalidate();
     sendJson(res, 200, { config });
     return;
   }
@@ -135,6 +141,7 @@ async function route(
       return;
     }
     const run = await context.processManager.start(project.id, command);
+    context.projectCache.invalidate();
     sendJson(res, 200, { run });
     return;
   }
@@ -145,10 +152,12 @@ async function route(
     const runId = decodeURIComponent(stopMatch[2] ?? "");
     const stoppedRun = await context.processManager.stop(runId);
     if (stoppedRun) {
+      context.projectCache.invalidate();
       sendJson(res, 200, { stopped: true, run: stoppedRun });
       return;
     }
     const staleRun = await context.store.markRunStopped(projectId, runId);
+    context.projectCache.invalidate();
     sendJson(res, 200, { stopped: false, run: staleRun });
     return;
   }
@@ -168,6 +177,7 @@ async function route(
       if (run) await context.store.markRunStopped(projectId, run.id);
       await context.store.clearError(projectId);
     }
+    context.projectCache.invalidate();
     sendJson(res, 200, result);
     return;
   }
@@ -220,6 +230,31 @@ async function loadProject(id: string, store: JsonStore, processManager: Process
   return enrichProject(project, state.runs[project.id], state.errors[project.id], processManager, await createEnrichmentContext([project]));
 }
 
+class ProjectScanCache {
+  private value?: { expiresAt: number; projects: Project[] };
+  private inflight?: Promise<Project[]>;
+
+  async get(force: boolean, load: () => Promise<Project[]>): Promise<Project[]> {
+    const now = Date.now();
+    if (!force && this.value && this.value.expiresAt > now) return this.value.projects;
+    if (!force && this.inflight) return this.inflight;
+
+    this.inflight = load()
+      .then((projects) => {
+        this.value = { expiresAt: Date.now() + PROJECT_SCAN_CACHE_TTL_MS, projects };
+        return projects;
+      })
+      .finally(() => {
+        this.inflight = undefined;
+      });
+    return this.inflight;
+  }
+
+  invalidate(): void {
+    this.value = undefined;
+  }
+}
+
 async function enrichProject(
   project: Project,
   lastRun: ProcessRun | undefined,
@@ -259,13 +294,32 @@ export interface ExternalPortOwner {
 }
 
 async function createEnrichmentContext(projects: Project[]): Promise<EnrichmentContext> {
-  const externalPortOwners = await detectExternalPortOwners(new NodeProcessAdapter());
+  const externalPortOwners = await getCachedExternalPortOwners(new NodeProcessAdapter());
   const externalPortOwnersByProject = assignExternalPortOwners(projects, externalPortOwners);
   return {
     externalPortOwnersByProject,
     externalPortClaims: mapExternalPortClaims(externalPortOwnersByProject),
     detectedPortCounts: countDetectedPortOwners(projects)
   };
+}
+
+let externalPortOwnersCache: { expiresAt: number; owners: ExternalPortOwner[] } | undefined;
+let externalPortOwnersInflight: Promise<ExternalPortOwner[]> | undefined;
+
+async function getCachedExternalPortOwners(processAdapter: NodeProcessAdapter): Promise<ExternalPortOwner[]> {
+  const now = Date.now();
+  if (externalPortOwnersCache && externalPortOwnersCache.expiresAt > now) return externalPortOwnersCache.owners;
+  if (externalPortOwnersInflight) return externalPortOwnersInflight;
+
+  externalPortOwnersInflight = detectExternalPortOwners(processAdapter)
+    .then((owners) => {
+      externalPortOwnersCache = { expiresAt: Date.now() + EXTERNAL_PORT_OWNER_CACHE_TTL_MS, owners };
+      return owners;
+    })
+    .finally(() => {
+      externalPortOwnersInflight = undefined;
+    });
+  return externalPortOwnersInflight;
 }
 
 function mapExternalPortClaims(externalPortOwnersByProject: Map<string, ExternalPortOwner[]>): Map<number, Set<string>> {

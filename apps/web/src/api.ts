@@ -27,8 +27,8 @@ export interface StopPortResponse {
   error?: string;
 }
 
-export async function getProjects(): Promise<Project[]> {
-  const response = await fetch("/api/projects");
+export async function getProjects(options: { force?: boolean } = {}): Promise<Project[]> {
+  const response = await fetch(options.force ? "/api/projects?force=1" : "/api/projects");
   if (!response.ok) throw new Error(`Failed to load projects: ${response.status}`);
   return ((await response.json()) as ProjectsResponse).projects;
 }

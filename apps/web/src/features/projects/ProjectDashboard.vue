@@ -91,6 +91,9 @@ const selectedRootId = ref("all");
 const roots = ref<RootEntry[]>([]);
 const rootMenuOpen = ref(false);
 const rootFilterRef = ref<HTMLElement | null>(null);
+const RUNTIME_REFRESH_INTERVAL_MS = 3_000;
+const OVERVIEW_REFRESH_INTERVAL_MS = 30_000;
+const FOCUS_REFRESH_STALE_MS = 10_000;
 
 const rootOptions = computed(() => [
   { id: "all", label: preferences.t("allRootsOption") },
@@ -133,9 +136,11 @@ watch(
 
 let runtimeRefreshTimer: number | undefined;
 let overviewRefreshTimer: number | undefined;
+let lastOverviewRefreshAt = 0;
 const notifiedFailedRunIds = new Set<string>();
 
 async function refreshRuntimeState(): Promise<void> {
+  if (document.visibilityState === "hidden") return;
   if (!hasRuntimeWatch.value) return;
   const watchedBefore = captureWatchedRuns();
   await Promise.all([...watchedBefore.keys()].map((projectId) => store.refreshProject(projectId)));
@@ -149,14 +154,17 @@ async function refreshRuntimeState(): Promise<void> {
 }
 
 async function refreshExternalProjectState(): Promise<void> {
+  if (document.visibilityState === "hidden") return;
   if (store.loading || store.refreshing) return;
-  await store.refresh({ silent: true });
+  const refreshed = await store.refresh({ silent: true });
+  if (refreshed) lastOverviewRefreshAt = Date.now();
 }
 
 async function refreshProjects(): Promise<void> {
   await loadRoots();
-  const refreshed = await store.refresh();
+  const refreshed = await store.refresh({ force: true });
   if (refreshed) {
+    lastOverviewRefreshAt = Date.now();
     notifications.success(preferences.t("projectsRefreshedNotice", { count: scopedProjects.value.length }));
   } else {
     notifications.error(preferences.t("refreshFailedNotice", { message: store.error || preferences.t("refreshProjects") }));
@@ -210,13 +218,27 @@ function notifyFailedRuns(watchedBefore: Map<string, string>): void {
   }
 }
 
+async function initialRefresh(): Promise<void> {
+  const refreshed = await store.refresh({ force: true });
+  if (refreshed) lastOverviewRefreshAt = Date.now();
+}
+
+function refreshAfterVisibilityChange(): void {
+  if (document.visibilityState === "hidden") return;
+  void refreshRuntimeState();
+  if (Date.now() - lastOverviewRefreshAt > FOCUS_REFRESH_STALE_MS) {
+    void refreshExternalProjectState();
+  }
+}
+
 onMounted(() => {
   void loadRoots();
-  void store.refresh();
+  void initialRefresh();
   document.addEventListener("click", closeRootMenuOnOutsideClick);
   window.addEventListener("keydown", closeRootMenuOnEscape);
-  runtimeRefreshTimer = window.setInterval(() => void refreshRuntimeState(), 2000);
-  overviewRefreshTimer = window.setInterval(() => void refreshExternalProjectState(), 6000);
+  document.addEventListener("visibilitychange", refreshAfterVisibilityChange);
+  runtimeRefreshTimer = window.setInterval(() => void refreshRuntimeState(), RUNTIME_REFRESH_INTERVAL_MS);
+  overviewRefreshTimer = window.setInterval(() => void refreshExternalProjectState(), OVERVIEW_REFRESH_INTERVAL_MS);
 });
 
 onBeforeUnmount(() => {
@@ -224,5 +246,6 @@ onBeforeUnmount(() => {
   if (overviewRefreshTimer) window.clearInterval(overviewRefreshTimer);
   document.removeEventListener("click", closeRootMenuOnOutsideClick);
   window.removeEventListener("keydown", closeRootMenuOnEscape);
+  document.removeEventListener("visibilitychange", refreshAfterVisibilityChange);
 });
 </script>
