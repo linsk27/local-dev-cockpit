@@ -22,7 +22,14 @@ describe("scanRoot", () => {
     const vueProject = result.projects.find((project) => project.name === "vue-app");
 
     expect(vueProject?.commands.some((command) => command.id === "script-dev")).toBe(true);
-    expect(vueProject?.commands.find((command) => command.id === "script-dev")?.args).toEqual(["run", "dev"]);
+    expect(vueProject?.commands.find((command) => command.id === "script-dev")?.args).toEqual([
+      "run",
+      "dev",
+      "--",
+      "--host",
+      "127.0.0.1"
+    ]);
+    expect(vueProject?.commands.find((command) => command.id === "script-build")?.args).toEqual(["run", "build"]);
   });
 
   it("continues scanning inside Git shell repositories without root stack markers", async () => {

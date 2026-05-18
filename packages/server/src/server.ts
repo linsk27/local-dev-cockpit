@@ -18,6 +18,7 @@ import {
   type Project
 } from "@local-dev-cockpit/core";
 import { EventBus } from "./events.js";
+import { stripAnsiControlSequences } from "./log-decoder.js";
 import { resolveAppPaths } from "./paths.js";
 import { ProcessManager } from "./process-manager.js";
 import { JsonStore } from "./store.js";
@@ -184,7 +185,7 @@ async function enrichProject(
   processManager: ProcessManager
 ): Promise<Project> {
   const processPorts = lastRun
-    ? await extractPortsFromLogs(await processManager.readLogs(lastRun.id), lastRun.status, processManager.isRunning(lastRun.id))
+    ? await extractPortsFromLogs(await processManager.readLogs(lastRun.id), lastRun.status)
     : [];
   const currentRun = hydrateLastRun(lastRun, processPorts);
   const currentError = isStaleError(currentRun, lastError) ? undefined : lastError;
@@ -213,9 +214,9 @@ function isStaleError(lastRun: ProcessRun | undefined, lastError: ErrorSummary |
   return new Date(lastRun.startedAt).getTime() >= new Date(lastError.occurredAt).getTime();
 }
 
-async function extractPortsFromLogs(logs: string, status: ProcessRun["status"], isLiveRun: boolean): Promise<PortStatus[]> {
+async function extractPortsFromLogs(logs: string, status: ProcessRun["status"]): Promise<PortStatus[]> {
   const ports = new Map<string, Pick<PortStatus, "port" | "host" | "url">>();
-  const cleanLogs = stripAnsi(logs);
+  const cleanLogs = stripAnsiControlSequences(logs);
   const processAdapter = new NodeProcessAdapter();
 
   for (const match of cleanLogs.matchAll(/https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d{2,5})?(?:\/[^\s]*)?/gi)) {
@@ -225,11 +226,12 @@ async function extractPortsFromLogs(logs: string, status: ProcessRun["status"], 
       const port = Number(url.port);
       if (Number.isInteger(port) && port > 0 && port < 65536) {
         const host = normalizePortHost(url.hostname);
-        ports.set(`${host}:${port}`, {
+        const endpoint = await resolveReachableEndpoint(processAdapter, {
           port,
           host,
           url: `${url.protocol}//${url.host}`
         });
+        ports.set(`${endpoint.host ?? "host"}:${endpoint.port}`, endpoint);
       }
     } catch {
       // Ignore partial URLs emitted by colored terminal output.
@@ -238,9 +240,10 @@ async function extractPortsFromLogs(logs: string, status: ProcessRun["status"], 
 
   const statuses: PortStatus[] = [];
   for (const endpoint of ports.values()) {
+    const isOpen = status === "running" && (await isEndpointOpen(processAdapter, endpoint));
     statuses.push({
       ...endpoint,
-      status: status === "running" && (isLiveRun || (await isEndpointOpen(processAdapter, endpoint))) ? "open" : "closed",
+      status: isOpen ? "open" : "closed",
       source: "process"
     });
   }
@@ -252,8 +255,19 @@ async function isEndpointOpen(processAdapter: NodeProcessAdapter, endpoint: Pick
   return processAdapter.isPortOpen(endpoint.port, endpoint.host);
 }
 
-function stripAnsi(value: string): string {
-  return value.replace(/\u001b\[[0-9;]*m/g, "");
+async function resolveReachableEndpoint(
+  processAdapter: NodeProcessAdapter,
+  endpoint: Pick<PortStatus, "port" | "host" | "url">
+): Promise<Pick<PortStatus, "port" | "host" | "url">> {
+  if (endpoint.host !== "localhost") return endpoint;
+  const protocol = endpoint.url?.startsWith("https:") ? "https" : "http";
+  if (await processAdapter.isPortOpen(endpoint.port, "127.0.0.1")) {
+    return { port: endpoint.port, host: "127.0.0.1", url: `${protocol}://127.0.0.1:${endpoint.port}` };
+  }
+  if (await processAdapter.isPortOpen(endpoint.port, "::1")) {
+    return { port: endpoint.port, host: "::1", url: `${protocol}://[::1]:${endpoint.port}` };
+  }
+  return endpoint;
 }
 
 function mergePorts(detected: PortStatus[], processPorts: PortStatus[]): PortStatus[] {

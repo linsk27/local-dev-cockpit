@@ -11,10 +11,17 @@ const replacementCharacter = "\uFFFD";
  */
 export function decodeProcessChunk(chunk: Buffer): string {
   const utf8 = chunk.toString("utf8");
-  if (!utf8.includes(replacementCharacter)) return utf8;
+  if (!utf8.includes(replacementCharacter)) return stripAnsiControlSequences(utf8);
 
   const legacy = legacyWindowsDecoder.decode(chunk);
-  return countReplacementCharacters(legacy) < countReplacementCharacters(utf8) ? legacy : utf8;
+  const decoded = countReplacementCharacters(legacy) < countReplacementCharacters(utf8) ? legacy : utf8;
+  return stripAnsiControlSequences(decoded);
+}
+
+export function stripAnsiControlSequences(value: string): string {
+  return value
+    .replace(/\u001b\][^\u0007]*(?:\u0007|\u001b\\)/g, "")
+    .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "");
 }
 
 function countReplacementCharacters(value: string): number {

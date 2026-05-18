@@ -228,20 +228,33 @@ async function readPackageScripts(projectPath: string, packageManager: NonNullab
   try {
     const raw = await fs.readFile(path.join(projectPath, "package.json"));
     const parsed = JSON.parse(raw) as { scripts?: Record<string, string> };
-    return Object.keys(parsed.scripts ?? {}).map((scriptName) =>
-      command(
+    return Object.entries(parsed.scripts ?? {}).map(([scriptName, scriptBody]) => {
+      return command(
         `script-${scriptName}`,
         scriptName,
         packageManager,
-        packageManager === "npm" ? ["run", scriptName] : ["run", scriptName],
+        buildPackageScriptArgs(packageManager, scriptName, scriptBody),
         projectPath,
         "package-script",
         inferCommandKind(scriptName)
-      )
-    );
+      );
+    });
   } catch {
     return [];
   }
+}
+
+function buildPackageScriptArgs(packageManager: NonNullable<Project["packageManager"]>, scriptName: string, scriptBody: string): string[] {
+  const args = ["run", scriptName];
+  if (!shouldForceBrowserReachableHost(scriptName, scriptBody)) return args;
+  return packageManager === "yarn" ? [...args, "--host", "127.0.0.1"] : [...args, "--", "--host", "127.0.0.1"];
+}
+
+function shouldForceBrowserReachableHost(scriptName: string, scriptBody: string): boolean {
+  if (!/(dev|serve|preview|start)/i.test(scriptName)) return false;
+  const normalized = scriptBody.toLowerCase();
+  if (!/(^|\s|["'])vite(\s|$|["'])/.test(normalized)) return false;
+  return !/(^|\s)--host(?:\s|=|$)/.test(normalized);
 }
 
 function command(
