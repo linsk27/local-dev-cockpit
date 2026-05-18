@@ -596,6 +596,10 @@ h2 {
   color: var(--danger);
 }
 
+.project-state.stale {
+  color: var(--warn);
+}
+
 .status-dot {
   width: 8px;
   height: 8px;
@@ -610,6 +614,10 @@ h2 {
 
 .status-dot.failed {
   background: var(--danger);
+}
+
+.status-dot.stale {
+  background: var(--warn);
 }
 
 .project-detail {
@@ -693,6 +701,12 @@ h2 {
 .port-pill.active {
   border-color: var(--accent-border);
   background: var(--accent-soft);
+  color: var(--text-strong);
+}
+
+.port-pill.stale {
+  border-color: color-mix(in srgb, var(--warn) 42%, var(--border));
+  background: color-mix(in srgb, var(--warn) 12%, var(--surface-soft));
   color: var(--text-strong);
 }
 

@@ -19,7 +19,7 @@
           </div>
         </div>
         <div class="project-row-meta">
-          <span class="project-state" :class="{ online: projectIsOnline(project), failed: projectHasFailed(project) }">
+          <span class="project-state" :class="{ online: projectIsOnline(project), failed: projectHasFailed(project), stale: projectHasStalePorts(project) }">
             {{ statusLabel(project) }}
           </span>
           <span>{{ project.git.dirtyCount }} {{ preferences.t("dirty") }}</span>
@@ -55,7 +55,9 @@ import {
   formatPortUrl,
   hasPortConflict as hasProjectPortConflict,
   projectHasFailed,
+  projectHasStalePorts,
   projectIsOnline,
+  staleProjectPorts,
   visibleProjectPorts
 } from "./project-view";
 
@@ -72,12 +74,14 @@ defineEmits<{
 }>();
 
 function statusClass(project: Project): string {
+  if (projectHasStalePorts(project)) return "stale";
   if (projectHasFailed(project)) return "failed";
   if (projectIsOnline(project)) return "running";
   return "idle";
 }
 
 function statusLabel(project: Project): string {
+  if (projectHasStalePorts(project)) return "需清理";
   if (projectHasFailed(project)) return preferences.t("projectFailed");
   if (project.lastRun?.status === "running") return preferences.t("projectRunning");
   if (projectIsOnline(project)) return preferences.t("projectDetectedOnline");
@@ -87,6 +91,7 @@ function statusLabel(project: Project): string {
 function openPorts(project: Project): string {
   const open = visibleProjectPorts(project).map((port) => formatPortEndpoint(port));
   if (open.length === 0 && project.lastRun?.status === "running") return preferences.t("detectingEndpoint");
+  if (open.length === 0 && staleProjectPorts(project).length > 0) return `残留 ${staleProjectPorts(project).map((port) => port.port).join(", ")}`;
   return open.length > 0 ? open.join(", ") : preferences.t("idle");
 }
 

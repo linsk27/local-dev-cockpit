@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Project } from "@local-dev-cockpit/core";
 import {
+  commandBlockedByStalePort,
   commandWouldReuseOpenPort,
   formatDisplayPath,
   formatPortUrl,
@@ -153,6 +154,48 @@ describe("project dashboard view helpers", () => {
         }
       )
     ).toBe(true);
+  });
+
+  it("blocks dev/start commands when a stale detected port belongs to the project", () => {
+    expect(
+      commandBlockedByStalePort(
+        project({
+          ports: [{ port: 3000, host: "localhost", status: "unknown", source: "detected" }]
+        }),
+        {
+          id: "script-dev",
+          label: "dev",
+          command: "npm",
+          args: ["run", "dev"],
+          cwd: "D:\\personal\\project",
+          source: "package-script",
+          kind: "dev"
+        }
+      )
+    ).toBe(true);
+  });
+
+  it("does not present stale dev server ports as generic failures", () => {
+    expect(
+      projectHasFailed(
+        project({
+          lastRun: {
+            id: "run-1",
+            projectId: "project",
+            commandId: "script-dev",
+            status: "failed",
+            startedAt: new Date().toISOString(),
+            logPath: "run.log"
+          },
+          lastError: {
+            commandId: "script-dev",
+            message: "Another next dev server is already running. - Local: http://localhost:3000 - PID: 28532",
+            occurredAt: new Date().toISOString()
+          },
+          ports: [{ port: 3000, host: "localhost", status: "unknown", source: "detected" }]
+        })
+      )
+    ).toBe(false);
   });
 
   it("formats ipv6 hosts as browser-safe URLs", () => {

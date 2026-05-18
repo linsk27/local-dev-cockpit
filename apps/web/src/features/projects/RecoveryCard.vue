@@ -41,6 +41,27 @@
           <span>{{ preferences.t("detectedPorts") }}</span>
           <span v-for="port in detectedPorts" :key="port.port" class="port-pill">{{ formatPortEndpoint(port) }}</span>
         </div>
+        <div v-if="stalePorts.length > 0" class="port-group">
+          <span>{{ preferences.t("stalePorts") }}</span>
+          <span
+            v-for="port in stalePorts"
+            :key="`${port.host ?? 'host'}:${port.port}`"
+            class="port-action"
+          >
+            <span class="port-pill stale">{{ formatPortEndpoint(port) }}</span>
+            <button
+              class="port-stop-button"
+              type="button"
+              :disabled="isStoppingPort(port.port)"
+              :title="`停止残留端口 ${port.port}`"
+              @click="stopPort(port.port)"
+            >
+              <Loader2 v-if="isStoppingPort(port.port)" :size="12" class="spin-icon" />
+              <Square v-else :size="12" />
+              <span>{{ isStoppingPort(port.port) ? "停止中" : "清理" }}</span>
+            </button>
+          </span>
+        </div>
       </div>
     </div>
     <div class="recovery-facts">
@@ -77,6 +98,7 @@ import {
   formatPortUrl,
   projectHasAlreadyRunningConflict,
   recommendedProjectCommand,
+  staleProjectPorts,
   visibleProjectPorts
 } from "./project-view";
 
@@ -91,6 +113,7 @@ const ports = computed(() => {
 });
 
 const runningPorts = computed(() => visibleProjectPorts(props.project));
+const stalePorts = computed(() => staleProjectPorts(props.project));
 const detectedPorts = computed(() => {
   const displayed = new Set(runningPorts.value.map((port) => `${port.host ?? ""}:${port.port}`));
   return detectedProjectPorts(props.project).filter((port) => !displayed.has(`${port.host ?? ""}:${port.port}`));
@@ -98,6 +121,7 @@ const detectedPorts = computed(() => {
 const recommendedCommand = computed(() => recommendedProjectCommand(props.project));
 
 const summary = computed(() => {
+  if (stalePorts.value.length > 0) return "检测到残留开发进程占用端口，但 HTTP 无法访问。请先清理残留端口再重新运行。";
   if (projectHasAlreadyRunningConflict(props.project)) return "服务已在检测到的端口运行；上次启动命令因为端口占用退出。";
   if (props.project.lastError) return props.project.lastError.message;
   if (props.project.lastRun?.status === "failed") return "命令运行失败，请查看日志。";

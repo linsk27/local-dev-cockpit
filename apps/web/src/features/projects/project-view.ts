@@ -12,6 +12,14 @@ export function detectedProjectPorts(project: Project): PortStatus[] {
   return project.ports.filter((port) => port.status === "open" && port.source === "detected");
 }
 
+export function staleProjectPorts(project: Project): PortStatus[] {
+  return project.ports.filter((port) => port.status === "unknown" && port.source === "detected");
+}
+
+export function projectHasStalePorts(project: Project): boolean {
+  return staleProjectPorts(project).length > 0;
+}
+
 export function commandWouldReuseOpenPort(project: Project, command: Command): boolean {
   if (project.lastRun?.status === "running") return false;
   const openPorts = visibleProjectPorts(project);
@@ -21,12 +29,22 @@ export function commandWouldReuseOpenPort(project: Project, command: Command): b
   return command.kind === "dev" || command.kind === "start";
 }
 
+export function commandBlockedByStalePort(project: Project, command: Command): boolean {
+  if (project.lastRun?.status === "running") return false;
+  const stalePorts = staleProjectPorts(project);
+  if (stalePorts.length === 0) return false;
+  const declaredPorts = commandDeclaredPorts(command);
+  if (declaredPorts.length > 0) return declaredPorts.some((port) => stalePorts.some((item) => item.port === port));
+  return command.kind === "dev" || command.kind === "start";
+}
+
 export function projectIsOnline(project: Project): boolean {
   return project.lastRun?.status === "running" || visibleProjectPorts(project).length > 0;
 }
 
 export function projectHasFailed(project: Project): boolean {
   if (visibleProjectPorts(project).length > 0) return false;
+  if (projectHasStalePorts(project)) return false;
   if (projectHasAlreadyRunningConflict(project)) return false;
   return Boolean(project.lastError) || project.lastRun?.status === "failed";
 }
@@ -83,6 +101,9 @@ export function sortProjectsForDashboard(projects: Project[]): Project[] {
 
     const errorDelta = Number(projectHasFailed(right)) - Number(projectHasFailed(left));
     if (errorDelta !== 0) return errorDelta;
+
+    const staleDelta = Number(projectHasStalePorts(right)) - Number(projectHasStalePorts(left));
+    if (staleDelta !== 0) return staleDelta;
 
     return left.name.localeCompare(right.name, undefined, { sensitivity: "base" });
   });

@@ -336,8 +336,8 @@ export function filterStaleLogPorts(
   if (managedRun?.status === "running") return logPorts;
   const ownExternallyMatchedPorts = new Set(externalPorts.map((port) => port.port));
   return logPorts.filter((port) => {
+    if (ownExternallyMatchedPorts.has(port.port)) return false;
     if (port.status !== "open") return true;
-    if (ownExternallyMatchedPorts.has(port.port)) return true;
     const claimants = externalPortClaims.get(port.port);
     return !claimants || claimants.size === 0 || claimants.has(projectId);
   });
@@ -349,12 +349,12 @@ async function findExternalProjectPorts(project: Project, owners: ExternalPortOw
     if (!commandLineReferencesProject(owner.commandLine, project.path)) continue;
     const host = normalizeExternalHost(owner.host);
     const url = formatLocalUrl(owner.port, host);
-    if (!(await isLocalHttpEndpointReachable({ port: owner.port, host, url }))) continue;
+    const reachable = await isLocalHttpEndpointReachable({ port: owner.port, host, url });
     const endpoint: PortStatus = {
       port: owner.port,
       host,
       url,
-      status: "open",
+      status: reachable ? "open" : "unknown",
       source: "detected"
     };
     ports.set(portKey(endpoint), endpoint);

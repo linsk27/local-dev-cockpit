@@ -9,14 +9,14 @@
         v-for="command in project.commands"
         :key="command.id"
         class="command-row"
-        :class="{ running: isRunningCommand(command.id), pending: Boolean(commandAction(command.id)), online: isAlreadyOnlineCommand(command.id) }"
-        :disabled="isAnotherCommandRunning(command.id) || Boolean(commandAction(command.id)) || isAlreadyOnlineCommand(command.id)"
+        :class="{ running: isRunningCommand(command.id), pending: Boolean(commandAction(command.id)), online: isAlreadyOnlineCommand(command.id) || isBlockedByStalePort(command.id) }"
+        :disabled="isAnotherCommandRunning(command.id) || Boolean(commandAction(command.id)) || isAlreadyOnlineCommand(command.id) || isBlockedByStalePort(command.id)"
         :title="commandTitle(command.id)"
         @click="toggleCommand(command.id)"
       >
         <Loader2 v-if="commandAction(command.id)" :size="15" class="spin-icon" />
         <Square v-else-if="isRunningCommand(command.id)" :size="15" />
-        <CircleCheck v-else-if="isAlreadyOnlineCommand(command.id)" :size="15" />
+        <CircleCheck v-else-if="isAlreadyOnlineCommand(command.id) || isBlockedByStalePort(command.id)" :size="15" />
         <Play v-else :size="15" />
         <div>
           <strong>{{ command.label }}</strong>
@@ -35,7 +35,7 @@ import type { Project } from "@local-dev-cockpit/core";
 import { useNotificationsStore } from "../../stores/notifications";
 import { useProjectsStore } from "../../stores/projects";
 import { usePreferencesStore } from "../../stores/preferences";
-import { commandWouldReuseOpenPort } from "./project-view";
+import { commandBlockedByStalePort, commandWouldReuseOpenPort } from "./project-view";
 
 const props = defineProps<{ project: Project }>();
 const store = useProjectsStore();
@@ -59,10 +59,16 @@ function isAlreadyOnlineCommand(commandId: string): boolean {
   return command ? commandWouldReuseOpenPort(props.project, command) : false;
 }
 
+function isBlockedByStalePort(commandId: string): boolean {
+  const command = props.project.commands.find((item) => item.id === commandId);
+  return command ? commandBlockedByStalePort(props.project, command) : false;
+}
+
 function commandTitle(commandId: string): string {
   if (commandAction(commandId) === "starting") return preferences.t("starting");
   if (commandAction(commandId) === "stopping") return preferences.t("stopping");
   if (isAlreadyOnlineCommand(commandId)) return "服务已在线，避免重复启动。若要重启，请先停止占用端口的旧进程。";
+  if (isBlockedByStalePort(commandId)) return "检测到残留进程阻塞启动。请先在恢复卡片里停止残留端口。";
   return isRunningCommand(commandId) ? preferences.t("stopCommand") : preferences.t("runCommand");
 }
 
@@ -70,6 +76,7 @@ function commandStateLabel(commandId: string, fallback: string): string {
   if (commandAction(commandId) === "starting") return preferences.t("starting");
   if (commandAction(commandId) === "stopping") return preferences.t("stopping");
   if (isAlreadyOnlineCommand(commandId)) return "已在线";
+  if (isBlockedByStalePort(commandId)) return "需清理";
   return isRunningCommand(commandId) ? preferences.t("running") : fallback;
 }
 
@@ -78,6 +85,10 @@ async function toggleCommand(commandId: string): Promise<void> {
   const commandLabel = command?.label ?? commandId;
   if (command && commandWouldReuseOpenPort(props.project, command)) {
     notifications.info("服务已在线，已阻止重复启动。");
+    return;
+  }
+  if (command && commandBlockedByStalePort(props.project, command)) {
+    notifications.error("检测到残留进程阻塞启动，请先停止残留端口。");
     return;
   }
   if (isRunningCommand(commandId) && props.project.lastRun) {
