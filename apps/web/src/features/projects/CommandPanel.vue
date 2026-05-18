@@ -9,14 +9,18 @@
         v-for="command in project.commands"
         :key="command.id"
         class="command-row"
-        @click="store.runCommand(command.id)"
+        :class="{ running: isRunningCommand(command.id) }"
+        :disabled="isAnotherCommandRunning(command.id)"
+        :title="commandTitle(command.id)"
+        @click="toggleCommand(command.id)"
       >
-        <Play :size="15" />
+        <Square v-if="isRunningCommand(command.id)" :size="15" />
+        <Play v-else :size="15" />
         <div>
           <strong>{{ command.label }}</strong>
           <span>{{ command.command }} {{ command.args.join(" ") }}</span>
         </div>
-        <em>{{ command.kind }}</em>
+        <em>{{ isRunningCommand(command.id) ? preferences.t("running") : command.kind }}</em>
       </button>
       <div v-if="project.commands.length === 0" class="muted-block">{{ preferences.t("noCommands") }}</div>
     </div>
@@ -24,12 +28,32 @@
 </template>
 
 <script setup lang="ts">
-import { Play, Terminal } from "lucide-vue-next";
+import { Play, Square, Terminal } from "lucide-vue-next";
 import type { Project } from "@local-dev-cockpit/core";
 import { useProjectsStore } from "../../stores/projects";
 import { usePreferencesStore } from "../../stores/preferences";
 
-defineProps<{ project: Project }>();
+const props = defineProps<{ project: Project }>();
 const store = useProjectsStore();
 const preferences = usePreferencesStore();
+
+function isRunningCommand(commandId: string): boolean {
+  return props.project.lastRun?.status === "running" && props.project.lastRun.commandId === commandId;
+}
+
+function isAnotherCommandRunning(commandId: string): boolean {
+  return props.project.lastRun?.status === "running" && props.project.lastRun.commandId !== commandId;
+}
+
+function commandTitle(commandId: string): string {
+  return isRunningCommand(commandId) ? preferences.t("stopCommand") : preferences.t("runCommand");
+}
+
+async function toggleCommand(commandId: string): Promise<void> {
+  if (isRunningCommand(commandId) && props.project.lastRun) {
+    await store.stop(props.project.lastRun.id, props.project.id);
+    return;
+  }
+  await store.runCommand(commandId);
+}
 </script>

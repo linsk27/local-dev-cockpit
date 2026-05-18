@@ -2,16 +2,18 @@
   <div class="app-shell" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
     <aside class="sidebar">
       <div class="brand">
-        <div class="brand-mark">DC</div>
-        <div class="brand-copy">
-          <strong>Dev Cockpit</strong>
-          <span>{{ preferences.t("appSubtitle") }}</span>
+        <div class="brand-main">
+          <div class="brand-mark">DC</div>
+          <div class="brand-copy">
+            <strong>Dev Cockpit</strong>
+            <span>{{ preferences.t("appSubtitle") }}</span>
+          </div>
         </div>
+        <button class="icon-button sidebar-toggle" :title="toggleTitle" @click="toggleSidebar">
+          <PanelLeftOpen v-if="sidebarCollapsed" :size="17" />
+          <PanelLeftClose v-else :size="17" />
+        </button>
       </div>
-      <button class="icon-button sidebar-toggle" :title="toggleTitle" @click="toggleSidebar">
-        <PanelLeftOpen v-if="sidebarCollapsed" :size="17" />
-        <PanelLeftClose v-else :size="17" />
-      </button>
       <nav class="nav">
         <RouterLink to="/" class="nav-link">
           <LayoutDashboard :size="17" />

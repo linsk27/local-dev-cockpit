@@ -7,6 +7,7 @@ export const useProjectsStore = defineStore("projects", {
     projects: [] as Project[],
     selectedId: "" as string,
     loading: false,
+    refreshing: false,
     error: "",
     logs: "",
     context: null as ContextResponse | null
@@ -17,8 +18,10 @@ export const useProjectsStore = defineStore("projects", {
     }
   },
   actions: {
-    async refresh() {
-      this.loading = true;
+    async refresh(options: { silent?: boolean } = {}) {
+      if (this.refreshing) return;
+      this.refreshing = true;
+      if (!options.silent) this.loading = true;
       this.error = "";
       try {
         this.projects = await getProjects();
@@ -26,7 +29,8 @@ export const useProjectsStore = defineStore("projects", {
       } catch (error) {
         this.error = error instanceof Error ? error.message : String(error);
       } finally {
-        this.loading = false;
+        if (!options.silent) this.loading = false;
+        this.refreshing = false;
       }
     },
     select(projectId: string) {
@@ -41,10 +45,10 @@ export const useProjectsStore = defineStore("projects", {
       await this.refresh();
       await this.loadLogs(result.run.id);
     },
-    async stop(runId: string) {
-      const project = this.selectedProject;
-      if (!project) return;
-      await stopProcess(project.id, runId);
+    async stop(runId: string, projectId?: string) {
+      const targetProjectId = projectId ?? this.selectedProject?.id;
+      if (!targetProjectId) return;
+      await stopProcess(targetProjectId, runId);
       await this.refresh();
     },
     async loadLogs(runId?: string) {
@@ -63,4 +67,3 @@ export const useProjectsStore = defineStore("projects", {
     }
   }
 });
-

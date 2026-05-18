@@ -10,7 +10,7 @@
           <Search :size="16" />
           <input v-model="searchQuery" :placeholder="preferences.t('projectSearchPlaceholder')" />
         </label>
-        <button class="icon-button" :class="{ spinning: store.loading }" :title="preferences.t('refreshProjects')" @click="store.refresh">
+        <button class="icon-button" :class="{ spinning: store.loading }" :title="preferences.t('refreshProjects')" @click="() => store.refresh()">
           <RefreshCw :size="18" />
         </button>
       </div>
@@ -45,7 +45,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { FolderSearch, RefreshCw, Search } from "lucide-vue-next";
 import { useProjectsStore } from "../../stores/projects";
 import { usePreferencesStore } from "../../stores/preferences";
@@ -61,6 +61,8 @@ const visibleProjects = computed(() =>
   sortProjectsForDashboard(store.projects).filter((project) => projectMatchesQuery(project, searchQuery.value))
 );
 
+const hasRunningProject = computed(() => store.projects.some((project) => project.lastRun?.status === "running"));
+
 const activeProject = computed(() => {
   return visibleProjects.value.find((project) => project.id === store.selectedId) ?? visibleProjects.value[0];
 });
@@ -72,5 +74,22 @@ watch(
   }
 );
 
-onMounted(() => void store.refresh());
+let refreshTimer: number | undefined;
+
+async function refreshRuntimeState(): Promise<void> {
+  if (!hasRunningProject.value) return;
+  await store.refresh({ silent: true });
+  if (store.selectedProject?.lastRun?.status === "running") {
+    await store.loadLogs();
+  }
+}
+
+onMounted(() => {
+  void store.refresh();
+  refreshTimer = window.setInterval(() => void refreshRuntimeState(), 2000);
+});
+
+onBeforeUnmount(() => {
+  if (refreshTimer) window.clearInterval(refreshTimer);
+});
 </script>

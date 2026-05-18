@@ -70,6 +70,7 @@ function statusLabel(project: Project): string {
 
 function openPorts(project: Project): string {
   const open = visibleProjectPorts(project).map((port) => formatPortEndpoint(port));
+  if (open.length === 0 && project.lastRun?.status === "running") return preferences.t("detectingEndpoint");
   return open.length > 0 ? open.join(", ") : preferences.t("idle");
 }
 
