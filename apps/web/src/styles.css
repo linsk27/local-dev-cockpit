@@ -397,9 +397,10 @@ h2 {
 
 .project-row {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(92px, auto);
+  align-items: center;
   width: 100%;
-  gap: 10px;
-  padding: 13px 14px;
+  min-width: 0;
   border: 0;
   border-bottom: 1px solid var(--border);
   background: transparent;
@@ -410,6 +411,17 @@ h2 {
 .project-row:hover,
 .project-row.active {
   background: var(--surface-hover);
+}
+
+.project-row-select {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+  padding: 13px 14px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
 }
 
 .project-row-main {
@@ -430,7 +442,7 @@ h2 {
 
 .project-row-meta {
   display: grid;
-  grid-template-columns: auto minmax(0, auto) minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, auto);
   align-items: center;
   gap: 12px;
   min-width: 0;
@@ -447,7 +459,19 @@ h2 {
   justify-content: flex-end;
   gap: 6px;
   min-width: 0;
+  max-width: 210px;
+  padding: 0 14px 0 6px;
+  color: var(--muted);
   text-align: right;
+}
+
+.project-port-link {
+  color: var(--muted-strong);
+  text-decoration: none;
+}
+
+.project-port-link:hover {
+  color: var(--accent);
 }
 
 .project-port > span {

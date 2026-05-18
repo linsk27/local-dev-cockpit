@@ -4,41 +4,55 @@
       <span>{{ preferences.t("projectsHeading") }}</span>
       <strong>{{ countLabel }}</strong>
     </div>
-    <button
+    <article
       v-for="project in projects"
       :key="project.id"
       class="project-row"
       :class="{ active: project.id === selectedId }"
-      @click="$emit('select', project.id)"
     >
-      <div class="project-row-main">
-        <span class="status-dot" :class="statusClass(project)" />
-        <div>
-          <strong>{{ project.name }}</strong>
-          <span>{{ project.kind }} · {{ project.git.branch }}</span>
+      <button class="project-row-select" @click="$emit('select', project.id)">
+        <div class="project-row-main">
+          <span class="status-dot" :class="statusClass(project)" />
+          <div>
+            <strong>{{ project.name }}</strong>
+            <span>{{ project.kind }} · {{ project.git.branch }}</span>
+          </div>
         </div>
-      </div>
-      <div class="project-row-meta">
-        <span class="project-state" :class="{ online: projectIsOnline(project), failed: Boolean(project.lastError) }">
-          {{ statusLabel(project) }}
-        </span>
-        <span>{{ project.git.dirtyCount }} {{ preferences.t("dirty") }}</span>
-        <span class="project-port" :class="{ 'port-conflict': hasPortConflict(project) }">
-          <span>{{ openPorts(project) }}</span>
-          <em v-if="hasPortConflict(project)">{{ preferences.t("portConflict") }}</em>
-        </span>
-      </div>
-    </button>
+        <div class="project-row-meta">
+          <span class="project-state" :class="{ online: projectIsOnline(project), failed: Boolean(project.lastError) }">
+            {{ statusLabel(project) }}
+          </span>
+          <span>{{ project.git.dirtyCount }} {{ preferences.t("dirty") }}</span>
+        </div>
+      </button>
+      <a
+        v-if="primaryPort(project)"
+        class="project-port project-port-link"
+        :class="{ 'port-conflict': hasPortConflict(project) }"
+        :href="formatPortUrl(primaryPort(project)!)"
+        :title="preferences.t('openEndpoint')"
+        @click.stop
+      >
+        <span>{{ formatPortEndpoint(primaryPort(project)!) }}</span>
+        <ExternalLink :size="13" />
+        <em v-if="hasPortConflict(project)">{{ preferences.t("portConflict") }}</em>
+      </a>
+      <span v-else class="project-port">
+        <span>{{ openPorts(project) }}</span>
+      </span>
+    </article>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed } from "vue";
+import { ExternalLink } from "lucide-vue-next";
 import type { Project } from "@local-dev-cockpit/core";
 import { usePreferencesStore } from "../../stores/preferences";
 import {
   countOpenPortsByNumber,
   formatPortEndpoint,
+  formatPortUrl,
   hasPortConflict as hasProjectPortConflict,
   projectIsOnline,
   visibleProjectPorts
@@ -72,6 +86,10 @@ function openPorts(project: Project): string {
   const open = visibleProjectPorts(project).map((port) => formatPortEndpoint(port));
   if (open.length === 0 && project.lastRun?.status === "running") return preferences.t("detectingEndpoint");
   return open.length > 0 ? open.join(", ") : preferences.t("idle");
+}
+
+function primaryPort(project: Project) {
+  return visibleProjectPorts(project)[0];
 }
 
 const openPortCounts = computed(() => countOpenPortsByNumber(props.projects));
