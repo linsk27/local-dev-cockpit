@@ -5,6 +5,7 @@ import type { Command, ErrorSummary, ProcessRun } from "@local-dev-cockpit/core"
 import type { AppPaths } from "./paths.js";
 import type { JsonStore } from "./store.js";
 import type { EventBus } from "./events.js";
+import { decodeProcessChunk } from "./log-decoder.js";
 
 interface RunningProcess {
   run: ProcessRun;
@@ -70,7 +71,7 @@ export class ProcessManager {
     this.events.emit("process.started", { run, command });
 
     const append = (chunk: Buffer) => {
-      const text = chunk.toString("utf8");
+      const text = decodeProcessChunk(chunk);
       logStream.write(text);
       entry.buffer.push(text);
       if (entry.buffer.length > 400) entry.buffer.splice(0, entry.buffer.length - 400);

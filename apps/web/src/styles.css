@@ -89,6 +89,9 @@
 }
 
 html {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
   background: var(--bg);
   color: var(--text);
 }
@@ -99,12 +102,21 @@ html {
 
 body {
   margin: 0;
+  width: 100%;
+  max-width: 100%;
   min-width: 320px;
   min-height: 100vh;
+  overflow-x: clip;
   background:
     linear-gradient(180deg, var(--bg-gradient), transparent 42%),
     var(--bg);
   color: var(--text);
+}
+
+#app {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 button,
@@ -120,7 +132,10 @@ button {
 .app-shell {
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
+  width: 100%;
+  max-width: 100%;
   min-height: 100vh;
+  overflow-x: clip;
   transition: grid-template-columns 160ms ease;
 }
 
@@ -257,13 +272,17 @@ button {
 
 .main-surface {
   min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
   padding: 28px;
 }
 
 .workspace {
   display: grid;
   gap: 22px;
+  width: 100%;
   max-width: 1500px;
+  min-width: 0;
   margin: 0 auto;
 }
 
@@ -273,6 +292,10 @@ button {
   justify-content: space-between;
   gap: 16px;
   min-height: 66px;
+}
+
+.workspace-header > div:first-child {
+  min-width: 0;
 }
 
 .header-actions {
@@ -337,9 +360,11 @@ h2 {
   grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
   gap: 18px;
   align-items: start;
+  min-width: 0;
 }
 
 .surface {
+  min-width: 0;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-bg);
@@ -620,6 +645,8 @@ h2 {
   margin: 0;
   padding: 14px;
   overflow: auto;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   color: var(--code);
   font-family: "Cascadia Mono", Consolas, monospace;
   font-size: 12px;
@@ -629,6 +656,7 @@ h2 {
 
 .context-panel textarea {
   width: 100%;
+  max-width: 100%;
   min-height: 260px;
   padding: 14px;
   border: 0;
@@ -824,7 +852,8 @@ h2 {
 }
 
 @media (max-width: 980px) {
-  .app-shell {
+  .app-shell,
+  .app-shell.sidebar-collapsed {
     grid-template-columns: 1fr;
   }
 
@@ -855,6 +884,10 @@ h2 {
     grid-template-columns: 1fr;
   }
 
+  .search-box {
+    width: min(360px, 42vw);
+  }
+
   .recovery-facts {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -866,6 +899,11 @@ h2 {
   .root-form {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .header-actions,
+  .search-box {
+    width: 100%;
   }
 
   .brand span {
