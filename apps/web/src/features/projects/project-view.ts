@@ -85,8 +85,18 @@ export function projectMatchesQuery(project: Project, query: string): boolean {
   return searchable.includes(normalizedQuery);
 }
 
+export function projectBelongsToRoot(project: Project, rootPath: string): boolean {
+  const projectPath = normalizePath(project.path);
+  const root = normalizePath(rootPath);
+  return projectPath === root || projectPath.startsWith(`${root}/`);
+}
+
 function normalize(value: string): string {
   return value.trim().toLowerCase();
+}
+
+function normalizePath(value: string): string {
+  return value.replace(/\\/g, "/").replace(/\/+$/g, "").trim().toLowerCase();
 }
 
 function formatUrlHost(host: string): string {

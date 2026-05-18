@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { Project } from "@local-dev-cockpit/core";
-import { formatPortUrl, projectMatchesQuery, recommendedProjectCommand, sortProjectsForDashboard } from "./project-view";
+import {
+  formatPortUrl,
+  projectBelongsToRoot,
+  projectMatchesQuery,
+  recommendedProjectCommand,
+  sortProjectsForDashboard
+} from "./project-view";
 
 describe("project dashboard view helpers", () => {
   it("sorts online projects before idle projects", () => {
@@ -25,6 +31,14 @@ describe("project dashboard view helpers", () => {
     expect(projectMatchesQuery(target, "feat/search")).toBe(true);
     expect(projectMatchesQuery(target, "127.0.0.1:3000")).toBe(true);
     expect(projectMatchesQuery(target, "missing")).toBe(false);
+  });
+
+  it("filters projects by root path boundary", () => {
+    const target = project({ path: "D:\\personal\\blog-admin" });
+
+    expect(projectBelongsToRoot(target, "D:\\personal")).toBe(true);
+    expect(projectBelongsToRoot(target, "D:\\personal\\")).toBe(true);
+    expect(projectBelongsToRoot(target, "D:\\personal-other")).toBe(false);
   });
 
   it("formats ipv6 hosts as browser-safe URLs", () => {
