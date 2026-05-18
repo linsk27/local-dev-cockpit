@@ -55,6 +55,8 @@
         :projects="visibleProjects"
         :total-count="scopedProjects.length"
         :selected-id="activeProject?.id"
+        :loading="store.loading"
+        :loading-label="loadingLabel"
         @select="store.select"
       />
       <ProjectDetail v-if="activeProject" :project="activeProject" />
@@ -118,24 +120,33 @@ const activeProject = computed(() => {
 
 const performanceLabel = computed(() => {
   if (!performance.value) return "";
-  return `性能 ${performance.value.process.rssMb}MB · CPU ${performance.value.process.cpuPercent}% · 扫描 ${formatMs(performance.value.scan.lastScanDurationMs)}`;
+  return `占用${resourceLevelLabel.value} · 内存 ${performance.value.process.rssMb}MB · 扫描 ${formatMs(performance.value.scan.lastScanDurationMs)}`;
 });
 
 const performanceTitle = computed(() => {
   if (!performance.value) return "";
   const scan = performance.value.scan;
   return [
-    `扫描状态：${scan.status}`,
-    `项目数：${scan.lastProjectCount}`,
-    `缓存剩余：${formatMs(scan.cacheExpiresInMs)}`,
-    `缓存命中：${scan.cacheHits}`,
-    `缓存未命中：${scan.cacheMisses}`,
-    `合并请求：${scan.joinedRequests}`,
-    `进程 PID：${performance.value.process.pid}`,
-    `堆内存：${performance.value.process.heapUsedMb}MB`,
-    `单核 CPU：${performance.value.process.cpuSingleCorePercent}%`
+    "这里显示 Dev Cockpit 自己的资源消耗，不是项目服务的消耗。",
+    `整体判断：${resourceLevelLabel.value}`,
+    `内存占用：${performance.value.process.rssMb}MB`,
+    `CPU 占用：${performance.value.process.cpuPercent}%`,
+    `上次扫描：${formatMs(scan.lastScanDurationMs)}，共 ${scan.lastProjectCount} 个项目`,
+    `缓存状态：${formatScanStatus(scan.status)}，剩余 ${formatMs(scan.cacheExpiresInMs)}`,
+    `缓存命中/重新扫描：${scan.cacheHits}/${scan.cacheMisses}`
   ].join("\n");
 });
+
+const resourceLevelLabel = computed(() => {
+  if (!performance.value) return "低";
+  const { rssMb, cpuSingleCorePercent } = performance.value.process;
+  const scanMs = performance.value.scan.lastScanDurationMs;
+  if (rssMb > 450 || cpuSingleCorePercent > 60 || scanMs > 15_000) return "高";
+  if (rssMb > 220 || cpuSingleCorePercent > 20 || scanMs > 6_000) return "中";
+  return "低";
+});
+
+const loadingLabel = computed(() => `当前目录：${selectedRootLabel.value}`);
 
 watch(
   () => activeProject.value?.id,
@@ -290,7 +301,14 @@ function ensureSelectedRoot(): void {
 function formatMs(value: number): string {
   if (value <= 0) return "0ms";
   if (value < 1000) return `${Math.round(value)}ms`;
-  return `${(value / 1000).toFixed(1)}s`;
+  return `${(value / 1000).toFixed(1)}秒`;
+}
+
+function formatScanStatus(status: PerformanceSnapshot["scan"]["status"]): string {
+  if (status === "cached") return "已缓存";
+  if (status === "scanning") return "扫描中";
+  if (status === "stale") return "缓存过期";
+  return "暂无扫描";
 }
 
 onMounted(async () => {

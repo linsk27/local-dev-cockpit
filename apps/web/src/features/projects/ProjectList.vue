@@ -4,6 +4,13 @@
       <span>{{ preferences.t("projectsHeading") }}</span>
       <strong>{{ countLabel }}</strong>
     </div>
+    <div v-if="loading" class="project-list-loading">
+      <Loader2 :size="17" class="spin-icon" />
+      <div>
+        <strong>{{ preferences.t("loadingProjects") }}</strong>
+        <span>{{ loadingLabel }}</span>
+      </div>
+    </div>
     <article
       v-for="project in projects"
       :key="project.id"
@@ -16,6 +23,7 @@
           <div>
             <strong>{{ project.name }}</strong>
             <span>{{ project.kind }} · {{ project.git.branch }}</span>
+            <span class="project-row-path" :title="project.path">{{ formatDisplayPath(project.path) }}</span>
           </div>
         </div>
         <div class="project-row-meta">
@@ -41,16 +49,27 @@
         <span>{{ openPorts(project) }}</span>
       </span>
     </article>
+    <template v-if="loading && projects.length === 0">
+      <div v-for="index in 5" :key="index" class="project-row-skeleton">
+        <span />
+        <div>
+          <i />
+          <i />
+          <i />
+        </div>
+      </div>
+    </template>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed } from "vue";
-import { ExternalLink } from "lucide-vue-next";
+import { ExternalLink, Loader2 } from "lucide-vue-next";
 import type { Project } from "@local-dev-cockpit/core";
 import { usePreferencesStore } from "../../stores/preferences";
 import {
   countOpenPortsByNumber,
+  formatDisplayPath,
   formatPortEndpoint,
   formatPortUrl,
   hasPortConflict as hasProjectPortConflict,
@@ -67,6 +86,8 @@ const props = defineProps<{
   projects: Project[];
   totalCount: number;
   selectedId?: string;
+  loading?: boolean;
+  loadingLabel?: string;
 }>();
 
 defineEmits<{

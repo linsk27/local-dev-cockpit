@@ -512,6 +512,35 @@ h2 {
   overflow: auto;
 }
 
+.project-list-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface-bg));
+  color: var(--muted-strong);
+}
+
+.project-list-loading strong,
+.project-list-loading span {
+  display: block;
+  min-width: 0;
+}
+
+.project-list-loading strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.project-list-loading span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
 .project-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(92px, auto);
@@ -555,6 +584,11 @@ h2 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.project-row-main .project-row-path {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .project-row-meta {
@@ -625,6 +659,62 @@ h2 {
 
 .project-state.stale {
   color: var(--warn);
+}
+
+.project-row-skeleton {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr);
+  gap: 11px;
+  align-items: center;
+  min-height: 88px;
+  padding: 13px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.project-row-skeleton span,
+.project-row-skeleton i {
+  display: block;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--surface-soft), color-mix(in srgb, var(--accent) 10%, var(--surface-soft)), var(--surface-soft));
+  background-size: 220% 100%;
+  animation: skeleton-shimmer 1.25s ease-in-out infinite;
+}
+
+.project-row-skeleton span {
+  width: 8px;
+  height: 8px;
+}
+
+.project-row-skeleton div {
+  display: grid;
+  gap: 8px;
+}
+
+.project-row-skeleton i {
+  height: 10px;
+}
+
+.project-row-skeleton i:nth-child(1) {
+  width: 52%;
+  height: 15px;
+}
+
+.project-row-skeleton i:nth-child(2) {
+  width: 72%;
+}
+
+.project-row-skeleton i:nth-child(3) {
+  width: 44%;
+}
+
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 120% 0;
+  }
+
+  to {
+    background-position: -120% 0;
+  }
 }
 
 .status-dot {

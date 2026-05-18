@@ -97,7 +97,6 @@ import {
   formatPortEndpoint,
   formatPortUrl,
   projectHasAlreadyRunningConflict,
-  recommendedProjectCommand,
   staleProjectPorts,
   visibleProjectPorts
 } from "./project-view";
@@ -118,17 +117,17 @@ const detectedPorts = computed(() => {
   const displayed = new Set(runningPorts.value.map((port) => `${port.host ?? ""}:${port.port}`));
   return detectedProjectPorts(props.project).filter((port) => !displayed.has(`${port.host ?? ""}:${port.port}`));
 });
-const recommendedCommand = computed(() => recommendedProjectCommand(props.project));
-
 const summary = computed(() => {
   if (stalePorts.value.length > 0) return "检测到残留开发进程占用端口，但 HTTP 无法访问。请先清理残留端口再重新运行。";
   if (projectHasAlreadyRunningConflict(props.project)) return "服务已在检测到的端口运行；上次启动命令因为端口占用退出。";
   if (props.project.lastError) return props.project.lastError.message;
   if (props.project.lastRun?.status === "failed") return "命令运行失败，请查看日志。";
   if (props.project.lastRun?.status === "running") return preferences.t("commandRunning");
-  return recommendedCommand.value
-    ? preferences.t("suggestedNextStep", { command: recommendedCommand.value.label })
-    : preferences.t("noCommandsSummary");
+  if (props.project.commands.length > 0) {
+    const manager = props.project.packageManager ? `，${props.project.packageManager} 管理` : "";
+    return `${props.project.kind} 项目${manager}，已识别 ${props.project.commands.length} 个命令，当前没有运行中的服务。`;
+  }
+  return preferences.t("noCommandsSummary");
 });
 
 function isStoppingPort(port: number): boolean {
