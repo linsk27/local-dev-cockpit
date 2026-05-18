@@ -55,6 +55,27 @@ describe("scanRoot", () => {
     expect(project?.commands.find((command) => command.id === "script-build")?.args).toEqual(["run", "build"]);
   });
 
+  it("hides dependency/cache packages that are not runnable projects", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-noise-"));
+    const unityCachePackage = path.join(root, "UnityGame", "Library", "PackageCache", "com.unity.2d.animation@3.2.5");
+    const packageOnlyFolder = path.join(root, "plain-package");
+    const appFolder = path.join(root, "real-app");
+
+    await fs.mkdir(unityCachePackage, { recursive: true });
+    await fs.mkdir(packageOnlyFolder, { recursive: true });
+    await fs.mkdir(appFolder, { recursive: true });
+    await fs.writeFile(path.join(unityCachePackage, "package.json"), JSON.stringify({ name: "com.unity.2d.animation" }), "utf8");
+    await fs.writeFile(path.join(packageOnlyFolder, "package.json"), JSON.stringify({ name: "plain-package" }), "utf8");
+    await fs.writeFile(path.join(appFolder, "package.json"), JSON.stringify({ name: "real-app", scripts: { dev: "vite" } }), "utf8");
+
+    const result = await scanRoot(root, { maxDepth: 6 });
+    const names = result.projects.map((project) => project.name);
+
+    expect(names).toContain("real-app");
+    expect(names).not.toContain("com.unity.2d.animation@3.2.5");
+    expect(names).not.toContain("plain-package");
+  });
+
   it("continues scanning inside Git shell repositories without root stack markers", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-scan-"));
     const repo = path.join(root, "git-shell");

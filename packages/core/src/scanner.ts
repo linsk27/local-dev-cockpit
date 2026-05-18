@@ -13,7 +13,13 @@ const DEFAULT_IGNORE_NAMES = new Set([
   "target",
   ".next",
   ".cache",
-  "coverage"
+  "coverage",
+  "library",
+  "packagecache",
+  "temp",
+  "obj",
+  "logs",
+  "usersettings"
 ]);
 
 const COMMON_PORTS_BY_KIND: Record<ProjectKind, number[]> = {
@@ -41,10 +47,10 @@ export async function scanRoot(
   const resolvedRoot = path.resolve(root);
   const maxDepth = options.maxDepth ?? 5;
   const maxProjects = options.maxProjects ?? 80;
-  const ignoreNames = new Set([...DEFAULT_IGNORE_NAMES, ...(options.ignoreNames ?? [])]);
+  const ignoreNames = new Set([...DEFAULT_IGNORE_NAMES, ...(options.ignoreNames ?? []).map((name) => name.toLowerCase())]);
   const startedAt = Date.now();
   const timeoutMs = options.timeoutMs ?? 15000;
-  const projectPaths: string[] = [];
+  const projectCandidates: Array<{ path: string; reason: "marker" | "git-root" }> = [];
   const warnings: string[] = [];
 
   async function walk(dir: string, depth: number): Promise<void> {
@@ -52,7 +58,7 @@ export async function scanRoot(
       warnings.push(`扫描超时，已停止在 ${dir}`);
       return;
     }
-    if (depth > maxDepth || projectPaths.length >= maxProjects) {
+    if (depth > maxDepth || projectCandidates.length >= maxProjects) {
       return;
     }
 
@@ -67,15 +73,15 @@ export async function scanRoot(
     const hasGitDirectory = entries.some((entry) => entry.name === ".git" && entry.isDirectory);
     const hasMarker = hasProjectMarker(entries);
     if (hasMarker) {
-      projectPaths.push(dir);
+      projectCandidates.push({ path: dir, reason: "marker" });
       return;
     }
     if (hasGitDirectory) {
-      projectPaths.push(dir);
+      projectCandidates.push({ path: dir, reason: "git-root" });
     }
 
     for (const entry of entries) {
-      if (!entry.isDirectory || ignoreNames.has(entry.name)) {
+      if (!entry.isDirectory || shouldIgnoreDirectory(entry.name, ignoreNames)) {
         continue;
       }
       await walk(path.join(dir, entry.name), depth + 1);
@@ -85,11 +91,14 @@ export async function scanRoot(
   await walk(resolvedRoot, 0);
   const projects: Project[] = [];
 
-  for (const projectPath of projectPaths) {
+  for (const candidate of projectCandidates) {
     try {
-      projects.push(await analyzeProject(projectPath, { fs, process: processAdapter }));
+      const project = await analyzeProject(candidate.path, { fs, process: processAdapter });
+      if (shouldKeepScannedProject(project, candidate.reason)) {
+        projects.push(project);
+      }
     } catch (error) {
-      warnings.push(`无法分析项目 ${projectPath}: ${error instanceof Error ? error.message : String(error)}`);
+      warnings.push(`无法分析项目 ${candidate.path}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -99,6 +108,11 @@ export async function scanRoot(
     warnings,
     scannedAt: new Date().toISOString()
   };
+}
+
+function shouldIgnoreDirectory(name: string, ignoreNames: Set<string>): boolean {
+  const normalized = name.toLowerCase();
+  return ignoreNames.has(normalized) || /^com\.unity\..+@\d/i.test(name);
 }
 
 function hasProjectMarker(entries: Array<{ name: string; isDirectory: boolean; isFile: boolean }>): boolean {
@@ -113,6 +127,12 @@ function hasProjectMarker(entries: Array<{ name: string; isDirectory: boolean; i
     "compose.yml",
     "Dockerfile"
   ].some((marker) => names.has(marker));
+}
+
+function shouldKeepScannedProject(project: Project, reason: "marker" | "git-root"): boolean {
+  if (reason === "git-root") return true;
+  if (project.commands.length > 0) return true;
+  return project.markers.some((marker) => marker !== "package.json");
 }
 
 export async function analyzeProject(projectPath: string, adapters: Required<ScannerAdapters>): Promise<Project> {
