@@ -69,7 +69,7 @@ function commandTitle(commandId: string): string {
 function commandStateLabel(commandId: string, fallback: string): string {
   if (commandAction(commandId) === "starting") return preferences.t("starting");
   if (commandAction(commandId) === "stopping") return preferences.t("stopping");
-  if (isAlreadyOnlineCommand(commandId)) return "已运行";
+  if (isAlreadyOnlineCommand(commandId)) return "已在线";
   return isRunningCommand(commandId) ? preferences.t("running") : fallback;
 }
 

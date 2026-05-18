@@ -79,7 +79,8 @@ function statusClass(project: Project): string {
 
 function statusLabel(project: Project): string {
   if (projectHasFailed(project)) return preferences.t("projectFailed");
-  if (projectIsOnline(project)) return preferences.t("projectOnline");
+  if (project.lastRun?.status === "running") return preferences.t("projectRunning");
+  if (projectIsOnline(project)) return preferences.t("projectDetectedOnline");
   return preferences.t("projectOffline");
 }
 

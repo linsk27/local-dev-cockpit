@@ -91,6 +91,28 @@ describe("project dashboard view helpers", () => {
     expect(projectHasFailed(alreadyRunning)).toBe(false);
   });
 
+  it("treats an existing Next.js dev server as online instead of failed", () => {
+    const alreadyRunning = project({
+      lastRun: {
+        id: "run-1",
+        projectId: "project",
+        commandId: "script-dev",
+        status: "failed",
+        startedAt: new Date().toISOString(),
+        logPath: "run.log"
+      },
+      lastError: {
+        commandId: "script-dev",
+        message: "Another next dev server is already running. - Local: http://localhost:3000 - PID: 5796",
+        occurredAt: new Date().toISOString()
+      },
+      ports: [{ port: 3000, host: "127.0.0.1", status: "open", source: "detected" }]
+    });
+
+    expect(projectHasAlreadyRunningConflict(alreadyRunning)).toBe(true);
+    expect(projectHasFailed(alreadyRunning)).toBe(false);
+  });
+
   it("blocks a command that would bind an already open declared port", () => {
     expect(
       commandWouldReuseOpenPort(

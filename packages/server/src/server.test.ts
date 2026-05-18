@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseNetstatListeningPids } from "./server.js";
+import { logIndicatesExistingServer, parseLocalEndpointsFromLogs, parseNetstatListeningPids } from "./server.js";
 
 describe("parseNetstatListeningPids", () => {
   it("extracts listening process ids for the requested port", () => {
@@ -12,5 +12,35 @@ describe("parseNetstatListeningPids", () => {
     ].join("\n");
 
     expect(parseNetstatListeningPids(output, 8000)).toEqual([34204, 34205]);
+  });
+});
+
+describe("parseLocalEndpointsFromLogs", () => {
+  it("extracts existing Next.js server endpoints from failed logs", () => {
+    const endpoints = parseLocalEndpointsFromLogs(
+      [
+        "Port 3000 is in use by process 5796, using available port 3001 instead.",
+        "Local:         http://localhost:3001",
+        "Another next dev server is already running.",
+        "Local:         http://localhost:3000",
+        "PID:           5796",
+        "Dir:           D:\\个人\\AI-v0.dev-"
+      ].join("\n")
+    );
+
+    expect(endpoints).toEqual([
+      { port: 3001, host: "localhost", url: "http://localhost:3001" },
+      { port: 3000, host: "localhost", url: "http://localhost:3000" }
+    ]);
+  });
+});
+
+describe("logIndicatesExistingServer", () => {
+  it("recognizes duplicate dev server and port-in-use failures", () => {
+    expect(logIndicatesExistingServer("Another next dev server is already running.")).toBe(true);
+    expect(logIndicatesExistingServer("Another next dev server is already running.\n- Dir: D:\\个人\\AI-v0.dev-", "D:\\个人\\AI-v0.dev-")).toBe(true);
+    expect(logIndicatesExistingServer("Another next dev server is already running.\n- Dir: D:\\个人\\AI-v0.dev-", "D:\\个人\\other")).toBe(false);
+    expect(logIndicatesExistingServer("ERROR: address already in use")).toBe(true);
+    expect(logIndicatesExistingServer("Cannot find module")).toBe(false);
   });
 });
