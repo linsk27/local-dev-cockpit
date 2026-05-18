@@ -334,6 +334,7 @@ async function resolveReachableEndpoint(
   processAdapter: NodeProcessAdapter,
   endpoint: Pick<PortStatus, "port" | "host" | "url">
 ): Promise<Pick<PortStatus, "port" | "host" | "url">> {
+  if (endpoint.url) return endpoint;
   if (endpoint.host !== "localhost") return endpoint;
   const protocol = endpoint.url?.startsWith("https:") ? "https" : "http";
   if (await processAdapter.isPortOpen(endpoint.port, "127.0.0.1")) {
