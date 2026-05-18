@@ -10,6 +10,7 @@ export const useProjectsStore = defineStore("projects", {
     refreshing: false,
     error: "",
     logs: "",
+    logsRunId: "",
     context: null as ContextResponse | null
   }),
   getters: {
@@ -35,7 +36,7 @@ export const useProjectsStore = defineStore("projects", {
     },
     select(projectId: string) {
       this.selectedId = projectId;
-      this.logs = "";
+      this.clearLogs();
       this.context = null;
     },
     async runCommand(commandId: string) {
@@ -55,10 +56,19 @@ export const useProjectsStore = defineStore("projects", {
       const project = this.selectedProject;
       const targetRun = runId ?? project?.lastRun?.id;
       if (!project || !targetRun) {
-        this.logs = "";
+        this.clearLogs();
         return;
       }
-      this.logs = await getLogs(project.id, targetRun);
+      const targetProjectId = project.id;
+      const logs = await getLogs(targetProjectId, targetRun);
+      if (this.selectedId === targetProjectId) {
+        this.logs = logs;
+        this.logsRunId = targetRun;
+      }
+    },
+    clearLogs() {
+      this.logs = "";
+      this.logsRunId = "";
     },
     async loadContext() {
       const project = this.selectedProject;
