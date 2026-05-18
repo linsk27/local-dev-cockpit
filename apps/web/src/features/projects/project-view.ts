@@ -91,12 +91,20 @@ export function projectBelongsToRoot(project: Project, rootPath: string): boolea
   return projectPath === root || projectPath.startsWith(`${root}/`);
 }
 
+export function formatDisplayPath(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.startsWith("\\\\")) {
+    return `\\\\${trimmed.slice(2).replace(/\\{2,}/g, "\\")}`;
+  }
+  return trimmed.replace(/\\{2,}/g, "\\");
+}
+
 function normalize(value: string): string {
   return value.trim().toLowerCase();
 }
 
 function normalizePath(value: string): string {
-  return value.replace(/\\/g, "/").replace(/\/+$/g, "").trim().toLowerCase();
+  return value.trim().replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/+$/g, "").toLowerCase();
 }
 
 function formatUrlHost(host: string): string {

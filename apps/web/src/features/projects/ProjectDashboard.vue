@@ -6,13 +6,34 @@
         <h1>{{ preferences.t("projectsTitle") }}</h1>
       </div>
       <div class="header-actions">
-        <label v-if="roots.length > 0" class="root-filter">
-          <FolderOpen :size="16" />
-          <select v-model="selectedRootId" :title="preferences.t('rootFilterLabel')">
-            <option value="all">{{ preferences.t("allRootsOption") }}</option>
-            <option v-for="root in roots" :key="root.id" :value="root.id">{{ root.path }}</option>
-          </select>
-        </label>
+        <div v-if="roots.length > 0" ref="rootFilterRef" class="root-filter">
+          <button
+            class="root-filter-button"
+            type="button"
+            :aria-label="preferences.t('rootFilterLabel')"
+            :aria-expanded="rootMenuOpen"
+            @click.stop="toggleRootMenu"
+          >
+            <FolderOpen :size="16" />
+            <span>{{ selectedRootLabel }}</span>
+            <ChevronDown :size="15" />
+          </button>
+          <div v-if="rootMenuOpen" class="root-menu" role="menu">
+            <button
+              v-for="option in rootOptions"
+              :key="option.id"
+              class="root-menu-item"
+              :class="{ active: option.id === selectedRootId }"
+              type="button"
+              role="menuitemradio"
+              :aria-checked="option.id === selectedRootId"
+              @click="selectRoot(option.id)"
+            >
+              <span>{{ option.label }}</span>
+              <Check v-if="option.id === selectedRootId" :size="15" />
+            </button>
+          </div>
+        </div>
         <label class="search-box">
           <Search :size="16" />
           <input v-model="searchQuery" :placeholder="preferences.t('projectSearchPlaceholder')" />
@@ -53,14 +74,14 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { FolderOpen, FolderSearch, RefreshCw, Search } from "lucide-vue-next";
+import { Check, ChevronDown, FolderOpen, FolderSearch, RefreshCw, Search } from "lucide-vue-next";
 import { getRoots, type RootEntry } from "../../api";
 import { useNotificationsStore } from "../../stores/notifications";
 import { useProjectsStore } from "../../stores/projects";
 import { usePreferencesStore } from "../../stores/preferences";
 import ProjectDetail from "./ProjectDetail.vue";
 import ProjectList from "./ProjectList.vue";
-import { projectBelongsToRoot, projectMatchesQuery, sortProjectsForDashboard } from "./project-view";
+import { formatDisplayPath, projectBelongsToRoot, projectMatchesQuery, sortProjectsForDashboard } from "./project-view";
 
 const store = useProjectsStore();
 const preferences = usePreferencesStore();
@@ -68,6 +89,15 @@ const notifications = useNotificationsStore();
 const searchQuery = ref("");
 const selectedRootId = ref("all");
 const roots = ref<RootEntry[]>([]);
+const rootMenuOpen = ref(false);
+const rootFilterRef = ref<HTMLElement | null>(null);
+
+const rootOptions = computed(() => [
+  { id: "all", label: preferences.t("allRootsOption") },
+  ...roots.value.map((root) => ({ id: root.id, label: formatDisplayPath(root.path) }))
+]);
+
+const selectedRootLabel = computed(() => rootOptions.value.find((option) => option.id === selectedRootId.value)?.label ?? preferences.t("allRootsOption"));
 
 const scopedProjects = computed(() => {
   if (selectedRootId.value === "all") return store.projects;
@@ -128,13 +158,36 @@ async function loadRoots(): Promise<void> {
   }
 }
 
+function toggleRootMenu(): void {
+  rootMenuOpen.value = !rootMenuOpen.value;
+}
+
+function selectRoot(rootId: string): void {
+  selectedRootId.value = rootId;
+  rootMenuOpen.value = false;
+}
+
+function closeRootMenuOnOutsideClick(event: MouseEvent): void {
+  if (!rootFilterRef.value?.contains(event.target as Node)) {
+    rootMenuOpen.value = false;
+  }
+}
+
+function closeRootMenuOnEscape(event: KeyboardEvent): void {
+  if (event.key === "Escape") rootMenuOpen.value = false;
+}
+
 onMounted(() => {
   void loadRoots();
   void store.refresh();
+  document.addEventListener("click", closeRootMenuOnOutsideClick);
+  window.addEventListener("keydown", closeRootMenuOnEscape);
   refreshTimer = window.setInterval(() => void refreshRuntimeState(), 2000);
 });
 
 onBeforeUnmount(() => {
   if (refreshTimer) window.clearInterval(refreshTimer);
+  document.removeEventListener("click", closeRootMenuOnOutsideClick);
+  window.removeEventListener("keydown", closeRootMenuOnEscape);
 });
 </script>

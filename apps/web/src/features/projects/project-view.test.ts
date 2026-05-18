@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Project } from "@local-dev-cockpit/core";
 import {
+  formatDisplayPath,
   formatPortUrl,
   projectBelongsToRoot,
   projectMatchesQuery,
@@ -38,7 +39,14 @@ describe("project dashboard view helpers", () => {
 
     expect(projectBelongsToRoot(target, "D:\\personal")).toBe(true);
     expect(projectBelongsToRoot(target, "D:\\personal\\")).toBe(true);
+    expect(projectBelongsToRoot(target, "D:\\\\personal")).toBe(true);
     expect(projectBelongsToRoot(target, "D:\\personal-other")).toBe(false);
+  });
+
+  it("formats stored paths for compact display", () => {
+    expect(formatDisplayPath("D:\\\\personal")).toBe("D:\\personal");
+    expect(formatDisplayPath("D:\\personal")).toBe("D:\\personal");
+    expect(formatDisplayPath("\\\\server\\\\share")).toBe("\\\\server\\share");
   });
 
   it("formats ipv6 hosts as browser-safe URLs", () => {
