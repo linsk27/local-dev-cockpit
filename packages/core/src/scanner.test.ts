@@ -60,4 +60,18 @@ describe("scanRoot", () => {
     expect(context).toContain("## Commands");
     expect(context).toContain("npm run dev");
   });
+
+  it("renders host-aware port endpoints in recovery and AI context", async () => {
+    const result = await scanRoot(fixtureRoot, { maxDepth: 2 });
+    const project = result.projects.find((item) => item.name === "vue-app");
+    expect(project).toBeTruthy();
+
+    const withRunningPort = {
+      ...project!,
+      ports: [{ port: 3000, host: "127.0.0.1", status: "open" as const, source: "process" as const }]
+    };
+
+    expect(createRecoveryCard(withRunningPort).summary).toContain("127.0.0.1:3000");
+    expect(renderProjectContext(withRunningPort)).toContain("127.0.0.1:3000: open");
+  });
 });

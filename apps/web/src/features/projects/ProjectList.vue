@@ -20,19 +20,24 @@
       </div>
       <div class="project-row-meta">
         <span>{{ project.git.dirtyCount }} {{ preferences.t("dirty") }}</span>
-        <span>{{ openPorts(project) }}</span>
+        <span class="project-port" :class="{ 'port-conflict': hasPortConflict(project) }">
+          <span>{{ openPorts(project) }}</span>
+          <em v-if="hasPortConflict(project)">{{ preferences.t("portConflict") }}</em>
+        </span>
       </div>
     </button>
   </section>
 </template>
 
 <script setup lang="ts">
-import type { Project } from "@local-dev-cockpit/core";
+import { computed } from "vue";
+import type { PortStatus, Project } from "@local-dev-cockpit/core";
 import { usePreferencesStore } from "../../stores/preferences";
+import { formatPortEndpoint } from "./ports";
 
 const preferences = usePreferencesStore();
 
-defineProps<{
+const props = defineProps<{
   projects: Project[];
   selectedId?: string;
 }>();
@@ -49,7 +54,26 @@ function statusClass(project: Project): string {
 }
 
 function openPorts(project: Project): string {
-  const open = project.ports.filter((port) => port.status === "open" && port.source !== "common").map((port) => port.port);
+  const open = visiblePorts(project).map((port) => formatPortEndpoint(port));
   return open.length > 0 ? open.join(", ") : preferences.t("idle");
+}
+
+const openPortCounts = computed(() => {
+  const counts = new Map<number, number>();
+  for (const project of props.projects) {
+    const uniquePorts = new Set(visiblePorts(project).map((port) => port.port));
+    for (const port of uniquePorts) {
+      counts.set(port, (counts.get(port) ?? 0) + 1);
+    }
+  }
+  return counts;
+});
+
+function hasPortConflict(project: Project): boolean {
+  return visiblePorts(project).some((port) => (openPortCounts.value.get(port.port) ?? 0) > 1);
+}
+
+function visiblePorts(project: Project): PortStatus[] {
+  return project.ports.filter((port) => port.status === "open" && port.source !== "common");
 }
 </script>

@@ -10,7 +10,7 @@ export function createRecoveryCard(project: Project): RecoveryCard {
     summary: project.lastError
       ? `Last run failed: ${project.lastError.message}`
       : runningPort
-        ? `Service appears active on port ${runningPort.port}.`
+        ? `Service appears active on ${formatPortEndpoint(runningPort)}.`
         : "No running service was detected yet.",
     nextStep: project.lastError
       ? "Open logs, fix the last error, then run the recommended dev command again."
@@ -26,7 +26,7 @@ export function createRecoveryCard(project: Project): RecoveryCard {
         label: "Ports",
         value: project.ports
           .filter((port) => port.source !== "common" || port.status === "closed")
-          .map((port) => `${port.port}:${port.status}`)
+          .map((port) => `${formatPortEndpoint(port)}:${port.status}`)
           .join(", ") || "none"
       }
     ]
@@ -38,7 +38,7 @@ export function renderProjectContext(project: Project): string {
   const commands = project.commands
     .map((item) => `- ${item.label}: \`${[item.command, ...item.args].join(" ")}\` (${item.kind}, ${item.source})`)
     .join("\n");
-  const ports = project.ports.map((item) => `- ${item.port}: ${item.status} (${item.source})`).join("\n");
+  const ports = project.ports.map((item) => `- ${formatPortEndpoint(item)}: ${item.status} (${item.source})`).join("\n");
 
   return `# ${project.name} Project Context
 
@@ -85,4 +85,8 @@ This project is managed locally through Dev Cockpit.
 
 ${renderProjectContext(project)}
 `;
+}
+
+export function formatPortEndpoint(port: Pick<Project["ports"][number], "port" | "host">): string {
+  return port.host ? `${port.host}:${port.port}` : String(port.port);
 }

@@ -214,7 +214,7 @@ function isStaleError(lastRun: ProcessRun | undefined, lastError: ErrorSummary |
 }
 
 async function extractPortsFromLogs(logs: string, status: ProcessRun["status"], isLiveRun: boolean): Promise<PortStatus[]> {
-  const ports = new Set<number>();
+  const ports = new Map<string, Pick<PortStatus, "port" | "host" | "url">>();
   const cleanLogs = stripAnsi(logs);
   const processAdapter = new NodeProcessAdapter();
 
@@ -224,7 +224,12 @@ async function extractPortsFromLogs(logs: string, status: ProcessRun["status"], 
       if (!url.port) continue;
       const port = Number(url.port);
       if (Number.isInteger(port) && port > 0 && port < 65536) {
-        ports.add(port);
+        const host = normalizePortHost(url.hostname);
+        ports.set(`${host}:${port}`, {
+          port,
+          host,
+          url: `${url.protocol}//${url.host}`
+        });
       }
     } catch {
       // Ignore partial URLs emitted by colored terminal output.
@@ -232,14 +237,19 @@ async function extractPortsFromLogs(logs: string, status: ProcessRun["status"], 
   }
 
   const statuses: PortStatus[] = [];
-  for (const port of ports) {
+  for (const endpoint of ports.values()) {
     statuses.push({
-      port,
-      status: status === "running" && (isLiveRun || (await processAdapter.isPortOpen(port))) ? "open" : "closed",
+      ...endpoint,
+      status: status === "running" && (isLiveRun || (await isEndpointOpen(processAdapter, endpoint))) ? "open" : "closed",
       source: "process"
     });
   }
   return statuses;
+}
+
+async function isEndpointOpen(processAdapter: NodeProcessAdapter, endpoint: Pick<PortStatus, "port" | "host">): Promise<boolean> {
+  if (!endpoint.host || endpoint.host === "localhost") return processAdapter.isPortOpen(endpoint.port);
+  return processAdapter.isPortOpen(endpoint.port, endpoint.host);
 }
 
 function stripAnsi(value: string): string {
@@ -247,14 +257,25 @@ function stripAnsi(value: string): string {
 }
 
 function mergePorts(detected: PortStatus[], processPorts: PortStatus[]): PortStatus[] {
-  const byPort = new Map<number, PortStatus>();
+  const byPort = new Map<string, PortStatus>();
   for (const port of detected) {
-    byPort.set(port.port, port);
+    byPort.set(portKey(port), port);
   }
   for (const port of processPorts) {
-    byPort.set(port.port, port);
+    for (const [key, existing] of byPort) {
+      if (existing.port === port.port && existing.source !== "process") byPort.delete(key);
+    }
+    byPort.set(portKey(port), port);
   }
-  return [...byPort.values()].sort((left, right) => left.port - right.port);
+  return [...byPort.values()].sort((left, right) => left.port - right.port || (left.host ?? "").localeCompare(right.host ?? ""));
+}
+
+function normalizePortHost(host: string): string {
+  return host.replace(/^\[|\]$/g, "");
+}
+
+function portKey(port: PortStatus): string {
+  return port.host ? `${port.host}:${port.port}:${port.source}` : `${port.port}:${port.source}`;
 }
 
 async function readJson(req: IncomingMessage): Promise<unknown> {

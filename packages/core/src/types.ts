@@ -33,6 +33,13 @@ export interface Command {
 
 export interface PortStatus {
   port: number;
+  /**
+   * Optional host reported by a running process, for example localhost,
+   * 127.0.0.1, or ::1. Keeping it separate prevents two local services on the
+   * same numeric port but different bind hosts from being shown as one thing.
+   */
+  host?: string;
+  url?: string;
   status: "open" | "closed" | "unknown";
   source: "detected" | "process" | "common";
 }
@@ -88,4 +95,3 @@ export interface ScanResult {
   warnings: string[];
   scannedAt: string;
 }
-

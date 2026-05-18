@@ -39,6 +39,7 @@ Dev Cockpit 只做一件事：本地项目现场恢复。它不接云端账号�
 - 识别 Node、Python、Go、Rust、Docker 和混合项目。
 - 从 `package.json`、Flask/FastAPI/Django、Go、Cargo、Docker Compose 推断常用命令。
 - 显示 Git 分支、未提交文件数、最近提交、端口状态和最近失败。
+- 端口展示会保留 `localhost` / `127.0.0.1` / `::1` 这类 host，避免多个本地项目同时使用 `3000` 时看不清真实来源。
 - 在面板里启动/停止命令，日志写入本地文件并实时显示。
 - 一键生成 `PROJECT_CONTEXT.md` 和 `AGENTS.md` 内容，方便交给 AI coding agent。
 - 支持中文/英文、多主题和多强调色，偏好保存在浏览器本地。

@@ -30,6 +30,7 @@
 import { computed } from "vue";
 import type { Project } from "@local-dev-cockpit/core";
 import { usePreferencesStore } from "../../stores/preferences";
+import { formatPortEndpoint } from "./ports";
 
 const props = defineProps<{ project: Project }>();
 const preferences = usePreferencesStore();
@@ -37,7 +38,7 @@ const preferences = usePreferencesStore();
 const ports = computed(() => {
   const open = props.project.ports
     .filter((port) => port.status === "open" && port.source !== "common")
-    .map((port) => port.port);
+    .map((port) => formatPortEndpoint(port));
   return open.length > 0 ? open.join(", ") : preferences.t("none");
 });
 
