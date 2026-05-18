@@ -464,6 +464,11 @@ h2 {
   width: 36px;
 }
 
+.icon-button.spinning svg,
+.spin-icon {
+  animation: spin 900ms linear infinite;
+}
+
 .text-button {
   padding: 0 10px;
   color: var(--muted-strong);
@@ -674,5 +679,11 @@ h2 {
 
   .recovery-facts {
     grid-template-columns: 1fr;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
 }

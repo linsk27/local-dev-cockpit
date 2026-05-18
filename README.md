@@ -14,6 +14,10 @@ http://localhost:8787
 
 ![Dev Cockpit Dashboard](docs/assets/dashboard.png)
 
+真实扫描 `D:\个人` 后，可以同时看到多个项目和正在运行的端口：
+
+![Dev Cockpit Multi Project Dashboard](docs/assets/dashboard-multi-project.png)
+
 主题、强调色和语言可在设置页直接切换：
 
 ![Dev Cockpit Appearance Settings](docs/assets/settings-themes.png)

@@ -64,9 +64,14 @@ export async function scanRoot(
       return;
     }
 
-    if (entries.some((entry) => entry.name === ".git" && entry.isDirectory) || hasProjectMarker(entries)) {
+    const hasGitDirectory = entries.some((entry) => entry.name === ".git" && entry.isDirectory);
+    const hasMarker = hasProjectMarker(entries);
+    if (hasMarker) {
       projectPaths.push(dir);
       return;
+    }
+    if (hasGitDirectory) {
+      projectPaths.push(dir);
     }
 
     for (const entry of entries) {

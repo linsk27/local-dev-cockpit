@@ -100,7 +100,7 @@ export class ProcessManager {
     child.once("close", async (exitCode) => {
       if (finished) return;
       finished = true;
-      run.status = exitCode === 0 ? "exited" : "failed";
+      run.status = run.status === "stopped" ? "stopped" : exitCode === 0 ? "exited" : "failed";
       run.exitCode = exitCode ?? undefined;
       run.exitedAt = new Date().toISOString();
       logStream.end();
@@ -124,11 +124,15 @@ export class ProcessManager {
     if (!entry) return false;
     entry.run.status = "stopped";
     entry.run.exitedAt = new Date().toISOString();
-    entry.child.kill();
+    await killProcessTree(entry.child);
     this.running.delete(processId);
     await this.store.recordRun(entry.run);
     this.events.emit("process.stopped", { run: entry.run });
     return true;
+  }
+
+  isRunning(processId: string): boolean {
+    return this.running.has(processId);
   }
 
   async readLogs(runId: string): Promise<string> {
@@ -141,6 +145,22 @@ export class ProcessManager {
       return "";
     }
   }
+}
+
+async function killProcessTree(child: ChildProcessWithoutNullStreams): Promise<void> {
+  if (process.platform === "win32" && child.pid) {
+    await new Promise<void>((resolve) => {
+      const killer = spawn("taskkill.exe", ["/pid", String(child.pid), "/t", "/f"], {
+        windowsHide: true,
+        stdio: "ignore"
+      });
+      killer.once("error", () => resolve());
+      killer.once("close", () => resolve());
+    });
+    return;
+  }
+
+  child.kill();
 }
 
 function createSpawnInvocation(command: string, args: string[]): { command: string; args: string[] } {

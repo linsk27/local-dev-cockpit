@@ -1,4 +1,6 @@
 import path from "node:path";
+import { promises as fs } from "node:fs";
+import os from "node:os";
 import { describe, expect, it } from "vitest";
 import { createRecoveryCard, renderProjectContext, scanRoot } from "./index.js";
 
@@ -21,6 +23,29 @@ describe("scanRoot", () => {
 
     expect(vueProject?.commands.some((command) => command.id === "script-dev")).toBe(true);
     expect(vueProject?.commands.find((command) => command.id === "script-dev")?.args).toEqual(["run", "dev"]);
+  });
+
+  it("continues scanning inside Git shell repositories without root stack markers", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-scan-"));
+    const repo = path.join(root, "git-shell");
+    await fs.mkdir(path.join(repo, ".git"), { recursive: true });
+    await fs.mkdir(path.join(repo, "frontend"), { recursive: true });
+    await fs.mkdir(path.join(repo, "backend"), { recursive: true });
+    await fs.writeFile(
+      path.join(repo, "frontend", "package.json"),
+      JSON.stringify({ name: "frontend", scripts: { dev: "vite --port 5174" } }),
+      "utf8"
+    );
+    await fs.writeFile(path.join(repo, "backend", "requirements.txt"), "flask\n", "utf8");
+
+    const result = await scanRoot(root, { maxDepth: 3 });
+    const names = result.projects.map((project) => project.name);
+
+    expect(names).toContain("git-shell");
+    expect(names).toContain("frontend");
+    expect(names).toContain("backend");
+    expect(result.projects.find((project) => project.name === "frontend")?.kind).toBe("node");
+    expect(result.projects.find((project) => project.name === "backend")?.kind).toBe("python");
   });
 
   it("renders recovery and AI context without external AI calls", async () => {

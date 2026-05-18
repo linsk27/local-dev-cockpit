@@ -73,6 +73,9 @@ export class JsonStore {
   async recordRun(run: ProcessRun): Promise<void> {
     const state = await this.readState();
     state.runs[run.projectId] = run;
+    if (run.status !== "failed") {
+      delete state.errors[run.projectId];
+    }
     await this.writeState(state);
   }
 
@@ -96,4 +99,3 @@ async function exists(filePath: string): Promise<boolean> {
     return false;
   }
 }
-

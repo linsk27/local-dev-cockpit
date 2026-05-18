@@ -12,6 +12,9 @@ import {
   renderAgentsFile,
   renderProjectContext,
   scanRoot,
+  type ErrorSummary,
+  type PortStatus,
+  type ProcessRun,
   type Project
 } from "@local-dev-cockpit/core";
 import { EventBus } from "./events.js";
@@ -83,7 +86,7 @@ async function route(
   }
 
   if (method === "GET" && url.pathname === "/api/projects") {
-    const projects = await loadProjects(context.store);
+    const projects = await loadProjects(context.store, context.processManager);
     sendJson(res, 200, { projects });
     return;
   }
@@ -104,14 +107,14 @@ async function route(
 
   const projectMatch = url.pathname.match(/^\/api\/projects\/([^/]+)$/);
   if (method === "GET" && projectMatch) {
-    const project = await loadProject(projectMatch[1] ?? "", context.store);
+    const project = await loadProject(projectMatch[1] ?? "", context.store, context.processManager);
     sendJson(res, 200, { project });
     return;
   }
 
   const startMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/commands\/([^/]+)\/start$/);
   if (method === "POST" && startMatch) {
-    const project = await loadProject(startMatch[1] ?? "", context.store);
+    const project = await loadProject(startMatch[1] ?? "", context.store, context.processManager);
     const command = project.commands.find((item) => item.id === decodeURIComponent(startMatch[2] ?? ""));
     if (!command) {
       sendJson(res, 404, { error: "Command not found" });
@@ -139,7 +142,7 @@ async function route(
 
   const contextMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/context$/);
   if (method === "GET" && contextMatch) {
-    const project = await loadProject(contextMatch[1] ?? "", context.store);
+    const project = await loadProject(contextMatch[1] ?? "", context.store, context.processManager);
     sendJson(res, 200, {
       context: renderProjectContext(project),
       agents: renderAgentsFile(project),
@@ -151,7 +154,7 @@ async function route(
   await serveStatic(req, res, context.webRoot);
 }
 
-async function loadProjects(store: JsonStore): Promise<Project[]> {
+async function loadProjects(store: JsonStore, processManager: ProcessManager): Promise<Project[]> {
   const config = await store.readConfig();
   const state = await store.readState();
   const projects: Project[] = [];
@@ -161,21 +164,97 @@ async function loadProjects(store: JsonStore): Promise<Project[]> {
     projects.push(...result.projects);
   }
 
-  return projects.map((project) => ({
-    ...project,
-    lastRun: state.runs[project.id],
-    lastError: state.errors[project.id]
-  }));
+  return Promise.all(projects.map((project) => enrichProject(project, state.runs[project.id], state.errors[project.id], processManager)));
 }
 
-async function loadProject(id: string, store: JsonStore): Promise<Project> {
+async function loadProject(id: string, store: JsonStore, processManager: ProcessManager): Promise<Project> {
   const projectPath = decodeProjectId(id);
   const state = await store.readState();
   const project = await analyzeProject(projectPath, {
     fs: new NodeFileSystemAdapter(),
     process: new NodeProcessAdapter()
   });
-  return { ...project, lastRun: state.runs[project.id], lastError: state.errors[project.id] };
+  return enrichProject(project, state.runs[project.id], state.errors[project.id], processManager);
+}
+
+async function enrichProject(
+  project: Project,
+  lastRun: ProcessRun | undefined,
+  lastError: ErrorSummary | undefined,
+  processManager: ProcessManager
+): Promise<Project> {
+  const processPorts = lastRun
+    ? await extractPortsFromLogs(await processManager.readLogs(lastRun.id), lastRun.status, processManager.isRunning(lastRun.id))
+    : [];
+  const currentRun = hydrateLastRun(lastRun, processPorts);
+  const currentError = isStaleError(currentRun, lastError) ? undefined : lastError;
+
+  return {
+    ...project,
+    ports: mergePorts(project.ports, processPorts),
+    lastRun: currentRun,
+    lastError: currentError
+  };
+}
+
+function hydrateLastRun(lastRun: ProcessRun | undefined, processPorts: PortStatus[]): ProcessRun | undefined {
+  if (!lastRun || lastRun.status !== "running" || processPorts.length === 0) return lastRun;
+  if (processPorts.some((port) => port.status === "open")) return lastRun;
+  return {
+    ...lastRun,
+    status: "stopped",
+    exitedAt: lastRun.exitedAt ?? new Date().toISOString()
+  };
+}
+
+function isStaleError(lastRun: ProcessRun | undefined, lastError: ErrorSummary | undefined): boolean {
+  if (!lastRun || !lastError) return false;
+  if (lastRun.status === "failed") return false;
+  return new Date(lastRun.startedAt).getTime() >= new Date(lastError.occurredAt).getTime();
+}
+
+async function extractPortsFromLogs(logs: string, status: ProcessRun["status"], isLiveRun: boolean): Promise<PortStatus[]> {
+  const ports = new Set<number>();
+  const cleanLogs = stripAnsi(logs);
+  const processAdapter = new NodeProcessAdapter();
+
+  for (const match of cleanLogs.matchAll(/https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d{2,5})?(?:\/[^\s]*)?/gi)) {
+    try {
+      const url = new URL(match[0]);
+      if (!url.port) continue;
+      const port = Number(url.port);
+      if (Number.isInteger(port) && port > 0 && port < 65536) {
+        ports.add(port);
+      }
+    } catch {
+      // Ignore partial URLs emitted by colored terminal output.
+    }
+  }
+
+  const statuses: PortStatus[] = [];
+  for (const port of ports) {
+    statuses.push({
+      port,
+      status: status === "running" && (isLiveRun || (await processAdapter.isPortOpen(port))) ? "open" : "closed",
+      source: "process"
+    });
+  }
+  return statuses;
+}
+
+function stripAnsi(value: string): string {
+  return value.replace(/\u001b\[[0-9;]*m/g, "");
+}
+
+function mergePorts(detected: PortStatus[], processPorts: PortStatus[]): PortStatus[] {
+  const byPort = new Map<number, PortStatus>();
+  for (const port of detected) {
+    byPort.set(port.port, port);
+  }
+  for (const port of processPorts) {
+    byPort.set(port.port, port);
+  }
+  return [...byPort.values()].sort((left, right) => left.port - right.port);
 }
 
 async function readJson(req: IncomingMessage): Promise<unknown> {

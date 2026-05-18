@@ -6,7 +6,7 @@
         <h1>{{ preferences.t("projectsTitle") }}</h1>
       </div>
       <div class="header-actions">
-        <button class="icon-button" :title="preferences.t('refreshProjects')" @click="store.refresh">
+        <button class="icon-button" :class="{ spinning: store.loading }" :title="preferences.t('refreshProjects')" @click="store.refresh">
           <RefreshCw :size="18" />
         </button>
       </div>
@@ -17,6 +17,10 @@
     <div class="dashboard-grid">
       <ProjectList :projects="store.projects" :selected-id="store.selectedProject?.id" @select="store.select" />
       <ProjectDetail v-if="store.selectedProject" :project="store.selectedProject" />
+      <section v-else-if="store.loading" class="empty-state">
+        <RefreshCw :size="34" class="spin-icon" />
+        <h2>{{ preferences.t("loadingProjects") }}</h2>
+      </section>
       <section v-else class="empty-state">
         <FolderSearch :size="34" />
         <h2>{{ preferences.t("emptyTitle") }}</h2>

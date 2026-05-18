@@ -55,7 +55,13 @@ export class NodeProcessAdapter implements ProcessAdapter {
     }
   }
 
-  async isPortOpen(port: number, host = "127.0.0.1"): Promise<boolean> {
+  async isPortOpen(port: number, host?: string): Promise<boolean> {
+    if (host) return isPortOpenOnHost(port, host);
+    return (await isPortOpenOnHost(port, "127.0.0.1")) || (await isPortOpenOnHost(port, "::1"));
+  }
+}
+
+function isPortOpenOnHost(port: number, host: string): Promise<boolean> {
     return new Promise((resolve) => {
       const socket = net.createConnection({ port, host });
       const done = (open: boolean) => {
@@ -68,6 +74,4 @@ export class NodeProcessAdapter implements ProcessAdapter {
       socket.once("timeout", () => done(false));
       socket.once("error", () => done(false));
     });
-  }
 }
-
