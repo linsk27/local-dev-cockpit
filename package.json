@@ -1,0 +1,35 @@
+{
+  "name": "local-dev-cockpit-repo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local developer cockpit for restoring project state, commands, logs, git status, ports, and AI context.",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@10.33.3",
+  "scripts": {
+    "build": "pnpm --filter @local-dev-cockpit/core build && pnpm --filter @local-dev-cockpit/server build && pnpm --filter @local-dev-cockpit/web build && pnpm --filter local-dev-cockpit build",
+    "dev": "pnpm --filter local-dev-cockpit dev",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm --filter @local-dev-cockpit/core build && pnpm --filter @local-dev-cockpit/server build && pnpm -r typecheck",
+    "release:check": "pnpm typecheck && pnpm test && pnpm build"
+  },
+  "keywords": [
+    "developer-tools",
+    "local-dev",
+    "dashboard",
+    "vue",
+    "cli",
+    "devtools",
+    "ai-context",
+    "project-dashboard"
+  ],
+  "devDependencies": {
+    "@types/node": "^20.19.24",
+    "@vitejs/plugin-vue": "^5.2.4",
+    "esbuild": "^0.25.12",
+    "typescript": "^5.9.3",
+    "vite": "^5.4.21",
+    "vitest": "^3.2.4",
+    "vue-tsc": "^3.1.5"
+  }
+}

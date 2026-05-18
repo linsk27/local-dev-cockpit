@@ -1,0 +1,25 @@
+{
+  "name": "@local-dev-cockpit/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite --host 127.0.0.1 --port 5178",
+    "test": "vitest run src --passWithNoTests",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "@local-dev-cockpit/core": "workspace:*",
+    "lucide-vue-next": "^0.468.0",
+    "pinia": "^2.3.1",
+    "vue": "^3.5.25",
+    "vue-router": "^4.6.3"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.4",
+    "vite": "^5.4.21",
+    "vue-tsc": "^3.1.5"
+  }
+}
+

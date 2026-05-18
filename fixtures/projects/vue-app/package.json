@@ -1,0 +1,12 @@
+{
+  "name": "vue-app",
+  "scripts": {
+    "dev": "vite --port 5173",
+    "build": "vite build",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "vue": "^3.5.0"
+  }
+}
+

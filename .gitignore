@@ -1,0 +1,10 @@
+node_modules
+dist
+.turbo
+.vite
+coverage
+*.log
+.DS_Store
+apps/web/dist
+packages/*/dist
+

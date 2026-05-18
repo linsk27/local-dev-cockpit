@@ -1,0 +1,43 @@
+{
+  "name": "local-dev-cockpit",
+  "version": "0.1.0",
+  "description": "Local developer cockpit for projects, processes, logs, ports, Git state, and AI context.",
+  "license": "MIT",
+  "type": "module",
+  "homepage": "https://github.com/linsk27/local-dev-cockpit#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/linsk27/local-dev-cockpit.git",
+    "directory": "packages/cli"
+  },
+  "bin": {
+    "local-dev-cockpit": "dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "node ../../scripts/build-cli.mjs",
+    "dev": "tsx src/index.ts",
+    "test": "vitest run src --passWithNoTests",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "commander": "^14.0.2",
+    "ws": "^8.18.3",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@local-dev-cockpit/core": "workspace:*",
+    "@local-dev-cockpit/server": "workspace:*",
+    "tsx": "^4.20.6"
+  }
+}
