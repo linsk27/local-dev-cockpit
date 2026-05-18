@@ -25,7 +25,7 @@ const placeholder = computed(() =>
 );
 
 watch(
-  () => props.project.lastRun?.id,
+  () => [props.project.id, props.project.lastRun?.id],
   () => void store.loadLogs(),
   { immediate: true }
 );
