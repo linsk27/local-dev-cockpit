@@ -16,6 +16,10 @@ export function projectIsOnline(project: Project): boolean {
   return project.lastRun?.status === "running" || visibleProjectPorts(project).length > 0;
 }
 
+export function projectHasFailed(project: Project): boolean {
+  return Boolean(project.lastError) || project.lastRun?.status === "failed";
+}
+
 export function recommendedProjectCommand(project: Project): Command | undefined {
   const failedCommand = project.lastError?.commandId
     ? project.commands.find((command) => command.id === project.lastError?.commandId)
@@ -58,7 +62,7 @@ export function sortProjectsForDashboard(projects: Project[]): Project[] {
     const onlineDelta = Number(projectIsOnline(right)) - Number(projectIsOnline(left));
     if (onlineDelta !== 0) return onlineDelta;
 
-    const errorDelta = Number(Boolean(right.lastError)) - Number(Boolean(left.lastError));
+    const errorDelta = Number(projectHasFailed(right)) - Number(projectHasFailed(left));
     if (errorDelta !== 0) return errorDelta;
 
     return left.name.localeCompare(right.name, undefined, { sensitivity: "base" });

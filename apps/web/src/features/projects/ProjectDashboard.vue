@@ -109,6 +109,7 @@ const scopedProjects = computed(() => {
 const visibleProjects = computed(() => sortProjectsForDashboard(scopedProjects.value).filter((project) => projectMatchesQuery(project, searchQuery.value)));
 
 const hasRunningProject = computed(() => store.projects.some((project) => project.lastRun?.status === "running"));
+const hasRuntimeWatch = computed(() => hasRunningProject.value || Object.keys(store.runtimeWatches).length > 0);
 
 const activeProject = computed(() => {
   return visibleProjects.value.find((project) => project.id === store.selectedId) ?? visibleProjects.value[0];
@@ -131,13 +132,19 @@ watch(
 );
 
 let refreshTimer: number | undefined;
+const notifiedFailedRunIds = new Set<string>();
 
 async function refreshRuntimeState(): Promise<void> {
-  if (!hasRunningProject.value) return;
-  await store.refresh({ silent: true });
-  if (store.selectedProject?.lastRun?.status === "running") {
-    await store.loadLogs();
+  if (!hasRuntimeWatch.value) return;
+  const watchedBefore = captureWatchedRuns();
+  await Promise.all([...watchedBefore.keys()].map((projectId) => store.refreshProject(projectId)));
+  notifyFailedRuns(watchedBefore);
+  const selectedProject = store.selectedProject;
+  const selectedRun = selectedProject?.lastRun;
+  if (selectedProject && selectedRun && (selectedRun.status === "running" || watchedBefore.get(selectedProject.id) === selectedRun.id)) {
+    await store.loadLogs(selectedRun.id);
   }
+  store.pruneRuntimeWatches();
 }
 
 async function refreshProjects(): Promise<void> {
@@ -175,6 +182,26 @@ function closeRootMenuOnOutsideClick(event: MouseEvent): void {
 
 function closeRootMenuOnEscape(event: KeyboardEvent): void {
   if (event.key === "Escape") rootMenuOpen.value = false;
+}
+
+function captureWatchedRuns(): Map<string, string> {
+  const watched = new Map<string, string>();
+  for (const project of store.projects) {
+    if (project.lastRun?.status === "running") watched.set(project.id, project.lastRun.id);
+  }
+  for (const [projectId, runId] of Object.entries(store.runtimeWatches)) {
+    watched.set(projectId, runId);
+  }
+  return watched;
+}
+
+function notifyFailedRuns(watchedBefore: Map<string, string>): void {
+  for (const project of store.projects) {
+    const run = project.lastRun;
+    if (run?.status !== "failed" || watchedBefore.get(project.id) !== run.id || notifiedFailedRunIds.has(run.id)) continue;
+    notifiedFailedRunIds.add(run.id);
+    notifications.error(`命令失败：${project.name} - ${project.lastError?.message ?? "请查看日志"}`);
+  }
 }
 
 onMounted(() => {

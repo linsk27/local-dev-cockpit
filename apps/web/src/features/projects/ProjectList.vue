@@ -19,7 +19,7 @@
           </div>
         </div>
         <div class="project-row-meta">
-          <span class="project-state" :class="{ online: projectIsOnline(project), failed: Boolean(project.lastError) }">
+          <span class="project-state" :class="{ online: projectIsOnline(project), failed: projectHasFailed(project) }">
             {{ statusLabel(project) }}
           </span>
           <span>{{ project.git.dirtyCount }} {{ preferences.t("dirty") }}</span>
@@ -54,6 +54,7 @@ import {
   formatPortEndpoint,
   formatPortUrl,
   hasPortConflict as hasProjectPortConflict,
+  projectHasFailed,
   projectIsOnline,
   visibleProjectPorts
 } from "./project-view";
@@ -71,13 +72,13 @@ defineEmits<{
 }>();
 
 function statusClass(project: Project): string {
-  if (project.lastError) return "failed";
+  if (projectHasFailed(project)) return "failed";
   if (projectIsOnline(project)) return "running";
   return "idle";
 }
 
 function statusLabel(project: Project): string {
-  if (project.lastError) return preferences.t("projectFailed");
+  if (projectHasFailed(project)) return preferences.t("projectFailed");
   if (projectIsOnline(project)) return preferences.t("projectOnline");
   return preferences.t("projectOffline");
 }

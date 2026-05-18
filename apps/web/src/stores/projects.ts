@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import type { ProcessRun, Project } from "@local-dev-cockpit/core";
-import { getContext, getLogs, getProjects, startCommand, stopProcess, type ContextResponse } from "../api";
+import { getContext, getLogs, getProject, getProjects, startCommand, stopProcess, type ContextResponse } from "../api";
 
 export type CommandActionState = "starting" | "stopping";
 
@@ -14,6 +14,7 @@ export const useProjectsStore = defineStore("projects", {
     logs: "",
     logsRunId: "",
     commandActions: {} as Record<string, CommandActionState>,
+    runtimeWatches: {} as Record<string, string>,
     context: null as ContextResponse | null
   }),
   getters: {
@@ -39,6 +40,21 @@ export const useProjectsStore = defineStore("projects", {
         this.refreshing = false;
       }
     },
+    async refreshProject(projectId: string): Promise<Project | undefined> {
+      try {
+        const project = await getProject(projectId);
+        const index = this.projects.findIndex((item) => item.id === projectId);
+        if (index >= 0) {
+          this.projects = this.projects.map((item) => (item.id === projectId ? project : item));
+        } else {
+          this.projects = [...this.projects, project];
+        }
+        return project;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : String(error);
+        return undefined;
+      }
+    },
     select(projectId: string) {
       this.selectedId = projectId;
       this.clearLogs();
@@ -52,11 +68,25 @@ export const useProjectsStore = defineStore("projects", {
       this.error = "";
       try {
         const result = await startCommand(project.id, commandId);
+        if (result.run.status === "running") this.watchRun(project.id, result.run.id);
         this.applyRun(project.id, result.run);
         this.logs = "";
         this.logsRunId = result.run.id;
         await this.loadLogs(result.run.id);
-        await this.refresh({ silent: true });
+        const refreshedProject = await this.refreshProject(project.id);
+        const refreshedRun = refreshedProject?.lastRun;
+        if (refreshedRun?.id === result.run.id && refreshedRun.status !== "running") {
+          this.unwatchRun(project.id, result.run.id);
+          await this.loadLogs(result.run.id);
+          return refreshedRun;
+        }
+        if (result.run.status === "running" && (!refreshedRun || refreshedRun.id !== result.run.id)) {
+          this.applyRun(project.id, result.run);
+        }
+        if (result.run.status !== "running") {
+          this.unwatchRun(project.id, result.run.id);
+          await this.loadLogs(result.run.id);
+        }
         return result.run;
       } catch (error) {
         this.error = error instanceof Error ? error.message : String(error);
@@ -86,11 +116,13 @@ export const useProjectsStore = defineStore("projects", {
         }
         if (!result.stopped) {
           const message = "当前命令不再由 Dev Cockpit 托管，已清理旧运行状态。若端口仍被占用，请在系统终端关闭对应进程。";
-          await this.refresh({ silent: true });
+          await this.refreshProject(targetProjectId);
+          this.unwatchRun(targetProjectId, runId);
           this.error = message;
           return false;
         }
-        await this.refresh({ silent: true });
+        await this.refreshProject(targetProjectId);
+        this.unwatchRun(targetProjectId, runId);
         return true;
       } catch (error) {
         this.error = error instanceof Error ? error.message : String(error);
@@ -130,6 +162,24 @@ export const useProjectsStore = defineStore("projects", {
     },
     commandAction(projectId: string, commandId: string): CommandActionState | undefined {
       return this.commandActions[commandActionKey(projectId, commandId)];
+    },
+    watchRun(projectId: string, runId: string) {
+      this.runtimeWatches = { ...this.runtimeWatches, [projectId]: runId };
+    },
+    unwatchRun(projectId: string, runId?: string) {
+      if (runId && this.runtimeWatches[projectId] !== runId) return;
+      const next = { ...this.runtimeWatches };
+      delete next[projectId];
+      this.runtimeWatches = next;
+    },
+    pruneRuntimeWatches() {
+      for (const [projectId, runId] of Object.entries(this.runtimeWatches)) {
+        const project = this.projects.find((item) => item.id === projectId);
+        const run = project?.lastRun;
+        if (!run || run.id !== runId || run.status !== "running") {
+          this.unwatchRun(projectId, runId);
+        }
+      }
     },
     applyRun(projectId: string, run: ProcessRun) {
       this.projects = this.projects.map((project) => (project.id === projectId ? { ...project, lastRun: run, lastError: undefined } : project));

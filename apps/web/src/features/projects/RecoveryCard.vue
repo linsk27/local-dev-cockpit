@@ -75,6 +75,7 @@ const recommendedCommand = computed(() => recommendedProjectCommand(props.projec
 
 const summary = computed(() => {
   if (props.project.lastError) return props.project.lastError.message;
+  if (props.project.lastRun?.status === "failed") return "命令运行失败，请查看日志。";
   if (props.project.lastRun?.status === "running") return preferences.t("commandRunning");
   return recommendedCommand.value
     ? preferences.t("suggestedNextStep", { command: recommendedCommand.value.label })

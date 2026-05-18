@@ -91,10 +91,10 @@ export class ProcessManager {
       run.exitCode = 1;
       run.exitedAt = occurredAt;
       logStream.end();
-      this.running.delete(runId);
       const summary: ErrorSummary = { message, commandId: command.id, occurredAt };
       await this.store.recordRun(run);
       await this.store.recordError(projectId, summary);
+      this.running.delete(runId);
       this.events.emit("process.error", { runId, projectId, error: summary });
       this.events.emit("process.closed", { run });
     });
@@ -105,15 +105,15 @@ export class ProcessManager {
       run.exitCode = exitCode ?? undefined;
       run.exitedAt = new Date().toISOString();
       logStream.end();
-      this.running.delete(runId);
       await this.store.recordRun(run);
       if (run.status === "failed") {
         await this.store.recordError(projectId, {
-          message: `Command exited with code ${exitCode}`,
+          message: summarizeFailedRun(entry.buffer, exitCode),
           commandId: command.id,
           occurredAt: run.exitedAt
         });
       }
+      this.running.delete(runId);
       this.events.emit("process.closed", { run });
     });
 
@@ -146,6 +146,34 @@ export class ProcessManager {
       return "";
     }
   }
+}
+
+export function summarizeFailedRun(buffer: string[], exitCode: number | null): string {
+  const lines = stripAnsiControlSequences(buffer.join(""))
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const priorityIndex = findFailureLine(lines);
+  const window = priorityIndex >= 0 ? lines.slice(priorityIndex, priorityIndex + 8) : lines.slice(-4);
+  const taskkillIndex = window.findIndex((line) => /taskkill/i.test(line));
+  const selected = taskkillIndex >= 0 ? window.slice(0, taskkillIndex + 1) : window.slice(0, 4);
+  const detail = selected.join(" ");
+  return detail ? `${detail} (exit code ${exitCode ?? "unknown"})` : `Command exited with code ${exitCode}`;
+}
+
+function findFailureLine(lines: string[]): number {
+  const priorityPatterns = [
+    /another .+server.+already running/i,
+    /address already in use|eaddrinuse/i,
+    /permission denied/i,
+    /cannot find module|module not found/i,
+    /port \d+ is in use/i
+  ];
+  for (const pattern of priorityPatterns) {
+    const index = lines.findIndex((line) => pattern.test(line));
+    if (index >= 0) return index;
+  }
+  return -1;
 }
 
 async function killProcessTree(child: ChildProcessWithoutNullStreams): Promise<void> {

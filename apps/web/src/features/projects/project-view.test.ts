@@ -4,6 +4,7 @@ import {
   formatDisplayPath,
   formatPortUrl,
   projectBelongsToRoot,
+  projectHasFailed,
   projectMatchesQuery,
   recommendedProjectCommand,
   sortProjectsForDashboard
@@ -47,6 +48,23 @@ describe("project dashboard view helpers", () => {
     expect(formatDisplayPath("D:\\\\personal")).toBe("D:\\personal");
     expect(formatDisplayPath("D:\\personal")).toBe("D:\\personal");
     expect(formatDisplayPath("\\\\server\\\\share")).toBe("\\\\server\\share");
+  });
+
+  it("treats failed runs as failed even before an error summary is available", () => {
+    expect(
+      projectHasFailed(
+        project({
+          lastRun: {
+            id: "run-1",
+            projectId: "project",
+            commandId: "script-dev",
+            status: "failed",
+            startedAt: new Date().toISOString(),
+            logPath: "run.log"
+          }
+        })
+      )
+    ).toBe(true);
   });
 
   it("formats ipv6 hosts as browser-safe URLs", () => {
