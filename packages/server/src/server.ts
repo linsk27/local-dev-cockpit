@@ -226,10 +226,11 @@ async function enrichProject(
   enrichment: EnrichmentContext
 ): Promise<Project> {
   const managedRun = normalizeManagedRun(lastRun, processManager);
-  const processPorts = managedRun
+  const logPorts = managedRun
     ? await extractPortsFromLogs(await processManager.readLogs(managedRun.id), managedRun.status, project.path)
     : [];
   const externalPorts = findExternalProjectPorts(project, enrichment.externalPortOwnersByProject.get(project.id) ?? []);
+  const processPorts = filterStaleLogPorts(project.id, managedRun, logPorts, externalPorts, enrichment.externalPortClaims);
   const scannedPorts = normalizeScannedPorts(project, externalPorts, enrichment.detectedPortCounts);
   const currentRun = hydrateLastRun(managedRun, processPorts);
   const currentError = isStaleError(currentRun, lastError) ? undefined : lastError;
@@ -244,6 +245,7 @@ async function enrichProject(
 
 interface EnrichmentContext {
   externalPortOwnersByProject: Map<string, ExternalPortOwner[]>;
+  externalPortClaims: Map<number, Set<string>>;
   detectedPortCounts: Map<number, number>;
 }
 
@@ -256,10 +258,24 @@ export interface ExternalPortOwner {
 
 async function createEnrichmentContext(projects: Project[]): Promise<EnrichmentContext> {
   const externalPortOwners = await detectExternalPortOwners(new NodeProcessAdapter());
+  const externalPortOwnersByProject = assignExternalPortOwners(projects, externalPortOwners);
   return {
-    externalPortOwnersByProject: assignExternalPortOwners(projects, externalPortOwners),
+    externalPortOwnersByProject,
+    externalPortClaims: mapExternalPortClaims(externalPortOwnersByProject),
     detectedPortCounts: countDetectedPortOwners(projects)
   };
+}
+
+function mapExternalPortClaims(externalPortOwnersByProject: Map<string, ExternalPortOwner[]>): Map<number, Set<string>> {
+  const claims = new Map<number, Set<string>>();
+  for (const [projectId, owners] of externalPortOwnersByProject) {
+    for (const owner of owners) {
+      const projectIds = claims.get(owner.port) ?? new Set<string>();
+      projectIds.add(projectId);
+      claims.set(owner.port, projectIds);
+    }
+  }
+  return claims;
 }
 
 export function assignExternalPortOwners(projects: Project[], owners: ExternalPortOwner[]): Map<string, ExternalPortOwner[]> {
@@ -305,6 +321,23 @@ function normalizeScannedPorts(project: Project, externalPorts: PortStatus[], de
     if (port.source !== "detected" || port.status !== "open") return port;
     if (externallyMatched.has(port.port) || (detectedPortCounts.get(port.port) ?? 0) <= 1) return port;
     return { ...port, source: "common" };
+  });
+}
+
+export function filterStaleLogPorts(
+  projectId: string,
+  managedRun: ProcessRun | undefined,
+  logPorts: PortStatus[],
+  externalPorts: PortStatus[],
+  externalPortClaims: Map<number, Set<string>>
+): PortStatus[] {
+  if (managedRun?.status === "running") return logPorts;
+  const ownExternallyMatchedPorts = new Set(externalPorts.map((port) => port.port));
+  return logPorts.filter((port) => {
+    if (port.status !== "open") return true;
+    if (ownExternallyMatchedPorts.has(port.port)) return true;
+    const claimants = externalPortClaims.get(port.port);
+    return !claimants || claimants.size === 0 || claimants.has(projectId);
   });
 }
 
@@ -489,7 +522,7 @@ function isPathBoundary(character: string, side: "before" | "after"): boolean {
 function normalizeExternalHost(host: string | undefined): string {
   const normalized = normalizePortHost(host ?? "localhost");
   if (normalized === "127.0.0.1" || normalized === "0.0.0.0") return "localhost";
-  if (normalized === "::") return "::1";
+  if (normalized === "::" || normalized === "::1") return "localhost";
   return normalized || "localhost";
 }
 

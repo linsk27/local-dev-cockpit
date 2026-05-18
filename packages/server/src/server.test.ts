@@ -3,6 +3,7 @@ import type { Project } from "@local-dev-cockpit/core";
 import {
   assignExternalPortOwners,
   commandLineReferencesProject,
+  filterStaleLogPorts,
   logIndicatesExistingServer,
   parseExternalPortOwners,
   parseLocalEndpointsFromLogs,
@@ -100,6 +101,47 @@ describe("assignExternalPortOwners", () => {
 
     expect(assignments.get(frontend.id)?.map((owner) => owner.port)).toEqual([3000]);
     expect(assignments.has(root.id)).toBe(false);
+  });
+});
+
+describe("filterStaleLogPorts", () => {
+  it("drops open ports from old logs when another project owns the current listener", () => {
+    expect(
+      filterStaleLogPorts(
+        "ai-v0",
+        {
+          id: "old-run",
+          projectId: "ai-v0",
+          commandId: "script-dev",
+          status: "stopped",
+          startedAt: "2026-05-18T00:00:00.000Z",
+          logPath: "old.log"
+        },
+        [{ port: 3000, host: "localhost", status: "open", source: "detected" }],
+        [],
+        new Map([[3000, new Set(["frontend"])]])
+      )
+    ).toEqual([]);
+  });
+
+  it("keeps running-process ports even when another external claim exists", () => {
+    const ports = [{ port: 3000, host: "localhost", status: "open" as const, source: "process" as const }];
+    expect(
+      filterStaleLogPorts(
+        "frontend",
+        {
+          id: "run",
+          projectId: "frontend",
+          commandId: "script-dev",
+          status: "running",
+          startedAt: "2026-05-18T00:00:00.000Z",
+          logPath: "run.log"
+        },
+        ports,
+        [],
+        new Map([[3000, new Set(["other"])]])
+      )
+    ).toEqual(ports);
   });
 });
 
