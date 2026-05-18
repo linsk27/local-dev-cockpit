@@ -131,7 +131,8 @@ watch(
   }
 );
 
-let refreshTimer: number | undefined;
+let runtimeRefreshTimer: number | undefined;
+let overviewRefreshTimer: number | undefined;
 const notifiedFailedRunIds = new Set<string>();
 
 async function refreshRuntimeState(): Promise<void> {
@@ -145,6 +146,11 @@ async function refreshRuntimeState(): Promise<void> {
     await store.loadLogs(selectedRun.id);
   }
   store.pruneRuntimeWatches();
+}
+
+async function refreshExternalProjectState(): Promise<void> {
+  if (store.loading || store.refreshing) return;
+  await store.refresh({ silent: true });
 }
 
 async function refreshProjects(): Promise<void> {
@@ -209,11 +215,13 @@ onMounted(() => {
   void store.refresh();
   document.addEventListener("click", closeRootMenuOnOutsideClick);
   window.addEventListener("keydown", closeRootMenuOnEscape);
-  refreshTimer = window.setInterval(() => void refreshRuntimeState(), 2000);
+  runtimeRefreshTimer = window.setInterval(() => void refreshRuntimeState(), 2000);
+  overviewRefreshTimer = window.setInterval(() => void refreshExternalProjectState(), 6000);
 });
 
 onBeforeUnmount(() => {
-  if (refreshTimer) window.clearInterval(refreshTimer);
+  if (runtimeRefreshTimer) window.clearInterval(runtimeRefreshTimer);
+  if (overviewRefreshTimer) window.clearInterval(overviewRefreshTimer);
   document.removeEventListener("click", closeRootMenuOnOutsideClick);
   window.removeEventListener("keydown", closeRootMenuOnEscape);
 });

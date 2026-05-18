@@ -202,7 +202,10 @@ async function loadProjects(store: JsonStore, processManager: ProcessManager): P
     projects.push(...result.projects);
   }
 
-  return Promise.all(projects.map((project) => enrichProject(project, state.runs[project.id], state.errors[project.id], processManager)));
+  const enrichment = await createEnrichmentContext(projects);
+  return Promise.all(
+    projects.map((project) => enrichProject(project, state.runs[project.id], state.errors[project.id], processManager, enrichment))
+  );
 }
 
 async function loadProject(id: string, store: JsonStore, processManager: ProcessManager): Promise<Project> {
@@ -212,28 +215,177 @@ async function loadProject(id: string, store: JsonStore, processManager: Process
     fs: new NodeFileSystemAdapter(),
     process: new NodeProcessAdapter()
   });
-  return enrichProject(project, state.runs[project.id], state.errors[project.id], processManager);
+  return enrichProject(project, state.runs[project.id], state.errors[project.id], processManager, await createEnrichmentContext([project]));
 }
 
 async function enrichProject(
   project: Project,
   lastRun: ProcessRun | undefined,
   lastError: ErrorSummary | undefined,
-  processManager: ProcessManager
+  processManager: ProcessManager,
+  enrichment: EnrichmentContext
 ): Promise<Project> {
   const managedRun = normalizeManagedRun(lastRun, processManager);
   const processPorts = managedRun
     ? await extractPortsFromLogs(await processManager.readLogs(managedRun.id), managedRun.status, project.path)
     : [];
+  const externalPorts = findExternalProjectPorts(project, enrichment.externalPortOwnersByProject.get(project.id) ?? []);
+  const scannedPorts = normalizeScannedPorts(project, externalPorts, enrichment.detectedPortCounts);
   const currentRun = hydrateLastRun(managedRun, processPorts);
   const currentError = isStaleError(currentRun, lastError) ? undefined : lastError;
 
   return {
     ...project,
-    ports: mergePorts(project.ports, processPorts),
+    ports: mergePorts([...scannedPorts, ...externalPorts], processPorts),
     lastRun: currentRun,
     lastError: currentError
   };
+}
+
+interface EnrichmentContext {
+  externalPortOwnersByProject: Map<string, ExternalPortOwner[]>;
+  detectedPortCounts: Map<number, number>;
+}
+
+export interface ExternalPortOwner {
+  port: number;
+  host?: string;
+  pid: number;
+  commandLine: string;
+}
+
+async function createEnrichmentContext(projects: Project[]): Promise<EnrichmentContext> {
+  const externalPortOwners = await detectExternalPortOwners(new NodeProcessAdapter());
+  return {
+    externalPortOwnersByProject: assignExternalPortOwners(projects, externalPortOwners),
+    detectedPortCounts: countDetectedPortOwners(projects)
+  };
+}
+
+export function assignExternalPortOwners(projects: Project[], owners: ExternalPortOwner[]): Map<string, ExternalPortOwner[]> {
+  const byProject = new Map<string, ExternalPortOwner[]>();
+  for (const owner of owners) {
+    const matches = projects
+      .filter((project) => commandLineReferencesProject(owner.commandLine, project.path))
+      .map((project) => ({
+        project,
+        pathLength: normalizePathText(path.resolve(project.path)).length
+      }));
+    if (matches.length === 0) continue;
+    const bestLength = Math.max(...matches.map((match) => match.pathLength));
+    for (const { project } of matches.filter((match) => match.pathLength === bestLength)) {
+      byProject.set(project.id, [...(byProject.get(project.id) ?? []), owner]);
+    }
+  }
+  return byProject;
+}
+
+function countDetectedPortOwners(projects: Project[]): Map<number, number> {
+  const ownersByPort = new Map<number, Set<string>>();
+  for (const project of projects) {
+    for (const port of project.ports) {
+      if (port.source !== "detected") continue;
+      const owners = ownersByPort.get(port.port) ?? new Set<string>();
+      owners.add(project.id);
+      ownersByPort.set(port.port, owners);
+    }
+  }
+  return new Map([...ownersByPort.entries()].map(([port, owners]) => [port, owners.size]));
+}
+
+/**
+ * Keeps detected ports visible only when they are defensible. A declared port is
+ * trusted if the OS process command line references this project, or if this is
+ * the only scanned project declaring that port. Otherwise it is treated like a
+ * common probe and stays hidden from the dashboard's online status.
+ */
+function normalizeScannedPorts(project: Project, externalPorts: PortStatus[], detectedPortCounts: Map<number, number>): PortStatus[] {
+  const externallyMatched = new Set(externalPorts.map((port) => port.port));
+  return project.ports.map((port) => {
+    if (port.source !== "detected" || port.status !== "open") return port;
+    if (externallyMatched.has(port.port) || (detectedPortCounts.get(port.port) ?? 0) <= 1) return port;
+    return { ...port, source: "common" };
+  });
+}
+
+function findExternalProjectPorts(project: Project, owners: ExternalPortOwner[]): PortStatus[] {
+  const ports = new Map<string, PortStatus>();
+  for (const owner of owners) {
+    if (!commandLineReferencesProject(owner.commandLine, project.path)) continue;
+    const host = normalizeExternalHost(owner.host);
+    const endpoint: PortStatus = {
+      port: owner.port,
+      host,
+      url: formatLocalUrl(owner.port, host),
+      status: "open",
+      source: "detected"
+    };
+    ports.set(portKey(endpoint), endpoint);
+  }
+  return [...ports.values()];
+}
+
+async function detectExternalPortOwners(processAdapter: NodeProcessAdapter): Promise<ExternalPortOwner[]> {
+  if (process.platform !== "win32") return [];
+  const script = [
+    "$ErrorActionPreference = 'SilentlyContinue'",
+    "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8",
+    "$OutputEncoding = [System.Text.Encoding]::UTF8",
+    "$processes = @{}",
+    "Get-CimInstance Win32_Process | ForEach-Object { $processes[[int]$_.ProcessId] = $_.CommandLine }",
+    "$connections = @(Get-NetTCPConnection -State Listen | Where-Object { @('127.0.0.1','::1','0.0.0.0','::') -contains $_.LocalAddress })",
+    "$items = foreach ($connection in $connections) {",
+    "  $pidValue = [int]$connection.OwningProcess",
+    "  $commandLine = ''",
+    "  if ($processes.ContainsKey($pidValue) -and $processes[$pidValue]) { $commandLine = [string]$processes[$pidValue] }",
+    "  [pscustomobject]@{ port = [int]$connection.LocalPort; host = [string]$connection.LocalAddress; pid = $pidValue; commandLine = $commandLine }",
+    "}",
+    "@($items) | ConvertTo-Json -Compress"
+  ].join("; ");
+  const result = await processAdapter.execFile("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
+    timeoutMs: 8000
+  });
+  if (result.exitCode !== 0 || !result.stdout.trim()) return [];
+  return parseExternalPortOwners(result.stdout);
+}
+
+export function parseExternalPortOwners(raw: string): ExternalPortOwner[] {
+  try {
+    const parsed = JSON.parse(raw.trim()) as unknown;
+    const rows = Array.isArray(parsed) ? parsed : parsed ? [parsed] : [];
+    return rows.flatMap((row) => {
+      if (!row || typeof row !== "object") return [];
+      const item = row as Record<string, unknown>;
+      const port = Number(item.port);
+      const pid = Number(item.pid);
+      if (!Number.isInteger(port) || port <= 0 || port > 65535 || !Number.isInteger(pid)) return [];
+      return [
+        {
+          port,
+          pid,
+          host: typeof item.host === "string" ? item.host : undefined,
+          commandLine: typeof item.commandLine === "string" ? item.commandLine : ""
+        }
+      ];
+    });
+  } catch {
+    return [];
+  }
+}
+
+export function commandLineReferencesProject(commandLine: string, projectPath: string): boolean {
+  const normalizedCommandLine = normalizePathText(commandLine);
+  const normalizedProjectPath = normalizePathText(path.resolve(projectPath));
+  if (!normalizedCommandLine || !normalizedProjectPath) return false;
+
+  let index = normalizedCommandLine.indexOf(normalizedProjectPath);
+  while (index >= 0) {
+    const before = normalizedCommandLine[index - 1] ?? " ";
+    const after = normalizedCommandLine[index + normalizedProjectPath.length] ?? " ";
+    if (isPathBoundary(before, "before") && isPathBoundary(after, "after")) return true;
+    index = normalizedCommandLine.indexOf(normalizedProjectPath, index + 1);
+  }
+  return false;
 }
 
 function normalizeManagedRun(lastRun: ProcessRun | undefined, processManager: ProcessManager): ProcessRun | undefined {
@@ -325,6 +477,26 @@ function normalizeComparablePath(value: string): string {
   return path.resolve(value).replace(/\\/g, "/").replace(/\/+$/g, "").toLowerCase();
 }
 
+function normalizePathText(value: string): string {
+  return value.replace(/^\\\\\?\\/, "").replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/+$/g, "").toLowerCase();
+}
+
+function isPathBoundary(character: string, side: "before" | "after"): boolean {
+  if (/[\s"'`]/.test(character)) return true;
+  return side === "after" ? character === "/" : true;
+}
+
+function normalizeExternalHost(host: string | undefined): string {
+  const normalized = normalizePortHost(host ?? "localhost");
+  if (normalized === "127.0.0.1" || normalized === "0.0.0.0") return "localhost";
+  if (normalized === "::") return "::1";
+  return normalized || "localhost";
+}
+
+function formatLocalUrl(port: number, host: string): string {
+  return `http://${host.includes(":") && !host.startsWith("[") ? `[${host}]` : host}:${port}`;
+}
+
 async function isEndpointOpen(processAdapter: NodeProcessAdapter, endpoint: Pick<PortStatus, "port" | "host">): Promise<boolean> {
   if (!endpoint.host || endpoint.host === "localhost") return processAdapter.isPortOpen(endpoint.port);
   return processAdapter.isPortOpen(endpoint.port, endpoint.host);
@@ -352,6 +524,10 @@ function mergePorts(detected: PortStatus[], processPorts: PortStatus[]): PortSta
     byPort.set(portKey(port), port);
   }
   for (const port of processPorts) {
+    const existingSamePort = [...byPort.values()].filter((existing) => existing.port === port.port);
+    if (port.status !== "open" && existingSamePort.some((existing) => existing.status === "open" && existing.source !== "common")) {
+      continue;
+    }
     for (const [key, existing] of byPort) {
       if (existing.port === port.port && existing.source !== "process") byPort.delete(key);
     }

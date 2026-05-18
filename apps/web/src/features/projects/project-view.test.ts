@@ -69,6 +69,29 @@ describe("project dashboard view helpers", () => {
     ).toBe(true);
   });
 
+  it("lets current online ports override stale failure display", () => {
+    expect(
+      projectHasFailed(
+        project({
+          lastRun: {
+            id: "run-1",
+            projectId: "project",
+            commandId: "script-dev",
+            status: "failed",
+            startedAt: new Date().toISOString(),
+            logPath: "run.log"
+          },
+          lastError: {
+            commandId: "script-dev",
+            message: "previous command exited with code 1",
+            occurredAt: new Date().toISOString()
+          },
+          ports: [{ port: 3000, host: "localhost", status: "open", source: "detected" }]
+        })
+      )
+    ).toBe(false);
+  });
+
   it("treats an already-running port conflict as online instead of failed", () => {
     const alreadyRunning = project({
       lastRun: {

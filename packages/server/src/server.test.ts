@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { logIndicatesExistingServer, parseLocalEndpointsFromLogs, parseNetstatListeningPids, parseStoppedChildrenOutput } from "./server.js";
+import type { Project } from "@local-dev-cockpit/core";
+import {
+  assignExternalPortOwners,
+  commandLineReferencesProject,
+  logIndicatesExistingServer,
+  parseExternalPortOwners,
+  parseLocalEndpointsFromLogs,
+  parseNetstatListeningPids,
+  parseStoppedChildrenOutput
+} from "./server.js";
 
 describe("parseNetstatListeningPids", () => {
   it("extracts listening process ids for the requested port", () => {
@@ -35,6 +44,65 @@ describe("parseLocalEndpointsFromLogs", () => {
   });
 });
 
+describe("parseExternalPortOwners", () => {
+  it("parses Windows listener process rows from PowerShell JSON", () => {
+    const owners = parseExternalPortOwners(
+      JSON.stringify([
+        {
+          port: 3000,
+          host: "127.0.0.1",
+          pid: 23392,
+          commandLine: "C:\\nvm4w\\nodejs\\node.exe D:\\个人\\demo\\node_modules\\next\\dist\\server\\lib\\start-server.js"
+        },
+        { port: "not-a-port", host: "127.0.0.1", pid: 1, commandLine: "bad" }
+      ])
+    );
+
+    expect(owners).toEqual([
+      {
+        port: 3000,
+        host: "127.0.0.1",
+        pid: 23392,
+        commandLine: "C:\\nvm4w\\nodejs\\node.exe D:\\个人\\demo\\node_modules\\next\\dist\\server\\lib\\start-server.js"
+      }
+    ]);
+  });
+});
+
+describe("commandLineReferencesProject", () => {
+  it("matches project-local Node and Python command lines", () => {
+    expect(
+      commandLineReferencesProject(
+        'node "D:\\个人\\frontend\\node_modules\\.bin\\..\\vite\\bin\\vite.js" --host 127.0.0.1',
+        "D:\\个人\\frontend"
+      )
+    ).toBe(true);
+    expect(commandLineReferencesProject('"D:\\miniconda\\python.exe" -m uvicorn app.main:app', "D:\\个人\\backend")).toBe(false);
+  });
+
+  it("does not match sibling paths with the same prefix", () => {
+    expect(commandLineReferencesProject("node D:\\个人\\frontend-old\\server.js", "D:\\个人\\frontend")).toBe(false);
+  });
+});
+
+describe("assignExternalPortOwners", () => {
+  it("assigns a listener to the most specific matching project path", () => {
+    const root = project("root", "D:\\个人\\langchain-ai-langchain");
+    const frontend = project("frontend", "D:\\个人\\langchain-ai-langchain\\frontend");
+    const assignments = assignExternalPortOwners([root, frontend], [
+      {
+        port: 3000,
+        host: "127.0.0.1",
+        pid: 23392,
+        commandLine: "node D:\\个人\\langchain-ai-langchain\\frontend\\node_modules\\next\\dist\\server\\lib\\start-server.js"
+      }
+    ]);
+
+    expect(assignments.get(frontend.id)?.map((owner) => owner.port)).toEqual([3000]);
+    expect(assignments.has(root.id)).toBe(false);
+  });
+});
+
 describe("logIndicatesExistingServer", () => {
   it("recognizes duplicate dev server and port-in-use failures", () => {
     expect(logIndicatesExistingServer("Another next dev server is already running.")).toBe(true);
@@ -51,3 +119,16 @@ describe("parseStoppedChildrenOutput", () => {
     expect(parseStoppedChildrenOutput("STOPPED_TARGET")).toEqual([]);
   });
 });
+
+function project(id: string, projectPath: string): Project {
+  return {
+    id,
+    name: id,
+    path: projectPath,
+    kind: "node",
+    git: { branch: "main", dirtyCount: 0 },
+    commands: [],
+    ports: [],
+    markers: []
+  };
+}

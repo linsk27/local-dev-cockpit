@@ -26,6 +26,7 @@ export function projectIsOnline(project: Project): boolean {
 }
 
 export function projectHasFailed(project: Project): boolean {
+  if (visibleProjectPorts(project).length > 0) return false;
   if (projectHasAlreadyRunningConflict(project)) return false;
   return Boolean(project.lastError) || project.lastRun?.status === "failed";
 }
