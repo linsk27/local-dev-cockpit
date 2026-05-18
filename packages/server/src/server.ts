@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import http from "node:http";
 import https from "node:https";
 import { promises as fs } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { WebSocketServer } from "ws";
 import { z } from "zod";
@@ -28,6 +29,8 @@ import { JsonStore, rootId } from "./store.js";
 const addRootSchema = z.object({ path: z.string().min(1) });
 const PROJECT_SCAN_CACHE_TTL_MS = 20_000;
 const EXTERNAL_PORT_OWNER_CACHE_TTL_MS = 5_000;
+const startedAt = Date.now();
+let cpuSample = { at: startedAt, usage: process.cpuUsage() };
 
 export interface DevCockpitServerOptions {
   cwd?: string;
@@ -91,9 +94,23 @@ async function route(
     return;
   }
 
+  if (method === "GET" && url.pathname === "/api/performance") {
+    const scopeKey = url.searchParams.get("rootId") || "all";
+    sendJson(res, 200, {
+      process: readProcessMetrics(),
+      scan: context.projectCache.snapshot(scopeKey),
+      polling: {
+        projectScanCacheTtlMs: PROJECT_SCAN_CACHE_TTL_MS,
+        externalPortOwnerCacheTtlMs: EXTERNAL_PORT_OWNER_CACHE_TTL_MS
+      }
+    });
+    return;
+  }
+
   if (method === "GET" && url.pathname === "/api/projects") {
     const force = url.searchParams.get("force") === "1";
-    const projects = await context.projectCache.get(force, () => loadProjects(context.store, context.processManager));
+    const scopeKey = url.searchParams.get("rootId") || "all";
+    const projects = await context.projectCache.get(scopeKey, force, () => loadProjects(context.store, context.processManager, url.searchParams.get("rootId")));
     sendJson(res, 200, { projects });
     return;
   }
@@ -204,12 +221,13 @@ async function route(
   await serveStatic(req, res, context.webRoot);
 }
 
-async function loadProjects(store: JsonStore, processManager: ProcessManager): Promise<Project[]> {
+async function loadProjects(store: JsonStore, processManager: ProcessManager, selectedRootId?: string | null): Promise<Project[]> {
   const config = await store.readConfig();
   const state = await store.readState();
   const projects: Project[] = [];
+  const roots = selectedRootId ? config.roots.filter((root) => rootId(root) === selectedRootId) : config.roots;
 
-  for (const root of config.roots) {
+  for (const root of roots) {
     const result = await scanRoot(root, { ignoreNames: config.ignoreNames });
     projects.push(...result.projects);
   }
@@ -231,28 +249,106 @@ async function loadProject(id: string, store: JsonStore, processManager: Process
 }
 
 class ProjectScanCache {
-  private value?: { expiresAt: number; projects: Project[] };
-  private inflight?: Promise<Project[]>;
+  private readonly entries = new Map<string, ProjectScanCacheEntry>();
 
-  async get(force: boolean, load: () => Promise<Project[]>): Promise<Project[]> {
+  async get(key: string, force: boolean, load: () => Promise<Project[]>): Promise<Project[]> {
     const now = Date.now();
-    if (!force && this.value && this.value.expiresAt > now) return this.value.projects;
-    if (!force && this.inflight) return this.inflight;
+    const entry = this.entry(key);
+    if (!force && entry.projects && entry.expiresAt > now) {
+      entry.hits += 1;
+      return entry.projects;
+    }
+    if (!force && entry.inflight) {
+      entry.joined += 1;
+      return entry.inflight;
+    }
 
-    this.inflight = load()
+    entry.misses += 1;
+    const started = Date.now();
+    entry.inflight = load()
       .then((projects) => {
-        this.value = { expiresAt: Date.now() + PROJECT_SCAN_CACHE_TTL_MS, projects };
+        entry.projects = projects;
+        entry.expiresAt = Date.now() + PROJECT_SCAN_CACHE_TTL_MS;
+        entry.lastScanDurationMs = Date.now() - started;
+        entry.lastProjectCount = projects.length;
+        entry.lastScannedAt = new Date().toISOString();
         return projects;
       })
       .finally(() => {
-        this.inflight = undefined;
+        entry.inflight = undefined;
       });
-    return this.inflight;
+    return entry.inflight;
   }
 
   invalidate(): void {
-    this.value = undefined;
+    for (const entry of this.entries.values()) {
+      entry.expiresAt = 0;
+    }
   }
+
+  snapshot(key: string) {
+    const entry = this.entries.get(key);
+    const now = Date.now();
+    return {
+      scope: key,
+      status: entry?.inflight ? "scanning" : entry?.projects && entry.expiresAt > now ? "cached" : entry?.projects ? "stale" : "empty",
+      cacheExpiresInMs: entry?.projects ? Math.max(0, entry.expiresAt - now) : 0,
+      lastScanDurationMs: entry?.lastScanDurationMs ?? 0,
+      lastProjectCount: entry?.lastProjectCount ?? 0,
+      lastScannedAt: entry?.lastScannedAt,
+      cacheHits: entry?.hits ?? 0,
+      cacheMisses: entry?.misses ?? 0,
+      joinedRequests: entry?.joined ?? 0
+    };
+  }
+
+  private entry(key: string): ProjectScanCacheEntry {
+    const current = this.entries.get(key);
+    if (current) return current;
+    const next: ProjectScanCacheEntry = {
+      expiresAt: 0,
+      hits: 0,
+      misses: 0,
+      joined: 0,
+      lastScanDurationMs: 0,
+      lastProjectCount: 0
+    };
+    this.entries.set(key, next);
+    return next;
+  }
+}
+
+interface ProjectScanCacheEntry {
+  expiresAt: number;
+  projects?: Project[];
+  inflight?: Promise<Project[]>;
+  hits: number;
+  misses: number;
+  joined: number;
+  lastScanDurationMs: number;
+  lastProjectCount: number;
+  lastScannedAt?: string;
+}
+
+function readProcessMetrics() {
+  const now = Date.now();
+  const usage = process.cpuUsage();
+  const elapsedMs = Math.max(1, now - cpuSample.at);
+  const cpuDeltaMs = (usage.user - cpuSample.usage.user + usage.system - cpuSample.usage.system) / 1000;
+  cpuSample = { at: now, usage };
+  const memory = process.memoryUsage();
+  return {
+    pid: process.pid,
+    uptimeMs: now - startedAt,
+    rssMb: roundOne(memory.rss / 1024 / 1024),
+    heapUsedMb: roundOne(memory.heapUsed / 1024 / 1024),
+    cpuPercent: roundOne((cpuDeltaMs / elapsedMs / Math.max(1, os.cpus().length)) * 100),
+    cpuSingleCorePercent: roundOne((cpuDeltaMs / elapsedMs) * 100)
+  };
+}
+
+function roundOne(value: number): number {
+  return Math.round(value * 10) / 10;
 }
 
 async function enrichProject(

@@ -308,6 +308,33 @@ button {
   min-width: 0;
 }
 
+.performance-pill {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  max-width: 360px;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-soft));
+  color: var(--muted-strong);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.performance-pill svg {
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+
+.performance-pill span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .search-box,
 .root-filter {
   display: flex;
@@ -1183,7 +1210,8 @@ h2 {
   }
 
   .search-box,
-  .root-filter {
+  .root-filter,
+  .performance-pill {
     width: min(360px, 42vw);
   }
 
@@ -1202,8 +1230,10 @@ h2 {
 
   .header-actions,
   .search-box,
-  .root-filter {
+  .root-filter,
+  .performance-pill {
     width: 100%;
+    max-width: none;
   }
 
   .brand span {

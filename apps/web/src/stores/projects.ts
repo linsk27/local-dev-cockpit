@@ -25,13 +25,16 @@ export const useProjectsStore = defineStore("projects", {
     }
   },
   actions: {
-    async refresh(options: { silent?: boolean; force?: boolean } = {}): Promise<boolean> {
+    async refresh(options: { silent?: boolean; force?: boolean; rootId?: string } = {}): Promise<boolean> {
       if (this.refreshing) return !this.error;
       this.refreshing = true;
       if (!options.silent) this.loading = true;
       this.error = "";
       try {
-        this.projects = await getProjects({ force: options.force });
+        this.projects = await getProjects({ force: options.force, rootId: options.rootId });
+        if (this.selectedId && !this.projects.some((project) => project.id === this.selectedId)) {
+          this.selectedId = this.projects[0]?.id ?? "";
+        }
         if (!this.selectedId && this.projects[0]) this.selectedId = this.projects[0].id;
         return true;
       } catch (error) {

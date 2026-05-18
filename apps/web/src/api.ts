@@ -15,6 +15,32 @@ export interface RootEntry {
   path: string;
 }
 
+export interface PerformanceSnapshot {
+  process: {
+    pid: number;
+    uptimeMs: number;
+    rssMb: number;
+    heapUsedMb: number;
+    cpuPercent: number;
+    cpuSingleCorePercent: number;
+  };
+  scan: {
+    scope: string;
+    status: "empty" | "cached" | "scanning" | "stale";
+    cacheExpiresInMs: number;
+    lastScanDurationMs: number;
+    lastProjectCount: number;
+    lastScannedAt?: string;
+    cacheHits: number;
+    cacheMisses: number;
+    joinedRequests: number;
+  };
+  polling: {
+    projectScanCacheTtlMs: number;
+    externalPortOwnerCacheTtlMs: number;
+  };
+}
+
 export interface StopProcessResponse {
   stopped: boolean;
   run?: ProcessRun;
@@ -27,10 +53,21 @@ export interface StopPortResponse {
   error?: string;
 }
 
-export async function getProjects(options: { force?: boolean } = {}): Promise<Project[]> {
-  const response = await fetch(options.force ? "/api/projects?force=1" : "/api/projects");
+export async function getProjects(options: { force?: boolean; rootId?: string } = {}): Promise<Project[]> {
+  const params = new URLSearchParams();
+  if (options.force) params.set("force", "1");
+  if (options.rootId) params.set("rootId", options.rootId);
+  const response = await fetch(`/api/projects${params.size > 0 ? `?${params.toString()}` : ""}`);
   if (!response.ok) throw new Error(`Failed to load projects: ${response.status}`);
   return ((await response.json()) as ProjectsResponse).projects;
+}
+
+export async function getPerformance(options: { rootId?: string } = {}): Promise<PerformanceSnapshot> {
+  const params = new URLSearchParams();
+  if (options.rootId) params.set("rootId", options.rootId);
+  const response = await fetch(`/api/performance${params.size > 0 ? `?${params.toString()}` : ""}`);
+  if (!response.ok) throw new Error(`Failed to load performance: ${response.status}`);
+  return response.json() as Promise<PerformanceSnapshot>;
 }
 
 export async function getProject(projectId: string): Promise<Project> {
