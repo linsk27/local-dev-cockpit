@@ -455,6 +455,7 @@ async function stopPort(port: number): Promise<StopPortResult> {
   }
 
   const failures: string[] = [];
+  const actions: string[] = [];
   for (const pid of killablePids) {
     const result =
       process.platform === "win32"
@@ -462,6 +463,8 @@ async function stopPort(port: number): Promise<StopPortResult> {
         : await stopUnixPid(processAdapter, pid);
     if (!result.ok) {
       failures.push(result.message);
+    } else {
+      actions.push(result.message);
     }
   }
 
@@ -471,7 +474,12 @@ async function stopPort(port: number): Promise<StopPortResult> {
     stopped: failures.length === 0 && !stillOpen,
     port,
     pids: killablePids,
-    error: failures.length > 0 ? failures.join("\n") : stillOpen ? "Port is still open after stop attempt" : undefined
+    error:
+      failures.length > 0
+        ? failures.join("\n")
+        : stillOpen
+          ? [...actions, "端口仍在监听。父进程可能不可见或由系统代理托管，请关闭启动它的终端，或用管理员权限重新运行 Dev Cockpit。"].join("\n")
+          : undefined
   };
 }
 
@@ -485,21 +493,40 @@ async function stopWindowsPid(processAdapter: NodeProcessAdapter, pid: number): 
     "$ErrorActionPreference = 'Stop'",
     `$targetPid = ${pid}`,
     "$targetProcess = Get-Process -Id $targetPid -ErrorAction SilentlyContinue",
-    "if (-not $targetProcess) { Write-Output 'PID_NOT_FOUND'; exit 2 }",
-    "Stop-Process -Id $targetPid -Force -ErrorAction Stop",
-    "Write-Output 'STOPPED'"
+    "$children = @(Get-CimInstance Win32_Process | Where-Object { $_.ParentProcessId -eq $targetPid -and $_.Name -ne 'conhost.exe' })",
+    "if ($targetProcess) { Stop-Process -Id $targetPid -Force -ErrorAction Stop; Write-Output 'STOPPED_TARGET'; exit 0 }",
+    "if ($children.Count -eq 0) { Write-Output 'PID_NOT_FOUND'; exit 2 }",
+    "$childPids = @($children | Select-Object -ExpandProperty ProcessId)",
+    "foreach ($childPid in $childPids) { Stop-Process -Id $childPid -Force -ErrorAction SilentlyContinue }",
+    "Write-Output ('STOPPED_CHILDREN:' + ($childPids -join ','))"
   ].join("; ");
   const result = await processAdapter.execFile("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
     timeoutMs: 6000
   });
+  const stoppedChildren = parseStoppedChildrenOutput(result.stdout);
+  if (stoppedChildren.length > 0) {
+    return {
+      ok: true,
+      message: `Windows 端口父进程 PID ${pid} 不可见，已尝试停止可见子进程 ${stoppedChildren.join(", ")}。`
+    };
+  }
   if (result.exitCode === 0) return { ok: true, message: `Stopped PID ${pid}` };
   if (result.stdout.includes("PID_NOT_FOUND")) {
     return {
       ok: false,
-      message: `Windows 报告端口属于 PID ${pid}，但系统进程列表中找不到该进程；可能是权限不足、进程已退出但端口表未刷新，或该端口由系统代理托管。`
+      message: `Windows 报告端口属于 PID ${pid}，但系统进程列表中找不到该进程，也没有可停止的可见子进程；可能是权限不足、进程已退出但端口表未刷新，或该端口由系统代理托管。`
     };
   }
   return { ok: false, message: result.stderr || result.stdout || `停止 PID ${pid} 失败` };
+}
+
+export function parseStoppedChildrenOutput(output: string): number[] {
+  const match = output.match(/STOPPED_CHILDREN:([0-9,\s]+)/);
+  if (!match) return [];
+  return match[1]
+    .split(",")
+    .map((item) => Number(item.trim()))
+    .filter((pid) => Number.isInteger(pid) && pid > 0);
 }
 
 async function stopUnixPid(processAdapter: NodeProcessAdapter, pid: number): Promise<StopPidResult> {

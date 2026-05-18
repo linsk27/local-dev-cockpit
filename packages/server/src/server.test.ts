@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { logIndicatesExistingServer, parseLocalEndpointsFromLogs, parseNetstatListeningPids } from "./server.js";
+import { logIndicatesExistingServer, parseLocalEndpointsFromLogs, parseNetstatListeningPids, parseStoppedChildrenOutput } from "./server.js";
 
 describe("parseNetstatListeningPids", () => {
   it("extracts listening process ids for the requested port", () => {
@@ -42,5 +42,12 @@ describe("logIndicatesExistingServer", () => {
     expect(logIndicatesExistingServer("Another next dev server is already running.\n- Dir: D:\\个人\\AI-v0.dev-", "D:\\个人\\other")).toBe(false);
     expect(logIndicatesExistingServer("ERROR: address already in use")).toBe(true);
     expect(logIndicatesExistingServer("Cannot find module")).toBe(false);
+  });
+});
+
+describe("parseStoppedChildrenOutput", () => {
+  it("extracts child process ids from Windows stop fallback output", () => {
+    expect(parseStoppedChildrenOutput("STOPPED_CHILDREN:13552, 18268")).toEqual([13552, 18268]);
+    expect(parseStoppedChildrenOutput("STOPPED_TARGET")).toEqual([]);
   });
 });
