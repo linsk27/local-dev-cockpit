@@ -10,7 +10,7 @@
           <Search :size="16" />
           <input v-model="searchQuery" :placeholder="preferences.t('projectSearchPlaceholder')" />
         </label>
-        <button class="icon-button" :class="{ spinning: store.loading }" :title="preferences.t('refreshProjects')" @click="() => store.refresh()">
+        <button class="icon-button" :class="{ spinning: store.loading }" :title="preferences.t('refreshProjects')" @click="refreshProjects">
           <RefreshCw :size="18" />
         </button>
       </div>
@@ -47,6 +47,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { FolderSearch, RefreshCw, Search } from "lucide-vue-next";
+import { useNotificationsStore } from "../../stores/notifications";
 import { useProjectsStore } from "../../stores/projects";
 import { usePreferencesStore } from "../../stores/preferences";
 import ProjectDetail from "./ProjectDetail.vue";
@@ -55,6 +56,7 @@ import { projectMatchesQuery, sortProjectsForDashboard } from "./project-view";
 
 const store = useProjectsStore();
 const preferences = usePreferencesStore();
+const notifications = useNotificationsStore();
 const searchQuery = ref("");
 
 const visibleProjects = computed(() =>
@@ -81,6 +83,15 @@ async function refreshRuntimeState(): Promise<void> {
   await store.refresh({ silent: true });
   if (store.selectedProject?.lastRun?.status === "running") {
     await store.loadLogs();
+  }
+}
+
+async function refreshProjects(): Promise<void> {
+  const refreshed = await store.refresh();
+  if (refreshed) {
+    notifications.success(preferences.t("projectsRefreshedNotice", { count: store.projects.length }));
+  } else {
+    notifications.error(preferences.t("refreshFailedNotice", { message: store.error || preferences.t("refreshProjects") }));
   }
 }
 

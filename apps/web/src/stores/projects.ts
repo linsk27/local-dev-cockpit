@@ -22,16 +22,18 @@ export const useProjectsStore = defineStore("projects", {
     }
   },
   actions: {
-    async refresh(options: { silent?: boolean } = {}) {
-      if (this.refreshing) return;
+    async refresh(options: { silent?: boolean } = {}): Promise<boolean> {
+      if (this.refreshing) return !this.error;
       this.refreshing = true;
       if (!options.silent) this.loading = true;
       this.error = "";
       try {
         this.projects = await getProjects();
         if (!this.selectedId && this.projects[0]) this.selectedId = this.projects[0].id;
+        return true;
       } catch (error) {
         this.error = error instanceof Error ? error.message : String(error);
+        return false;
       } finally {
         if (!options.silent) this.loading = false;
         this.refreshing = false;
@@ -42,7 +44,7 @@ export const useProjectsStore = defineStore("projects", {
       this.clearLogs();
       this.context = null;
     },
-    async runCommand(commandId: string) {
+    async runCommand(commandId: string): Promise<ProcessRun | undefined> {
       const project = this.selectedProject;
       if (!project) return;
       const actionKey = commandActionKey(project.id, commandId);
@@ -55,15 +57,17 @@ export const useProjectsStore = defineStore("projects", {
         this.logsRunId = result.run.id;
         await this.loadLogs(result.run.id);
         await this.refresh({ silent: true });
+        return result.run;
       } catch (error) {
         this.error = error instanceof Error ? error.message : String(error);
+        return undefined;
       } finally {
         delete this.commandActions[actionKey];
       }
     },
-    async stop(runId: string, projectId?: string) {
+    async stop(runId: string, projectId?: string): Promise<boolean> {
       const targetProjectId = projectId ?? this.selectedProject?.id;
-      if (!targetProjectId) return;
+      if (!targetProjectId) return false;
       const project = this.projects.find((item) => item.id === targetProjectId);
       const commandId = project?.lastRun?.id === runId ? project.lastRun.commandId : undefined;
       const actionKey = commandId ? commandActionKey(targetProjectId, commandId) : undefined;
@@ -79,8 +83,10 @@ export const useProjectsStore = defineStore("projects", {
           });
         }
         await this.refresh({ silent: true });
+        return true;
       } catch (error) {
         this.error = error instanceof Error ? error.message : String(error);
+        return false;
       } finally {
         if (actionKey) delete this.commandActions[actionKey];
       }
@@ -103,10 +109,16 @@ export const useProjectsStore = defineStore("projects", {
       this.logs = "";
       this.logsRunId = "";
     },
-    async loadContext() {
+    async loadContext(): Promise<ContextResponse | undefined> {
       const project = this.selectedProject;
       if (!project) return;
-      this.context = await getContext(project.id);
+      try {
+        this.context = await getContext(project.id);
+        return this.context;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : String(error);
+        return undefined;
+      }
     },
     commandAction(projectId: string, commandId: string): CommandActionState | undefined {
       return this.commandActions[commandActionKey(projectId, commandId)];

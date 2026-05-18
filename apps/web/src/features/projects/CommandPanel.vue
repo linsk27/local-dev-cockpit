@@ -31,12 +31,14 @@
 <script setup lang="ts">
 import { Loader2, Play, Square, Terminal } from "lucide-vue-next";
 import type { Project } from "@local-dev-cockpit/core";
+import { useNotificationsStore } from "../../stores/notifications";
 import { useProjectsStore } from "../../stores/projects";
 import { usePreferencesStore } from "../../stores/preferences";
 
 const props = defineProps<{ project: Project }>();
 const store = useProjectsStore();
 const preferences = usePreferencesStore();
+const notifications = useNotificationsStore();
 
 function isRunningCommand(commandId: string): boolean {
   return props.project.lastRun?.status === "running" && props.project.lastRun.commandId === commandId;
@@ -63,10 +65,22 @@ function commandStateLabel(commandId: string, fallback: string): string {
 }
 
 async function toggleCommand(commandId: string): Promise<void> {
+  const command = props.project.commands.find((item) => item.id === commandId);
+  const commandLabel = command?.label ?? commandId;
   if (isRunningCommand(commandId) && props.project.lastRun) {
-    await store.stop(props.project.lastRun.id, props.project.id);
+    const stopped = await store.stop(props.project.lastRun.id, props.project.id);
+    if (stopped) {
+      notifications.success(preferences.t("commandStoppedNotice", { command: commandLabel }));
+    } else {
+      notifications.error(preferences.t("commandActionFailedNotice", { message: store.error || preferences.t("stopCommand") }));
+    }
     return;
   }
-  await store.runCommand(commandId);
+  const run = await store.runCommand(commandId);
+  if (run) {
+    notifications.info(preferences.t("commandStartedNotice", { command: commandLabel }));
+  } else {
+    notifications.error(preferences.t("commandActionFailedNotice", { message: store.error || preferences.t("runCommand") }));
+  }
 }
 </script>

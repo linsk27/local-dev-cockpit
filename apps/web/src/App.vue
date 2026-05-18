@@ -33,12 +33,14 @@
       <RouterView />
     </main>
   </div>
+  <ToastStack />
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { LayoutDashboard, PanelLeftClose, PanelLeftOpen, Settings } from "lucide-vue-next";
 import { usePreferencesStore } from "./stores/preferences";
+import ToastStack from "./shared/ui/ToastStack.vue";
 
 const SIDEBAR_KEY = "dev-cockpit:sidebar-collapsed";
 const preferences = usePreferencesStore();

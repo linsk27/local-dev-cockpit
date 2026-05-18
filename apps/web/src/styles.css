@@ -897,6 +897,52 @@ h2 {
   font-size: 13px;
 }
 
+.toast-stack {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 50;
+  display: grid;
+  width: min(360px, calc(100vw - 36px));
+  gap: 10px;
+  pointer-events: none;
+}
+
+.toast {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-bg) 92%, var(--bg));
+  box-shadow: 0 18px 50px var(--shadow);
+  color: var(--text);
+  pointer-events: auto;
+  text-align: left;
+}
+
+.toast > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.toast-info {
+  border-color: var(--accent-border);
+}
+
+.toast-success {
+  border-color: color-mix(in srgb, var(--success) 48%, var(--border));
+}
+
+.toast-error {
+  border-color: var(--danger-border);
+  background: color-mix(in srgb, var(--danger-bg) 34%, var(--surface-bg));
+}
+
 @media (max-width: 1180px) {
   .dashboard-grid {
     grid-template-columns: 1fr;
