@@ -142,6 +142,8 @@ Dev Cockpit 的运行按钮不是简单调用脚本，它会先做一次轻量�
 
 这部分仍然保持本地确定性规则，不会上传代码，也不会自动安装依赖。若环境本身没有创建，面板会在日志里给出原因，而不是假装已经成功启动。
 
+如果 Python 项目启动后出现 `ModuleNotFoundError: No module named 'xxx'`，Dev Cockpit 会在最近失败里提取缺失模块，并提示在当前 Python 环境中运行 `python -m pip install xxx`。如果依赖已经安装过，通常说明 IDE、终端和 Dev Cockpit 使用的不是同一个 `.venv` / Conda 环境。
+
 ## 性能策略
 
 Dev Cockpit 可以长期挂在浏览器或桌面壳里，因此默认避免高频全盘扫描：

@@ -181,7 +181,11 @@ export class ProcessManager {
 }
 
 export function summarizeFailedRun(buffer: string[], exitCode: number | null): string {
-  const lines = stripAnsiControlSequences(buffer.join(""))
+  const raw = stripAnsiControlSequences(buffer.join(""));
+  const knownFailure = summarizeKnownFailure(raw, exitCode);
+  if (knownFailure) return knownFailure;
+
+  const lines = raw
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
@@ -195,6 +199,7 @@ export function summarizeFailedRun(buffer: string[], exitCode: number | null): s
 
 function findFailureLine(lines: string[]): number {
   const priorityPatterns = [
+    /ModuleNotFoundError:\s*No module named/i,
     /another .+server.+already running/i,
     /address already in use|eaddrinuse/i,
     /permission denied/i,
@@ -206,6 +211,35 @@ function findFailureLine(lines: string[]): number {
     if (index >= 0) return index;
   }
   return -1;
+}
+
+function summarizeKnownFailure(rawLog: string, exitCode: number | null): string | undefined {
+  const pythonMissingModule = rawLog.match(/ModuleNotFoundError:\s*No module named ['"]([^'"]+)['"]/i);
+  if (pythonMissingModule?.[1]) {
+    const moduleName = pythonMissingModule[1];
+    const packageName = pythonPackageInstallName(moduleName);
+    return [
+      `缺少 Python 依赖：${moduleName}。`,
+      `请在该项目当前 Python 环境中安装：python -m pip install ${packageName}。`,
+      "如果项目有 requirements.txt / pyproject.toml，请先同步依赖；如果已经安装过，通常是 Dev Cockpit、终端或 IDE 使用的 Python 环境不一致。",
+      `(exit code ${exitCode ?? "unknown"})`
+    ].join(" ");
+  }
+
+  return undefined;
+}
+
+function pythonPackageInstallName(moduleName: string): string {
+  const rootModule = moduleName.split(".")[0]?.trim() ?? moduleName;
+  const knownMappings: Record<string, string> = {
+    PIL: "Pillow",
+    cv2: "opencv-python",
+    dotenv: "python-dotenv",
+    jwt: "PyJWT",
+    sklearn: "scikit-learn",
+    yaml: "PyYAML"
+  };
+  return knownMappings[rootModule] ?? rootModule;
 }
 
 async function killProcessTree(child: ChildProcessWithoutNullStreams): Promise<void> {

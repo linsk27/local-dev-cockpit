@@ -3,6 +3,22 @@ import type { Command } from "@local-dev-cockpit/core";
 import { diagnoseCommandEnvironment, resolveSpawnInvocation, summarizeFailedRun, toNpmRunArgs } from "./process-manager.js";
 
 describe("summarizeFailedRun", () => {
+  it("turns Python missing dependency tracebacks into install guidance", () => {
+    const summary = summarizeFailedRun(
+      [
+        "Traceback (most recent call last):\n",
+        '  File "D:\\Gavin\\xiaozhi-python\\xiaozhi-server\\core\\utils\\wakeup_word.py", line 7, in <module>\n',
+        "    import portalocker\n",
+        "ModuleNotFoundError: No module named 'portalocker'\n"
+      ],
+      1
+    );
+
+    expect(summary).toContain("缺少 Python 依赖：portalocker");
+    expect(summary).toContain("python -m pip install portalocker");
+    expect(summary).toContain("Python 环境不一致");
+  });
+
   it("prefers actionable Next.js duplicate server messages", () => {
     const summary = summarizeFailedRun(
       [
