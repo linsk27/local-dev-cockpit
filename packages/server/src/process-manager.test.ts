@@ -19,6 +19,45 @@ describe("summarizeFailedRun", () => {
     expect(summary).toContain("Python 环境不一致");
   });
 
+  it("turns Node missing packages into package-manager install guidance", () => {
+    const summary = summarizeFailedRun(
+      [
+        "Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'vite' imported from D:\\projects\\web\\vite.config.ts\n",
+        "    at packageResolve (node:internal/modules/esm/resolve:857:9)\n"
+      ],
+      1,
+      command({ command: "pnpm", args: ["run", "dev"] })
+    );
+
+    expect(summary).toContain("缺少 Node 依赖：vite");
+    expect(summary).toContain("pnpm install");
+    expect(summary).toContain("pnpm add vite");
+  });
+
+  it("explains missing local Node script binaries as dependency install issues", () => {
+    const summary = summarizeFailedRun(
+      ["'vite' is not recognized as an internal or external command,\n", "operable program or batch file.\n"],
+      1,
+      command({ command: "npm", args: ["run", "dev"] })
+    );
+
+    expect(summary).toContain("脚本命令缺失：vite");
+    expect(summary).toContain("npm install");
+    expect(summary).toContain("devDependencies");
+  });
+
+  it("does not suggest package install for missing relative Node modules", () => {
+    const summary = summarizeFailedRun(
+      ["Error: Cannot find module './generated/client'\n", "Require stack:\n", "- D:\\projects\\api\\src\\index.js\n"],
+      1,
+      command({ command: "node", args: ["src/index.js"] })
+    );
+
+    expect(summary).toContain("Node 无法找到本地文件或模块：./generated/client");
+    expect(summary).toContain("请检查源码路径");
+    expect(summary).not.toContain("npm install ./generated/client");
+  });
+
   it("prefers actionable Next.js duplicate server messages", () => {
     const summary = summarizeFailedRun(
       [

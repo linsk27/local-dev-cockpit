@@ -144,6 +144,8 @@ Dev Cockpit 的运行按钮不是简单调用脚本，它会先做一次轻量�
 
 如果 Python 项目启动后出现 `ModuleNotFoundError: No module named 'xxx'`，Dev Cockpit 会在最近失败里提取缺失模块，并提示在当前 Python 环境中运行 `python -m pip install xxx`。如果依赖已经安装过，通常说明 IDE、终端和 Dev Cockpit 使用的不是同一个 `.venv` / Conda 环境。
 
+如果 Node 项目出现 `Cannot find package 'xxx'`、`Cannot find module 'xxx'`，或者 `vite` / `next` / `ts-node` 这类脚本命令找不到，Dev Cockpit 会提示先执行当前包管理器的 install 命令，例如 `pnpm install` / `npm install`，再按需安装缺失依赖。相对路径模块缺失会被当成源码或构建产物问题，不会误导用户安装一个不存在的 npm 包。
+
 ## 性能策略
 
 Dev Cockpit 可以长期挂在浏览器或桌面壳里，因此默认避免高频全盘扫描：

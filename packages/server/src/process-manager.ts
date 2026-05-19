@@ -140,7 +140,7 @@ export class ProcessManager {
       await this.store.recordRun(run);
       if (run.status === "failed") {
         await this.store.recordError(projectId, {
-          message: summarizeFailedRun(entry.buffer, exitCode),
+          message: summarizeFailedRun(entry.buffer, exitCode, command),
           commandId: command.id,
           occurredAt: run.exitedAt
         });
@@ -180,9 +180,9 @@ export class ProcessManager {
   }
 }
 
-export function summarizeFailedRun(buffer: string[], exitCode: number | null): string {
+export function summarizeFailedRun(buffer: string[], exitCode: number | null, command?: Command): string {
   const raw = stripAnsiControlSequences(buffer.join(""));
-  const knownFailure = summarizeKnownFailure(raw, exitCode);
+  const knownFailure = summarizeKnownFailure(raw, exitCode, command);
   if (knownFailure) return knownFailure;
 
   const lines = raw
@@ -200,6 +200,8 @@ export function summarizeFailedRun(buffer: string[], exitCode: number | null): s
 function findFailureLine(lines: string[]): number {
   const priorityPatterns = [
     /ModuleNotFoundError:\s*No module named/i,
+    /Cannot find package ['"][^'"]+['"]|Cannot find module ['"][^'"]+['"]/i,
+    /not recognized as an internal or external command|command not found|spawn .+ ENOENT/i,
     /another .+server.+already running/i,
     /address already in use|eaddrinuse/i,
     /permission denied/i,
@@ -213,7 +215,7 @@ function findFailureLine(lines: string[]): number {
   return -1;
 }
 
-function summarizeKnownFailure(rawLog: string, exitCode: number | null): string | undefined {
+function summarizeKnownFailure(rawLog: string, exitCode: number | null, command?: Command): string | undefined {
   const pythonMissingModule = rawLog.match(/ModuleNotFoundError:\s*No module named ['"]([^'"]+)['"]/i);
   if (pythonMissingModule?.[1]) {
     const moduleName = pythonMissingModule[1];
@@ -226,7 +228,88 @@ function summarizeKnownFailure(rawLog: string, exitCode: number | null): string 
     ].join(" ");
   }
 
+  const nodeMissingPackage = parseNodeMissingPackage(rawLog);
+  if (nodeMissingPackage) {
+    const installCommand = packageInstallCommand(command);
+    const addCommand = packageAddCommand(command, nodeMissingPackage.name);
+    return [
+      nodeMissingPackage.kind === "dependency"
+        ? `缺少 Node 依赖：${nodeMissingPackage.name}。`
+        : `Node 无法找到本地文件或模块：${nodeMissingPackage.name}。`,
+      nodeMissingPackage.kind === "dependency"
+        ? `请先在项目目录运行：${installCommand}；如果依旧缺失，再运行：${addCommand}。`
+        : "请检查源码路径、构建产物或 tsconfig/别名配置是否正确。",
+      "如果终端能跑但 Dev Cockpit 不能跑，通常是项目依赖未安装到当前工作目录，或使用了不同的包管理器。",
+      `(exit code ${exitCode ?? "unknown"})`
+    ].join(" ");
+  }
+
+  const missingScriptBinary = parseMissingScriptBinary(rawLog);
+  if (missingScriptBinary) {
+    return [
+      `脚本命令缺失：${missingScriptBinary}。`,
+      `这通常表示 node_modules 没安装，或 package.json 里的脚本依赖没有同步。请先在项目目录运行：${packageInstallCommand(command)}。`,
+      "如果安装后仍失败，请确认该命令是否写在 devDependencies 中。",
+      `(exit code ${exitCode ?? "unknown"})`
+    ].join(" ");
+  }
+
   return undefined;
+}
+
+function parseNodeMissingPackage(rawLog: string): { name: string; kind: "dependency" | "local-module" } | undefined {
+  const match =
+    rawLog.match(/Cannot find package ['"]([^'"]+)['"]/i) ??
+    rawLog.match(/Cannot find module ['"]([^'"]+)['"]/i) ??
+    rawLog.match(/Error \[ERR_MODULE_NOT_FOUND\]:\s*Cannot find package ['"]([^'"]+)['"]/i);
+  const name = match?.[1]?.trim();
+  if (!name) return undefined;
+  const kind = isLocalModuleReference(name) ? "local-module" : "dependency";
+  return { name, kind };
+}
+
+function parseMissingScriptBinary(rawLog: string): string | undefined {
+  const match =
+    rawLog.match(/['"]?([A-Za-z0-9._-]+)(?:\.cmd)?['"]?\s+is not recognized as an internal or external command/i) ??
+    rawLog.match(/(?:sh:\s*)?([A-Za-z0-9._-]+):\s*command not found/i) ??
+    rawLog.match(/spawn\s+([A-Za-z0-9._-]+)\s+ENOENT/i);
+  const binary = match?.[1]?.trim();
+  if (!binary || ["node", "npm", "pnpm", "yarn", "bun", "python", "python3", "py"].includes(binary.toLowerCase())) return undefined;
+  return binary;
+}
+
+function packageInstallCommand(command?: Command): string {
+  const manager = command ? normalizeExecutableName(command.command) : undefined;
+  switch (manager) {
+    case "pnpm":
+      return "pnpm install";
+    case "yarn":
+      return "yarn install";
+    case "bun":
+      return "bun install";
+    case "npm":
+    default:
+      return "npm install";
+  }
+}
+
+function packageAddCommand(command: Command | undefined, packageName: string): string {
+  const manager = command ? normalizeExecutableName(command.command) : undefined;
+  switch (manager) {
+    case "pnpm":
+      return `pnpm add ${packageName}`;
+    case "yarn":
+      return `yarn add ${packageName}`;
+    case "bun":
+      return `bun add ${packageName}`;
+    case "npm":
+    default:
+      return `npm install ${packageName}`;
+  }
+}
+
+function isLocalModuleReference(name: string): boolean {
+  return name.startsWith(".") || name.startsWith("/") || name.startsWith("\\") || /^[A-Za-z]:[\\/]/.test(name);
 }
 
 function pythonPackageInstallName(moduleName: string): string {
