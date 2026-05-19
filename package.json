@@ -1,6 +1,6 @@
 {
   "name": "local-dev-cockpit-repo",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "description": "Local developer cockpit for restoring project state, commands, logs, git status, ports, and AI context.",
   "license": "MIT",
@@ -11,7 +11,8 @@
     "dev": "pnpm --filter local-dev-cockpit dev",
     "test": "pnpm --filter @local-dev-cockpit/core test && pnpm --filter @local-dev-cockpit/server test && pnpm --filter @local-dev-cockpit/web test && pnpm --filter local-dev-cockpit test",
     "typecheck": "pnpm --filter @local-dev-cockpit/core build && pnpm --filter @local-dev-cockpit/server build && pnpm -r typecheck",
-    "release:check": "pnpm typecheck && pnpm test && pnpm build"
+    "release:check": "pnpm typecheck && pnpm test && pnpm build",
+    "desktop:icon": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/generate-desktop-icon.ps1"
   },
   "keywords": [
     "developer-tools",

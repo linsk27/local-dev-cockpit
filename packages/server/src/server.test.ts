@@ -29,21 +29,21 @@ import {
 
 describe("update checks", () => {
   it("compares semantic versions without treating equal versions as updates", () => {
-    expect(isNewerVersion("v0.1.3", "0.1.2")).toBe(true);
-    expect(isNewerVersion("0.1.2", "0.1.2")).toBe(false);
-    expect(isNewerVersion("0.1.1", "0.1.2")).toBe(false);
+    expect(isNewerVersion("v0.1.4", "0.1.3")).toBe(true);
+    expect(isNewerVersion("0.1.3", "0.1.3")).toBe(false);
+    expect(isNewerVersion("0.1.2", "0.1.3")).toBe(false);
   });
 
   it("selects installer and portable Windows assets", () => {
     expect(
       selectUpdateAssets([
         { name: "Source code.zip", size: 1, downloadUrl: "https://example.test/source.zip" },
-        { name: "Dev-Cockpit-Setup-0.1.3-win-x64.exe", size: 2, downloadUrl: "https://example.test/setup.exe" },
-        { name: "Dev-Cockpit-0.1.3-win-x64.exe", size: 3, downloadUrl: "https://example.test/portable.exe" }
+        { name: "Dev-Cockpit-Setup-0.1.4-win-x64.exe", size: 2, downloadUrl: "https://example.test/setup.exe" },
+        { name: "Dev-Cockpit-0.1.4-win-x64.exe", size: 3, downloadUrl: "https://example.test/portable.exe" }
       ])
     ).toEqual({
-      installerAsset: { name: "Dev-Cockpit-Setup-0.1.3-win-x64.exe", size: 2, downloadUrl: "https://example.test/setup.exe" },
-      portableAsset: { name: "Dev-Cockpit-0.1.3-win-x64.exe", size: 3, downloadUrl: "https://example.test/portable.exe" }
+      installerAsset: { name: "Dev-Cockpit-Setup-0.1.4-win-x64.exe", size: 2, downloadUrl: "https://example.test/setup.exe" },
+      portableAsset: { name: "Dev-Cockpit-0.1.4-win-x64.exe", size: 3, downloadUrl: "https://example.test/portable.exe" }
     });
   });
 });
