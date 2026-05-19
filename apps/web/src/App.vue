@@ -3,10 +3,12 @@
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-main">
-          <div class="brand-mark">DC</div>
+          <div class="brand-mark">
+            <DevPilotMark :title="preferences.t('brandNickname')" />
+          </div>
           <div class="brand-copy">
             <strong>Dev Cockpit</strong>
-            <span>{{ preferences.t("appSubtitle") }}</span>
+            <span>{{ preferences.t("brandNickname") }}</span>
           </div>
         </div>
         <div class="brand-actions">
@@ -64,6 +66,7 @@ import { Activity, Download, LayoutDashboard, PanelLeftClose, PanelLeftOpen, Set
 import { formatMetricDuration, usePerformanceStore } from "./stores/performance";
 import { usePreferencesStore } from "./stores/preferences";
 import { useUpdatesStore } from "./stores/updates";
+import DevPilotMark from "./shared/ui/DevPilotMark.vue";
 import ToastStack from "./shared/ui/ToastStack.vue";
 
 const SIDEBAR_KEY = "dev-cockpit:sidebar-collapsed";

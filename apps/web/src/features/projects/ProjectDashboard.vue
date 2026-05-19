@@ -1,5 +1,13 @@
 <template>
   <section class="workspace">
+    <WelcomePilotModal
+      v-if="showWelcomeModal"
+      v-model:root-path="rootPath"
+      :submitting="rootSubmitting"
+      @dismiss="dismissWelcome"
+      @submit="submitRootFromDashboard"
+    />
+
     <header class="workspace-header">
       <div>
         <p class="eyebrow">{{ preferences.t("projectsEyebrow") }}</p>
@@ -84,6 +92,9 @@
       </form>
 
       <p class="onboarding-privacy">{{ preferences.t("onboardingPrivacy") }}</p>
+      <button v-if="welcomeDismissed" class="text-button onboarding-reopen" type="button" @click="openWelcome">
+        {{ preferences.t("welcomeReopen") }}
+      </button>
     </section>
 
     <div v-else class="dashboard-grid">
@@ -132,6 +143,7 @@ import { useProjectsStore } from "../../stores/projects";
 import { usePreferencesStore } from "../../stores/preferences";
 import ProjectDetail from "./ProjectDetail.vue";
 import ProjectList from "./ProjectList.vue";
+import WelcomePilotModal from "./WelcomePilotModal.vue";
 import { formatDisplayPath, projectMatchesQuery, sortProjectsForDashboard } from "./project-view";
 
 const store = useProjectsStore();
@@ -145,6 +157,7 @@ const rootMenuOpen = ref(false);
 const rootFilterRef = ref<HTMLElement | null>(null);
 const rootPath = ref("");
 const rootSubmitting = ref(false);
+const WELCOME_DISMISSED_KEY = "dev-cockpit:onboarding-dismissed";
 const RUNTIME_REFRESH_INTERVAL_MS = 3_000;
 const OVERVIEW_REFRESH_INTERVAL_MS = 30_000;
 const PERFORMANCE_REFRESH_INTERVAL_MS = 5_000;
@@ -161,6 +174,8 @@ const visibleProjects = computed(() => sortProjectsForDashboard(scopedProjects.v
 const hasRunningProject = computed(() => store.projects.some((project) => project.lastRun?.status === "running"));
 const hasRuntimeWatch = computed(() => hasRunningProject.value || Object.keys(store.runtimeWatches).length > 0);
 const canSubmitRoot = computed(() => rootPath.value.trim().length > 0);
+const welcomeDismissed = ref(readWelcomeDismissed());
+const showWelcomeModal = computed(() => roots.value.length === 0 && !welcomeDismissed.value);
 
 const activeProject = computed(() => {
   return visibleProjects.value.find((project) => project.id === store.selectedId) ?? visibleProjects.value[0];
@@ -234,6 +249,8 @@ async function submitRootFromDashboard(): Promise<void> {
   try {
     await addRoot(rootPath.value.trim());
     rootPath.value = "";
+    welcomeDismissed.value = true;
+    localStorage.setItem(WELCOME_DISMISSED_KEY, "true");
     await loadRoots();
     await initialRefresh();
     notifications.success(preferences.t("rootAddedNotice"));
@@ -255,6 +272,20 @@ async function loadRoots(): Promise<void> {
 
 function toggleRootMenu(): void {
   rootMenuOpen.value = !rootMenuOpen.value;
+}
+
+function dismissWelcome(): void {
+  welcomeDismissed.value = true;
+  localStorage.setItem(WELCOME_DISMISSED_KEY, "true");
+}
+
+function openWelcome(): void {
+  welcomeDismissed.value = false;
+  localStorage.removeItem(WELCOME_DISMISSED_KEY);
+}
+
+function readWelcomeDismissed(): boolean {
+  return localStorage.getItem(WELCOME_DISMISSED_KEY) === "true";
 }
 
 function selectRoot(rootId: string): void {

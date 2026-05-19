@@ -47,6 +47,9 @@ importers:
       '@local-dev-cockpit/core':
         specifier: workspace:*
         version: link:../../packages/core
+      animejs:
+        specifier: ^4.4.1
+        version: 4.4.1
       lucide-vue-next:
         specifier: ^0.468.0
         version: 0.468.0(vue@3.5.34(typescript@5.9.3))
@@ -948,6 +951,9 @@ packages:
 
   alien-signals@3.2.1:
     resolution: {integrity: sha512-I8FjmltrfnDFoZedi5CG8DghVYNhzb/Ijluz7tCSJH0xpd0484Kowhbb1XDYOxfJpU1p5wnM2X54dA+IfGyD1g==}
+
+  animejs@4.4.1:
+    resolution: {integrity: sha512-XimhJw4vPb6tAd6Zaoa6BaspJ8UteQMKvL7Pvrt6MW/6u2UvJs0TB/LLqR1sigaiYvpVPC3Tokr9emcCMhWFhw==}
 
   ansi-regex@5.0.1:
     resolution: {integrity: sha512-quJQXlTSUGL2LH9SUXo8VwsY4soanhgo6LNSm84E1LBcE8s3O0wpdiRzyR9z/ZZJMlMWv37qOOb9pdJlMUEKFQ==}
@@ -2787,6 +2793,8 @@ snapshots:
       uri-js: 4.4.1
 
   alien-signals@3.2.1: {}
+
+  animejs@4.4.1: {}
 
   ansi-regex@5.0.1: {}
 

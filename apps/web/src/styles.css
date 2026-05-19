@@ -200,10 +200,17 @@ button {
   place-items: center;
   border: 1px solid var(--accent-border);
   border-radius: 10px;
-  background: linear-gradient(135deg, var(--accent-soft), rgba(26, 190, 255, 0.08));
-  color: var(--text-strong);
-  font-size: 13px;
-  font-weight: 750;
+  background:
+    linear-gradient(135deg, var(--accent-soft), rgba(49, 199, 232, 0.08)),
+    var(--surface-soft);
+  color: var(--accent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.dev-pilot-mark {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .brand strong,
@@ -1567,6 +1574,10 @@ h2 {
   line-height: 1.55;
 }
 
+.onboarding-reopen {
+  width: max-content;
+}
+
 .onboarding-steps {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1637,6 +1648,254 @@ h2 {
 
 .empty-root-form {
   margin-top: 8px;
+}
+
+.welcome-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg) 58%, transparent), color-mix(in srgb, var(--bg) 78%, transparent)),
+    color-mix(in srgb, var(--bg) 66%, transparent);
+  backdrop-filter: blur(18px);
+}
+
+.welcome-modal {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(280px, 0.82fr) minmax(320px, 1fr);
+  gap: clamp(18px, 3vw, 32px);
+  width: min(980px, calc(100vw - 36px));
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+  padding: clamp(18px, 3vw, 30px);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--surface-bg) 94%, transparent), color-mix(in srgb, var(--surface-soft) 88%, transparent)),
+    var(--surface-bg);
+  box-shadow: 0 28px 90px color-mix(in srgb, var(--shadow) 84%, transparent);
+}
+
+.welcome-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
+}
+
+.welcome-stage {
+  position: relative;
+  display: grid;
+  min-height: 420px;
+  overflow: hidden;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 9%, transparent), transparent 56%),
+    repeating-linear-gradient(0deg, color-mix(in srgb, var(--border) 50%, transparent) 0 1px, transparent 1px 34px),
+    repeating-linear-gradient(90deg, color-mix(in srgb, var(--border) 42%, transparent) 0 1px, transparent 1px 34px),
+    color-mix(in srgb, var(--bg) 58%, var(--surface-bg));
+}
+
+.welcome-stage::before {
+  position: absolute;
+  inset: 22px;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  border-radius: 8px;
+  content: "";
+}
+
+.welcome-mark {
+  position: relative;
+  z-index: 2;
+  width: 124px;
+  height: 124px;
+  color: var(--accent);
+  filter: drop-shadow(0 18px 40px color-mix(in srgb, var(--accent) 18%, transparent));
+}
+
+.pilot-radar {
+  position: absolute;
+  inset: 50%;
+  width: 274px;
+  height: 274px;
+  transform: translate(-50%, -50%);
+}
+
+.radar-ring,
+.radar-sweep,
+.radar-node {
+  position: absolute;
+  display: block;
+}
+
+.radar-ring {
+  inset: 0;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
+  border-radius: 999px;
+}
+
+.ring-two {
+  inset: 54px;
+  border-color: color-mix(in srgb, var(--success) 28%, transparent);
+}
+
+.radar-sweep {
+  left: 50%;
+  top: 50%;
+  width: 50%;
+  height: 1px;
+  transform-origin: left center;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 80%, transparent), transparent);
+  animation: radar-sweep 4.4s linear infinite;
+}
+
+.radar-node {
+  width: 8px;
+  height: 8px;
+  border: 1px solid color-mix(in srgb, var(--accent) 65%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-bg) 72%, var(--accent));
+  box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 44%, transparent);
+}
+
+.node-a {
+  left: 44px;
+  top: 70px;
+}
+
+.node-b {
+  right: 42px;
+  top: 102px;
+  border-color: color-mix(in srgb, var(--success) 65%, transparent);
+}
+
+.node-c {
+  left: 118px;
+  bottom: 34px;
+  border-color: color-mix(in srgb, var(--warn) 65%, transparent);
+}
+
+.pilot-console {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  display: grid;
+  gap: 6px;
+  width: min(235px, calc(100% - 36px));
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  color: var(--code);
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 11px;
+}
+
+.pilot-console span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.welcome-copy,
+.welcome-features,
+.welcome-root-form,
+.welcome-privacy {
+  grid-column: 2;
+}
+
+.welcome-copy {
+  align-self: end;
+  padding-right: 42px;
+}
+
+.welcome-copy h2 {
+  margin-bottom: 12px;
+  color: var(--text-strong);
+  font-size: clamp(30px, 4.2vw, 50px);
+  line-height: 1.02;
+}
+
+.welcome-copy p:last-child {
+  margin: 0;
+  color: var(--muted-strong);
+  line-height: 1.65;
+}
+
+.welcome-features {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.welcome-feature {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 38px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-soft) 72%, transparent);
+  color: var(--muted-strong);
+  font-size: 12px;
+}
+
+.welcome-feature svg {
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+
+.welcome-feature span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.welcome-root-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+}
+
+.welcome-root-form label {
+  display: grid;
+  gap: 8px;
+  color: var(--muted-strong);
+  font-size: 13px;
+}
+
+.welcome-root-form input {
+  width: 100%;
+  min-width: 0;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  outline: none;
+  background: var(--surface-soft);
+  color: var(--text);
+}
+
+.welcome-root-form .primary-button {
+  height: 42px;
+  white-space: nowrap;
+}
+
+.welcome-privacy {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
 }
 
 .error-banner {
@@ -1970,6 +2229,26 @@ h2 {
   .onboarding-steps {
     grid-template-columns: 1fr;
   }
+
+  .welcome-modal {
+    grid-template-columns: 1fr;
+  }
+
+  .welcome-stage,
+  .welcome-copy,
+  .welcome-features,
+  .welcome-root-form,
+  .welcome-privacy {
+    grid-column: 1;
+  }
+
+  .welcome-stage {
+    min-height: 290px;
+  }
+
+  .welcome-copy {
+    padding-right: 42px;
+  }
 }
 
 @media (max-width: 560px) {
@@ -2060,6 +2339,43 @@ h2 {
   .empty-root-form {
     display: flex;
   }
+
+  .welcome-overlay {
+    padding: 10px;
+  }
+
+  .welcome-modal {
+    width: calc(100vw - 20px);
+    max-height: calc(100vh - 20px);
+    padding: 16px;
+  }
+
+  .welcome-copy {
+    padding-right: 38px;
+  }
+
+  .welcome-stage {
+    min-height: 240px;
+  }
+
+  .welcome-mark {
+    width: 94px;
+    height: 94px;
+  }
+
+  .pilot-radar {
+    width: 210px;
+    height: 210px;
+  }
+
+  .welcome-features,
+  .welcome-root-form {
+    grid-template-columns: 1fr;
+  }
+
+  .welcome-root-form .primary-button {
+    width: 100%;
+  }
 }
 
 @keyframes spin {
@@ -2075,6 +2391,16 @@ h2 {
 
   to {
     background-position: -120% 0;
+  }
+}
+
+@keyframes radar-sweep {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
   }
 }
 
@@ -2105,6 +2431,7 @@ h2 {
 
   .sidebar-performance::before,
   .sidebar-performance.loading .performance-icon svg,
+  .radar-sweep,
   .update-badge,
   .project-row-skeleton span,
   .project-row-skeleton i {

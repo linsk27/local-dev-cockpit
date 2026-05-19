@@ -14,7 +14,7 @@ npx local-dev-cockpit
 http://localhost:8787
 ```
 
-首次打开时，先选择一个本机工作区：
+首次打开时，会先看到 `Dev Pilot` 引导弹窗；选择一个本机工作区后进入项目扫描：
 
 ![Dev Cockpit First Run](docs/assets/onboarding.png)
 
