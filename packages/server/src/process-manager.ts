@@ -372,7 +372,18 @@ export async function diagnoseCommandEnvironment(
   try {
     const platform = options.platform ?? process.platform;
     const invocation = await resolveSpawnInvocation(command, options);
+    const preflight = await diagnoseProjectDependencyState(command, options);
     const verification = commandVerificationKind(command.command);
+    if (preflight) {
+      return {
+        commandId: command.id,
+        label: command.label,
+        status: "warn",
+        summary: preflight.summary,
+        detail: `${preflight.detail} 解析命令：${formatResolvedCommand(invocation.command, invocation.args, platform)}`,
+        resolvedCommand: formatResolvedCommand(invocation.command, invocation.args, platform)
+      };
+    }
     return {
       commandId: command.id,
       label: command.label,
@@ -392,6 +403,95 @@ export async function diagnoseCommandEnvironment(
       detail: error instanceof Error ? error.message : String(error)
     };
   }
+}
+
+async function diagnoseProjectDependencyState(
+  command: Command,
+  options: CommandResolutionOptions
+): Promise<{ summary: string; detail: string } | undefined> {
+  const normalized = normalizeExecutableName(command.command);
+  if (PACKAGE_MANAGER_COMMANDS.has(normalized)) return diagnoseNodeDependencyState(command, options);
+  if (PYTHON_COMMANDS.has(normalized)) return diagnosePythonDependencyState(command, options);
+  return undefined;
+}
+
+async function diagnoseNodeDependencyState(
+  command: Command,
+  options: CommandResolutionOptions
+): Promise<{ summary: string; detail: string } | undefined> {
+  if (!isPackageManagerScriptCommand(command)) return undefined;
+  const fileExistsFn = options.fileExists ?? fileExists;
+  const readFileFn = options.readFile ?? readTextFile;
+  const packageJsonPath = path.join(command.cwd, "package.json");
+  if (!(await fileExistsFn(packageJsonPath))) return undefined;
+
+  const hasDependencies = await packageJsonHasDependencies(packageJsonPath, readFileFn);
+  if (!hasDependencies) return undefined;
+
+  const nodeModulesPath = path.join(command.cwd, "node_modules");
+  if (await fileExistsFn(nodeModulesPath)) return undefined;
+
+  const installCommand = packageInstallCommand(command);
+  return {
+    summary: "项目依赖可能尚未安装。",
+    detail: `检测到 package.json 声明了依赖，但项目目录没有 node_modules。首次运行前建议执行：${installCommand}。`
+  };
+}
+
+async function diagnosePythonDependencyState(
+  command: Command,
+  options: CommandResolutionOptions
+): Promise<{ summary: string; detail: string } | undefined> {
+  const platform = options.platform ?? process.platform;
+  const fileExistsFn = options.fileExists ?? fileExists;
+  const hasDependencyManifest = await hasPythonDependencyManifest(command.cwd, fileExistsFn);
+  if (!hasDependencyManifest) return undefined;
+  if (await findLocalPythonInterpreter(command.cwd, platform, options.fileExists)) return undefined;
+  if (await findDeclaredCondaEnvironment(command.cwd, options)) return undefined;
+
+  return {
+    summary: "Python 项目依赖环境未固定。",
+    detail:
+      "检测到 requirements.txt / pyproject.toml，但未找到 .venv、venv、.conda 或 environment.yml。Dev Cockpit 会回退系统 Python；如果启动后缺包，请先创建/激活项目虚拟环境并安装依赖。"
+  };
+}
+
+function isPackageManagerScriptCommand(command: Command): boolean {
+  const normalized = normalizeExecutableName(command.command);
+  if (!PACKAGE_MANAGER_COMMANDS.has(normalized)) return false;
+  if (normalized === "npm" || normalized === "pnpm" || normalized === "yarn") return command.args[0] === "run" && Boolean(command.args[1]);
+  if (normalized === "bun") return command.args[0] === "run" && Boolean(command.args[1]);
+  return false;
+}
+
+async function packageJsonHasDependencies(
+  packageJsonPath: string,
+  readFileFn: (filePath: string) => Promise<string>
+): Promise<boolean> {
+  try {
+    const parsed = JSON.parse(await readFileFn(packageJsonPath)) as Record<string, unknown>;
+    return ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"].some((field) =>
+      hasPackageEntries(parsed[field])
+    );
+  } catch {
+    return false;
+  }
+}
+
+function hasPackageEntries(value: unknown): boolean {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length > 0);
+}
+
+async function hasPythonDependencyManifest(
+  projectPath: string,
+  fileExistsFn: (filePath: string) => Promise<boolean>
+): Promise<boolean> {
+  for (const base of candidateEnvironmentBases(projectPath)) {
+    for (const fileName of ["requirements.txt", "requirements-dev.txt", "pyproject.toml", "Pipfile", "poetry.lock"]) {
+      if (await fileExistsFn(path.join(base, fileName))) return true;
+    }
+  }
+  return false;
 }
 
 function commandVerificationKind(commandName: string): "verified" | "unverified" {

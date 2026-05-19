@@ -180,6 +180,21 @@ describe("resolveSpawnInvocation", () => {
 });
 
 describe("diagnoseCommandEnvironment", () => {
+  it("warns before running Node scripts when dependencies are not installed", async () => {
+    await expect(
+      diagnoseCommandEnvironment(command({ command: "pnpm", args: ["run", "dev"], cwd: "D:\\projects\\web" }), {
+        platform: "win32",
+        commandExists: async (name) => name === "pnpm.cmd",
+        fileExists: async (filePath) => filePath === "D:\\projects\\web\\package.json",
+        readFile: async () => JSON.stringify({ dependencies: { vue: "^3.5.0" }, devDependencies: { vite: "^5.0.0" } })
+      })
+    ).resolves.toMatchObject({
+      status: "warn",
+      summary: "项目依赖可能尚未安装。",
+      detail: expect.stringContaining("pnpm install")
+    });
+  });
+
   it("returns ready diagnostics with the resolved project Python environment", async () => {
     await expect(
       diagnoseCommandEnvironment(command({ command: "python", args: ["app.py"], cwd: "D:\\projects\\api" }), {
@@ -192,6 +207,20 @@ describe("diagnoseCommandEnvironment", () => {
       status: "ready",
       summary: "已使用项目 Python 环境：venv\\Scripts\\python.exe。",
       resolvedCommand: "D:\\projects\\api\\venv\\Scripts\\python.exe app.py"
+    });
+  });
+
+  it("warns when Python dependency manifests exist without a project environment", async () => {
+    await expect(
+      diagnoseCommandEnvironment(command({ command: "python", args: ["app.py"], cwd: "D:\\projects\\api" }), {
+        platform: "win32",
+        fileExists: async (filePath) => filePath === "D:\\projects\\api\\requirements.txt",
+        commandExists: async (name) => name === "python.cmd" || name === "python"
+      })
+    ).resolves.toMatchObject({
+      status: "warn",
+      summary: "Python 项目依赖环境未固定。",
+      detail: expect.stringContaining("系统 Python")
     });
   });
 
