@@ -224,6 +224,7 @@ async function route(
       return;
     }
     const run = await context.processManager.start(project.id, command);
+    invalidateExternalPortOwnersCache();
     context.projectCache.invalidate();
     sendJson(res, 200, { run });
     return;
@@ -235,11 +236,13 @@ async function route(
     const runId = decodeURIComponent(stopMatch[2] ?? "");
     const stoppedRun = await context.processManager.stop(runId);
     if (stoppedRun) {
+      invalidateExternalPortOwnersCache();
       context.projectCache.invalidate();
       sendJson(res, 200, { stopped: true, run: stoppedRun });
       return;
     }
     const staleRun = await context.store.markRunStopped(projectId, runId);
+    invalidateExternalPortOwnersCache();
     context.projectCache.invalidate();
     sendJson(res, 200, { stopped: false, run: staleRun });
     return;
@@ -260,6 +263,7 @@ async function route(
       if (run) await context.store.markRunStopped(projectId, run.id);
       await context.store.clearError(projectId);
     }
+    invalidateExternalPortOwnersCache();
     context.projectCache.invalidate();
     sendJson(res, 200, result);
     return;
@@ -722,19 +726,31 @@ async function createEnrichmentContext(projects: Project[]): Promise<EnrichmentC
 
 let externalPortOwnersCache: { expiresAt: number; owners: ExternalPortOwner[] } | undefined;
 let externalPortOwnersInflight: Promise<ExternalPortOwner[]> | undefined;
+let externalPortOwnersCacheVersion = 0;
+
+function invalidateExternalPortOwnersCache(): void {
+  externalPortOwnersCacheVersion += 1;
+  externalPortOwnersCache = undefined;
+  externalPortOwnersInflight = undefined;
+}
 
 async function getCachedExternalPortOwners(processAdapter: NodeProcessAdapter): Promise<ExternalPortOwner[]> {
   const now = Date.now();
   if (externalPortOwnersCache && externalPortOwnersCache.expiresAt > now) return externalPortOwnersCache.owners;
   if (externalPortOwnersInflight) return externalPortOwnersInflight;
 
+  const cacheVersion = externalPortOwnersCacheVersion;
   externalPortOwnersInflight = detectExternalPortOwners(processAdapter)
     .then((owners) => {
-      externalPortOwnersCache = { expiresAt: Date.now() + EXTERNAL_PORT_OWNER_CACHE_TTL_MS, owners };
+      if (cacheVersion === externalPortOwnersCacheVersion) {
+        externalPortOwnersCache = { expiresAt: Date.now() + EXTERNAL_PORT_OWNER_CACHE_TTL_MS, owners };
+      }
       return owners;
     })
     .finally(() => {
-      externalPortOwnersInflight = undefined;
+      if (cacheVersion === externalPortOwnersCacheVersion) {
+        externalPortOwnersInflight = undefined;
+      }
     });
   return externalPortOwnersInflight;
 }
@@ -1222,19 +1238,32 @@ async function listen(server: ReturnType<typeof createServer>, preferredPort: nu
   throw new Error(`No free port found near ${preferredPort}`);
 }
 
-interface StopPortResult {
+export interface StopPortResult {
   stopped: boolean;
   port: number;
   pids: number[];
+  alreadyClosed?: boolean;
   error?: string;
 }
 
-async function stopPort(port: number): Promise<StopPortResult> {
+export async function stopPort(port: number): Promise<StopPortResult> {
   const processAdapter = new NodeProcessAdapter();
   const pids = await findListeningPidsByPort(processAdapter, port);
   const killablePids = pids.filter((pid) => pid > 0 && pid !== process.pid);
   if (killablePids.length === 0) {
-    return { stopped: false, port, pids, error: pids.includes(process.pid) ? "Refusing to stop Dev Cockpit itself" : "No process found for port" };
+    if (pids.includes(process.pid)) {
+      return { stopped: false, port, pids, error: "Refusing to stop Dev Cockpit itself" };
+    }
+    const stillOpen = await processAdapter.isPortOpen(port);
+    if (!stillOpen) {
+      return { stopped: true, port, pids, alreadyClosed: true };
+    }
+    return {
+      stopped: false,
+      port,
+      pids,
+      error: "Port is open, but Dev Cockpit could not find an owning process. Close the terminal that started it or retry with administrator permissions."
+    };
   }
 
   const failures: string[] = [];

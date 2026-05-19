@@ -24,6 +24,7 @@ import {
   parseNetstatListeningPids,
   parseStoppedChildrenOutput,
   selectUpdateAssets,
+  stopPort,
   writeProjectContextFiles
 } from "./server.js";
 
@@ -59,6 +60,23 @@ describe("parseNetstatListeningPids", () => {
     ].join("\n");
 
     expect(parseNetstatListeningPids(output, 8000)).toEqual([34204, 34205]);
+  });
+});
+
+describe("stopPort", () => {
+  it("treats an already closed port as a successful cleanup", async () => {
+    const server = createServer((_request, response) => {
+      response.end("ok");
+    });
+    const port = await listenOnRandomPort(server);
+    await closeServer(server);
+
+    await expect(stopPort(port)).resolves.toMatchObject({
+      stopped: true,
+      port,
+      pids: [],
+      alreadyClosed: true
+    });
   });
 });
 

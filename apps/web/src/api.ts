@@ -73,6 +73,7 @@ export interface StopPortResponse {
   stopped: boolean;
   port: number;
   pids: number[];
+  alreadyClosed?: boolean;
   error?: string;
 }
 
