@@ -10,6 +10,11 @@ const DEFAULT_IGNORE_NAMES = new Set([
   "build",
   ".venv",
   "venv",
+  ".env",
+  "env",
+  ".conda",
+  "conda",
+  "envs",
   "target",
   ".next",
   ".cache",
@@ -27,6 +32,10 @@ const CHILD_PROJECT_DIRECTORY_HINTS = new Set(["frontend", "front", "backend", "
 const COMMON_PORTS_BY_KIND: Record<ProjectKind, number[]> = {
   node: [3000, 5173, 4173, 8080],
   python: [5000, 8000, 8080],
+  java: [8080, 8081, 9090],
+  php: [8000, 8080],
+  ruby: [3000, 4567, 9292],
+  dotnet: [5000, 5001, 7000, 7001, 8080],
   go: [8080, 3000],
   rust: [8000, 8080],
   docker: [80, 3000, 5000, 8000, 8080],
@@ -125,11 +134,18 @@ function hasProjectMarker(entries: Array<{ name: string; isDirectory: boolean; i
     "requirements.txt",
     "pyproject.toml",
     "go.mod",
+    "pom.xml",
+    "build.gradle",
+    "build.gradle.kts",
+    "composer.json",
+    "artisan",
+    "Gemfile",
+    "config.ru",
     "Cargo.toml",
     "docker-compose.yml",
     "compose.yml",
     "Dockerfile"
-  ].some((marker) => names.has(marker));
+  ].some((marker) => names.has(marker)) || entries.some((entry) => entry.isFile && (entry.name.endsWith(".csproj") || entry.name.endsWith(".sln")));
 }
 
 function shouldDescendIntoMarkedDirectory(entries: Array<{ name: string; isDirectory: boolean; isFile: boolean }>): boolean {
@@ -190,6 +206,23 @@ async function detectMarkers(projectPath: string, fs: FileSystemAdapter): Promis
     "main.py",
     "app/main.py",
     "go.mod",
+    "pom.xml",
+    "build.gradle",
+    "build.gradle.kts",
+    "settings.gradle",
+    "settings.gradle.kts",
+    "mvnw",
+    "mvnw.cmd",
+    "gradlew",
+    "gradlew.bat",
+    "environment.yml",
+    "environment.yaml",
+    "composer.json",
+    "artisan",
+    "Gemfile",
+    "config.ru",
+    "bin/rails",
+    "app.rb",
     "Cargo.toml",
     "docker-compose.yml",
     "compose.yml",
@@ -201,6 +234,16 @@ async function detectMarkers(projectPath: string, fs: FileSystemAdapter): Promis
       found.push(candidate);
     }
   }
+  try {
+    const entries = await fs.readdir(projectPath);
+    for (const entry of entries) {
+      if (entry.isFile && (entry.name.endsWith(".csproj") || entry.name.endsWith(".sln"))) {
+        found.push(entry.name);
+      }
+    }
+  } catch {
+    // Marker detection should be best-effort; the main scanner reports read failures.
+  }
   return found;
 }
 
@@ -210,6 +253,12 @@ function resolveProjectKind(markers: string[]): ProjectKind {
   if (markers.some((marker) => ["requirements.txt", "pyproject.toml", "manage.py", "run.py", "app.py", "main.py", "app/main.py"].includes(marker))) {
     kinds.add("python");
   }
+  if (markers.some((marker) => ["pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts", "mvnw", "mvnw.cmd", "gradlew", "gradlew.bat"].includes(marker))) {
+    kinds.add("java");
+  }
+  if (markers.some((marker) => ["composer.json", "artisan"].includes(marker))) kinds.add("php");
+  if (markers.some((marker) => ["Gemfile", "config.ru", "bin/rails", "app.rb"].includes(marker))) kinds.add("ruby");
+  if (markers.some((marker) => marker.endsWith(".csproj") || marker.endsWith(".sln"))) kinds.add("dotnet");
   if (markers.includes("go.mod")) kinds.add("go");
   if (markers.includes("Cargo.toml")) kinds.add("rust");
   if (markers.some((marker) => ["docker-compose.yml", "compose.yml", "Dockerfile"].includes(marker))) kinds.add("docker");
@@ -282,6 +331,10 @@ async function detectCommands(
   if (markers.includes("go.mod")) {
     commands.push(command("go-run", "Go run", "go", ["run", "."], projectPath, "detected", "dev"));
   }
+  commands.push(...(await detectJavaCommands(projectPath, markers, fs)));
+  commands.push(...(await detectPhpCommands(projectPath, markers, fs)));
+  commands.push(...detectRubyCommands(projectPath, markers));
+  commands.push(...detectDotnetCommands(projectPath, markers));
   if (markers.includes("Cargo.toml")) {
     commands.push(command("cargo-run", "Cargo run", "cargo", ["run"], projectPath, "detected", "dev"));
   }
@@ -290,6 +343,109 @@ async function detectCommands(
   }
 
   return dedupeCommands(commands);
+}
+
+async function detectJavaCommands(projectPath: string, markers: string[], fs: FileSystemAdapter): Promise<Command[]> {
+  const commands: Command[] = [];
+  const hasMaven = markers.includes("pom.xml") || markers.includes("mvnw") || markers.includes("mvnw.cmd");
+  const hasGradle = markers.some((marker) => ["build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts", "gradlew", "gradlew.bat"].includes(marker));
+
+  if (hasMaven) {
+    const mvn = await resolveProjectExecutable(projectPath, fs, ["mvnw.cmd", "mvnw"], "mvn");
+    if (await isSpringBootMavenProject(projectPath, fs)) {
+      commands.push(command("java-maven-spring-boot-run", "Spring Boot run", mvn, ["spring-boot:run"], projectPath, "detected", "dev"));
+    }
+    commands.push(command("java-maven-test", "Maven test", mvn, ["test"], projectPath, "detected", "test"));
+    commands.push(command("java-maven-package", "Maven package", mvn, ["package"], projectPath, "detected", "build"));
+  }
+
+  if (hasGradle) {
+    const gradle = await resolveProjectExecutable(projectPath, fs, ["gradlew.bat", "gradlew"], "gradle");
+    const springBoot = await isSpringBootGradleProject(projectPath, fs);
+    commands.push(command(springBoot ? "java-gradle-boot-run" : "java-gradle-run", springBoot ? "Gradle bootRun" : "Gradle run", gradle, [springBoot ? "bootRun" : "run"], projectPath, "detected", "dev"));
+    commands.push(command("java-gradle-test", "Gradle test", gradle, ["test"], projectPath, "detected", "test"));
+    commands.push(command("java-gradle-build", "Gradle build", gradle, ["build"], projectPath, "detected", "build"));
+  }
+
+  return commands;
+}
+
+async function resolveProjectExecutable(projectPath: string, fs: FileSystemAdapter, wrapperNames: string[], fallback: string): Promise<string> {
+  for (const wrapperName of wrapperNames) {
+    const wrapperPath = path.join(projectPath, wrapperName);
+    if (await fs.exists(wrapperPath)) return wrapperPath;
+  }
+  return fallback;
+}
+
+async function isSpringBootMavenProject(projectPath: string, fs: FileSystemAdapter): Promise<boolean> {
+  try {
+    const pom = await fs.readFile(path.join(projectPath, "pom.xml"));
+    return /spring-boot/i.test(pom);
+  } catch {
+    return false;
+  }
+}
+
+async function isSpringBootGradleProject(projectPath: string, fs: FileSystemAdapter): Promise<boolean> {
+  for (const fileName of ["build.gradle", "build.gradle.kts"]) {
+    try {
+      const source = await fs.readFile(path.join(projectPath, fileName));
+      if (/org\.springframework\.boot|spring-boot/i.test(source)) return true;
+    } catch {
+      // Keep scanning other Gradle files.
+    }
+  }
+  return false;
+}
+
+async function detectPhpCommands(projectPath: string, markers: string[], fs: FileSystemAdapter): Promise<Command[]> {
+  const commands: Command[] = [];
+  if (markers.includes("artisan")) {
+    commands.push(command("php-laravel-serve", "Laravel serve", "php", ["artisan", "serve", "--host", "127.0.0.1", "--port", "8000"], projectPath, "detected", "dev"));
+  }
+  if (markers.includes("composer.json")) {
+    commands.push(...(await readComposerScripts(projectPath, fs)));
+  }
+  return commands;
+}
+
+async function readComposerScripts(projectPath: string, fs: FileSystemAdapter): Promise<Command[]> {
+  try {
+    const raw = await fs.readFile(path.join(projectPath, "composer.json"));
+    const parsed = JSON.parse(raw) as { scripts?: Record<string, unknown> };
+    return Object.entries(parsed.scripts ?? {})
+      .filter(([scriptName]) => /^(dev|serve|start|test|build)$/i.test(scriptName))
+      .map(([scriptName]) =>
+        command(`composer-${scriptName}`, `Composer ${scriptName}`, "composer", ["run", scriptName], projectPath, "package-script", inferCommandKind(scriptName))
+      );
+  } catch {
+    return [];
+  }
+}
+
+function detectRubyCommands(projectPath: string, markers: string[]): Command[] {
+  const commands: Command[] = [];
+  if (markers.includes("bin/rails")) {
+    commands.push(command("ruby-rails-server", "Rails server", "bundle", ["exec", "rails", "server", "-b", "127.0.0.1", "-p", "3000"], projectPath, "detected", "dev"));
+  } else if (markers.includes("config.ru")) {
+    commands.push(command("ruby-rackup", "Rack server", "bundle", ["exec", "rackup", "-o", "127.0.0.1", "-p", "9292"], projectPath, "detected", "dev"));
+  } else if (markers.includes("app.rb")) {
+    commands.push(command("ruby-app", "Ruby app.rb", "bundle", ["exec", "ruby", "app.rb"], projectPath, "detected", "dev"));
+  }
+  if (markers.includes("Gemfile")) {
+    commands.push(command("ruby-bundle-test", "Bundle test", "bundle", ["exec", "rake", "test"], projectPath, "detected", "test"));
+  }
+  return commands;
+}
+
+function detectDotnetCommands(projectPath: string, markers: string[]): Command[] {
+  if (!markers.some((marker) => marker.endsWith(".csproj") || marker.endsWith(".sln"))) return [];
+  return [
+    command("dotnet-run", ".NET run", "dotnet", ["run"], projectPath, "detected", "dev"),
+    command("dotnet-test", ".NET test", "dotnet", ["test"], projectPath, "detected", "test"),
+    command("dotnet-build", ".NET build", "dotnet", ["build"], projectPath, "detected", "build")
+  ];
 }
 
 async function detectFastApiEntrypoint(

@@ -172,6 +172,93 @@ describe("scanRoot", () => {
     expect(project?.commands.find((command) => command.id === "python-run")?.args).toEqual(["run.py"]);
   });
 
+  it("detects Maven Spring Boot projects and prefers the Maven wrapper", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-java-maven-"));
+    const api = path.join(root, "spring-api");
+    await fs.mkdir(api, { recursive: true });
+    await fs.writeFile(path.join(api, "mvnw.cmd"), "@echo off\n", "utf8");
+    await fs.writeFile(
+      path.join(api, "pom.xml"),
+      "<project><dependencies><dependency><artifactId>spring-boot-starter-web</artifactId></dependency></dependencies></project>",
+      "utf8"
+    );
+
+    const result = await scanRoot(root, { maxDepth: 2 });
+    const project = result.projects.find((item) => item.name === "spring-api");
+    const bootRun = project?.commands.find((command) => command.id === "java-maven-spring-boot-run");
+
+    expect(project?.kind).toBe("java");
+    expect(bootRun?.command).toBe(path.join(api, "mvnw.cmd"));
+    expect(bootRun?.args).toEqual(["spring-boot:run"]);
+  });
+
+  it("detects Gradle Spring Boot projects and prefers the Gradle wrapper", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-java-gradle-"));
+    const api = path.join(root, "gradle-api");
+    await fs.mkdir(api, { recursive: true });
+    await fs.writeFile(path.join(api, "gradlew.bat"), "@echo off\n", "utf8");
+    await fs.writeFile(path.join(api, "build.gradle"), "plugins { id 'org.springframework.boot' version '3.3.0' }\n", "utf8");
+
+    const result = await scanRoot(root, { maxDepth: 2 });
+    const project = result.projects.find((item) => item.name === "gradle-api");
+    const bootRun = project?.commands.find((command) => command.id === "java-gradle-boot-run");
+
+    expect(project?.kind).toBe("java");
+    expect(bootRun?.command).toBe(path.join(api, "gradlew.bat"));
+    expect(bootRun?.args).toEqual(["bootRun"]);
+    expect(project?.commands.find((command) => command.id === "java-gradle-build")?.args).toEqual(["build"]);
+  });
+
+  it("detects Laravel projects and Composer scripts", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-php-"));
+    const app = path.join(root, "laravel-app");
+    await fs.mkdir(app, { recursive: true });
+    await fs.writeFile(path.join(app, "artisan"), "#!/usr/bin/env php\n", "utf8");
+    await fs.writeFile(path.join(app, "composer.json"), JSON.stringify({ scripts: { test: "phpunit", dev: "vite" } }), "utf8");
+
+    const result = await scanRoot(root, { maxDepth: 2 });
+    const project = result.projects.find((item) => item.name === "laravel-app");
+
+    expect(project?.kind).toBe("php");
+    expect(project?.commands.find((command) => command.id === "php-laravel-serve")?.args).toEqual([
+      "artisan",
+      "serve",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "8000"
+    ]);
+    expect(project?.commands.find((command) => command.id === "composer-test")?.args).toEqual(["run", "test"]);
+  });
+
+  it("detects Rails and .NET projects", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-ruby-dotnet-"));
+    const rails = path.join(root, "rails-app");
+    const dotnet = path.join(root, "dotnet-api");
+    await fs.mkdir(path.join(rails, "bin"), { recursive: true });
+    await fs.mkdir(dotnet, { recursive: true });
+    await fs.writeFile(path.join(rails, "Gemfile"), "source 'https://rubygems.org'\n", "utf8");
+    await fs.writeFile(path.join(rails, "bin", "rails"), "#!/usr/bin/env ruby\n", "utf8");
+    await fs.writeFile(path.join(dotnet, "Api.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk.Web\"></Project>\n", "utf8");
+
+    const result = await scanRoot(root, { maxDepth: 3 });
+    const railsProject = result.projects.find((item) => item.name === "rails-app");
+    const dotnetProject = result.projects.find((item) => item.name === "dotnet-api");
+
+    expect(railsProject?.kind).toBe("ruby");
+    expect(railsProject?.commands.find((command) => command.id === "ruby-rails-server")?.args).toEqual([
+      "exec",
+      "rails",
+      "server",
+      "-b",
+      "127.0.0.1",
+      "-p",
+      "3000"
+    ]);
+    expect(dotnetProject?.kind).toBe("dotnet");
+    expect(dotnetProject?.commands.find((command) => command.id === "dotnet-run")?.args).toEqual(["run"]);
+  });
+
   it("deduplicates common port probes during a single scan", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-port-cache-"));
     for (const name of ["app-a", "app-b"]) {

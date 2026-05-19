@@ -67,8 +67,8 @@ Dev Cockpit 只做一件事：本地项目现场恢复。它不接云端账号�
 ## 当前功能
 
 - 自动扫描 Git 项目和常见技术栈项目。
-- 识别 Node、Python、Go、Rust、Docker 和混合项目。
-- 从 `package.json`、Flask/FastAPI/Django、Go、Cargo、Docker Compose 推断常用命令。
+- 识别 Node、Python、Java、PHP、Ruby、.NET、Go、Rust、Docker 和混合项目。
+- 从 `package.json`、Flask/FastAPI/Django、Maven/Gradle/Spring Boot、Laravel/Composer、Rails/Rack、.NET、Go、Cargo、Docker Compose 推断常用命令。
 - Node 项目会优先读取 `packageManager` 字段；没有声明时按 lockfile 推断，混有 `package-lock.json` 和 `yarn.lock` 时默认选择更常见且更容易可用的 npm，减少 `yarn.cmd` 缺失这类误启动。
 - 显示 Git 分支、未提交文件数、最近提交、端口状态和最近失败。
 - 端口展示会保留 `localhost` / `127.0.0.1` / `::1` 这类 host，避免多个本地项目同时使用 `3000` 时看不清真实来源。
@@ -125,6 +125,22 @@ Dev Cockpit 的运行按钮不是简单调用脚本，它会先做一次轻量�
 - 命令明确声明了端口，例如 `--port 8000`，会只按这个端口判断是否冲突。
 - 端口被项目进程占用但 HTTP 不可访问时，会标记为“需清理”，要求先停止端口再启动。
 - 包管理器缺失时会给出可执行建议；pnpm/yarn 会优先尝试 Corepack，必要时在存在 `package-lock.json` 的项目里回退到 npm。
+
+## 运行环境识别
+
+真实项目经常不是“系统 PATH 里有一个命令就能跑”。Dev Cockpit 启动命令前会尽量自动选择项目环境，减少别人下载后因为环境不同直接失败：
+
+- Python 命令会优先使用当前项目里的 `.venv`、`venv`、`.env`、`env`、`.conda` 或 `conda`。
+- 如果项目拆成 `frontend` / `backend`，后端目录没有虚拟环境，也会检查上一层工作区里的虚拟环境。
+- 如果存在 `environment.yml` / `environment.yaml`，且本机能找到 Conda，会按里面的 `name:` 使用 `conda run -n <env> ...`。
+- 如果没有项目环境，会回退到系统 `python`；Windows 上找不到 `python` 时会尝试 `py` launcher。
+- Java 项目会优先使用项目自带的 `mvnw` / `gradlew` wrapper；没有 wrapper 时才使用系统 `mvn` / `gradle`。
+- Spring Boot 项目会识别 `spring-boot:run` / `bootRun`，普通 Maven/Gradle 项目仍提供 `test` 和 `build` 命令。
+- PHP 项目会识别 Laravel `artisan serve` 和常见 Composer scripts。
+- Ruby 项目会识别 Rails、Rack 和 `app.rb`，优先通过 `bundle exec` 运行。
+- .NET 项目会识别 `.csproj` / `.sln`，提供 `dotnet run`、`dotnet test` 和 `dotnet build`。
+
+这部分仍然保持本地确定性规则，不会上传代码，也不会自动安装依赖。若环境本身没有创建，面板会在日志里给出原因，而不是假装已经成功启动。
 
 ## 性能策略
 

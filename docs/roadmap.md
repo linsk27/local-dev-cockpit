@@ -7,7 +7,9 @@ Dev Cockpit is currently a 0.1 MVP. The goal is to make local project recovery o
 - Local Vue 3 dashboard launched by `npx local-dev-cockpit`.
 - Minimal Electron desktop shell for Windows packaging validation.
 - Project root management.
-- Node, Python, Go, Rust, Docker, and mixed project detection.
+- Node, Python, Java, PHP, Ruby, .NET, Go, Rust, Docker, and mixed project detection.
+- Python `.venv`/`venv`/Conda environment resolution before command launch.
+- Java Maven/Gradle wrapper detection with Spring Boot run commands.
 - Git branch, dirty count, command inference, ports, logs, and AI context.
 - Managed process start/stop.
 - External service detection with HTTP reachability checks.
@@ -17,7 +19,8 @@ Dev Cockpit is currently a 0.1 MVP. The goal is to make local project recovery o
 ## 0.2 Reliability
 
 - Better macOS and Linux external process attribution.
-- More accurate Python backend entry detection.
+- More accurate Python backend entry detection and environment diagnostics.
+- Broader framework presets for monorepo task runners, PHP variants, Ruby variants, and additional JVM frameworks.
 - Safer cleanup flows for orphaned process trees.
 - More fixture projects and browser-based regression checks.
 - Clearer error recovery for missing package managers and virtual environments.

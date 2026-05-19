@@ -1,4 +1,15 @@
-export type ProjectKind = "node" | "python" | "go" | "rust" | "docker" | "mixed" | "unknown";
+export type ProjectKind =
+  | "node"
+  | "python"
+  | "java"
+  | "php"
+  | "ruby"
+  | "dotnet"
+  | "go"
+  | "rust"
+  | "docker"
+  | "mixed"
+  | "unknown";
 
 export type CommandKind = "dev" | "test" | "build" | "start" | "custom";
 

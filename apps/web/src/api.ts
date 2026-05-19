@@ -74,6 +74,15 @@ export interface OpenEditorResponse {
   command: string;
 }
 
+export interface CommandEnvironmentDiagnostic {
+  commandId: string;
+  label: string;
+  status: "ready" | "warn" | "missing";
+  summary: string;
+  detail: string;
+  resolvedCommand?: string;
+}
+
 export async function getProjects(options: { force?: boolean; rootId?: string } = {}): Promise<Project[]> {
   const params = new URLSearchParams();
   if (options.force) params.set("force", "1");
@@ -147,6 +156,12 @@ export async function getContext(projectId: string): Promise<ContextResponse> {
   const response = await fetch(`/api/projects/${projectId}/context`);
   await ensureOk(response, "Failed to load context");
   return response.json() as Promise<ContextResponse>;
+}
+
+export async function getEnvironmentDiagnostics(projectId: string): Promise<CommandEnvironmentDiagnostic[]> {
+  const response = await fetch(`/api/projects/${projectId}/environment`);
+  await ensureOk(response, "Failed to load environment diagnostics");
+  return ((await response.json()) as { diagnostics: CommandEnvironmentDiagnostic[] }).diagnostics;
 }
 
 export async function writeContext(projectId: string): Promise<WriteContextResponse> {

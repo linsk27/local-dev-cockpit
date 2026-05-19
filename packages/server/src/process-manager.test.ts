@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Command } from "@local-dev-cockpit/core";
-import { resolveSpawnInvocation, summarizeFailedRun, toNpmRunArgs } from "./process-manager.js";
+import { diagnoseCommandEnvironment, resolveSpawnInvocation, summarizeFailedRun, toNpmRunArgs } from "./process-manager.js";
 
 describe("summarizeFailedRun", () => {
   it("prefers actionable Next.js duplicate server messages", () => {
@@ -24,6 +24,58 @@ describe("summarizeFailedRun", () => {
 });
 
 describe("resolveSpawnInvocation", () => {
+  it("uses a project-local Python virtual environment before PATH python", async () => {
+    await expect(
+      resolveSpawnInvocation(command({ command: "python", args: ["-m", "uvicorn", "app.main:app"], cwd: "D:\\projects\\api" }), {
+        platform: "win32",
+        fileExists: async (filePath) => filePath === "D:\\projects\\api\\.venv\\Scripts\\python.exe",
+        commandExists: async () => true
+      })
+    ).resolves.toEqual({
+      command: "D:\\projects\\api\\.venv\\Scripts\\python.exe",
+      args: ["-m", "uvicorn", "app.main:app"],
+      note: "已使用项目 Python 环境：.venv\\Scripts\\python.exe。"
+    });
+  });
+
+  it("uses a parent workspace Python virtual environment for split frontend/backend repos", async () => {
+    await expect(
+      resolveSpawnInvocation(command({ command: "python", args: ["app.py"], cwd: "D:\\projects\\workspace\\backend" }), {
+        platform: "win32",
+        fileExists: async (filePath) => filePath === "D:\\projects\\workspace\\.venv\\Scripts\\python.exe",
+        commandExists: async () => true
+      })
+    ).resolves.toMatchObject({
+      command: "D:\\projects\\workspace\\.venv\\Scripts\\python.exe",
+      args: ["app.py"]
+    });
+  });
+
+  it("runs Python commands through a declared Conda environment when no local env exists", async () => {
+    await expect(
+      resolveSpawnInvocation(command({ command: "python", args: ["run.py"], cwd: "D:\\projects\\conda-api" }), {
+        platform: "win32",
+        fileExists: async (filePath) => filePath === "D:\\projects\\conda-api\\environment.yml",
+        readFile: async () => "name: api-env\ndependencies:\n  - python=3.11\n",
+        commandExists: async (name) => name === "conda.bat"
+      })
+    ).resolves.toEqual({
+      command: "cmd.exe",
+      args: ["/d", "/s", "/c", "conda", "run", "-n", "api-env", "python", "run.py"],
+      note: "已通过 Conda 环境 api-env 运行；来源：D:\\projects\\conda-api\\environment.yml。"
+    });
+  });
+
+  it("returns an actionable Python error when no interpreter is available", async () => {
+    await expect(
+      resolveSpawnInvocation(command({ command: "python", args: ["app.py"], cwd: "D:\\projects\\api" }), {
+        platform: "win32",
+        fileExists: async () => false,
+        commandExists: async () => false
+      })
+    ).rejects.toThrow("未找到可用的 Python");
+  });
+
   it("falls back from missing yarn to npm when package-lock.json is present", async () => {
     await expect(
       resolveSpawnInvocation(command({ command: "yarn", args: ["run", "dev", "--host", "127.0.0.1"] }), {
@@ -60,6 +112,44 @@ describe("resolveSpawnInvocation", () => {
         fileExists: async () => false
       })
     ).rejects.toThrow("yarn 未安装或不在 PATH 中");
+  });
+
+  it("reports missing verified runtimes before spawning", async () => {
+    await expect(
+      resolveSpawnInvocation(command({ command: "dotnet", args: ["run"] }), {
+        platform: "win32",
+        commandExists: async () => false
+      })
+    ).rejects.toThrow("dotnet 未安装或不在 PATH 中");
+  });
+});
+
+describe("diagnoseCommandEnvironment", () => {
+  it("returns ready diagnostics with the resolved project Python environment", async () => {
+    await expect(
+      diagnoseCommandEnvironment(command({ command: "python", args: ["app.py"], cwd: "D:\\projects\\api" }), {
+        platform: "win32",
+        fileExists: async (filePath) => filePath === "D:\\projects\\api\\venv\\Scripts\\python.exe",
+        commandExists: async () => false
+      })
+    ).resolves.toMatchObject({
+      commandId: "script-dev",
+      status: "ready",
+      summary: "已使用项目 Python 环境：venv\\Scripts\\python.exe。",
+      resolvedCommand: "D:\\projects\\api\\venv\\Scripts\\python.exe app.py"
+    });
+  });
+
+  it("returns missing diagnostics for unavailable runtimes", async () => {
+    await expect(
+      diagnoseCommandEnvironment(command({ command: "mvn", args: ["spring-boot:run"] }), {
+        platform: "win32",
+        commandExists: async () => false
+      })
+    ).resolves.toMatchObject({
+      status: "missing",
+      detail: expect.stringContaining("mvn 未安装或不在 PATH 中")
+    });
   });
 });
 

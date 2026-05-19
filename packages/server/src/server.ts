@@ -25,7 +25,7 @@ import {
 import { EventBus } from "./events.js";
 import { stripAnsiControlSequences } from "./log-decoder.js";
 import { resolveAppPaths } from "./paths.js";
-import { ProcessManager } from "./process-manager.js";
+import { diagnoseCommandEnvironment, ProcessManager } from "./process-manager.js";
 import { JsonStore, rootId } from "./store.js";
 
 const addRootSchema = z.object({ path: z.string().min(1) });
@@ -255,6 +255,14 @@ async function route(
       agents: renderAgentsFile(project),
       recovery: createRecoveryCard(project)
     });
+    return;
+  }
+
+  const environmentMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/environment$/);
+  if (method === "GET" && environmentMatch) {
+    const project = await loadProject(environmentMatch[1] ?? "", context.store, context.processManager);
+    const diagnostics = await Promise.all(project.commands.map((command) => diagnoseCommandEnvironment(command)));
+    sendJson(res, 200, { diagnostics });
     return;
   }
 

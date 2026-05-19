@@ -79,6 +79,24 @@ flowchart LR
 公共端口探测只用于提示，不直接参与“在线”判断，避免一个未知 `3000` 进程把所有 Node 项目都显示为在线。Dashboard 在无托管进程时也会低频刷新项目列表，所以外部启动/停止会反映到总览。
 如果端口属于该项目但 HTTP 探测失败，Dashboard 只保留为“需清理”状态，提示用户停止残留端口，不再把它当作可打开的运行地址。
 
+## 运行环境解析
+
+命令推断和命令启动分开处理：
+
+- `packages/core` 只负责识别项目类型和推荐命令，例如 Python 的 `python -m uvicorn ...`、Maven 的 `spring-boot:run`、Gradle 的 `bootRun`、Laravel 的 `artisan serve`、Rails 的 `rails server`、.NET 的 `dotnet run`。
+- `packages/server` 在真正启动前解析本机运行环境，例如 Python `.venv`、父级工作区虚拟环境、Conda `environment.yml`、Maven wrapper 和 Gradle wrapper。
+
+这样做的原因是扫描结果要保持可读和稳定，而启动行为要适配用户机器。命令本身仍是 `command + args` 结构，不拼 shell 字符串。
+
+当前规则：
+
+- Python 优先级：项目本地 `.venv` / `venv` / `.env` / `env` / `.conda` / `conda`，再检查上一层工作区同名环境，再按 `environment.yml` 使用 `conda run -n <name>`，最后回退系统 `python` 或 Windows `py` launcher。
+- Java 优先级：项目自带 `mvnw.cmd` / `mvnw`、`gradlew.bat` / `gradlew`，再回退系统 `mvn` / `gradle`。
+- PHP/Ruby/.NET 优先提供常见本地开发命令，但仍依赖用户机器已经安装对应运行时和依赖。
+- Node 优先级：`packageManager` 字段、lockfile、Corepack、必要时从 pnpm/yarn 回退到 npm。
+
+环境解析只选择已有工具，不自动安装依赖，不自动修改用户项目。
+
 ## 刷新和性能策略
 
 Dashboard 默认采用低消耗刷新：
