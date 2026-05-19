@@ -224,6 +224,62 @@ describe("diagnoseCommandEnvironment", () => {
     });
   });
 
+  it("warns when Maven projects rely on system Maven without a wrapper", async () => {
+    await expect(
+      diagnoseCommandEnvironment(command({ command: "mvn", args: ["spring-boot:run"], cwd: "D:\\projects\\java-api" }), {
+        platform: "win32",
+        commandExists: async (name) => name === "mvn.cmd",
+        fileExists: async (filePath) => filePath === "D:\\projects\\java-api\\pom.xml"
+      })
+    ).resolves.toMatchObject({
+      status: "warn",
+      summary: "Java 项目未提交 Maven wrapper。",
+      detail: expect.stringContaining("mvnw")
+    });
+  });
+
+  it("warns when PHP Composer dependencies are not installed", async () => {
+    await expect(
+      diagnoseCommandEnvironment(command({ command: "php", args: ["artisan", "serve"], cwd: "D:\\projects\\laravel" }), {
+        platform: "win32",
+        commandExists: async (name) => name === "php.cmd",
+        fileExists: async (filePath) => filePath === "D:\\projects\\laravel\\composer.json"
+      })
+    ).resolves.toMatchObject({
+      status: "warn",
+      summary: "PHP 依赖可能尚未安装。",
+      detail: expect.stringContaining("composer install")
+    });
+  });
+
+  it("warns when Ruby projects have a Gemfile without a lockfile", async () => {
+    await expect(
+      diagnoseCommandEnvironment(command({ command: "bundle", args: ["exec", "rails", "server"], cwd: "D:\\projects\\rails" }), {
+        platform: "win32",
+        commandExists: async (name) => name === "bundle.bat",
+        fileExists: async (filePath) => filePath === "D:\\projects\\rails\\Gemfile"
+      })
+    ).resolves.toMatchObject({
+      status: "warn",
+      summary: "Ruby 依赖锁定文件缺失。",
+      detail: expect.stringContaining("bundle install")
+    });
+  });
+
+  it("warns when .NET restore assets are missing", async () => {
+    await expect(
+      diagnoseCommandEnvironment(command({ command: "dotnet", args: ["run"], cwd: "D:\\projects\\dotnet-api" }), {
+        platform: "win32",
+        commandExists: async (name) => name === "dotnet.cmd",
+        fileExists: async (filePath) => filePath === "D:\\projects\\dotnet-api\\project.csproj"
+      })
+    ).resolves.toMatchObject({
+      status: "warn",
+      summary: ".NET restore 产物未发现。",
+      detail: expect.stringContaining("dotnet restore")
+    });
+  });
+
   it("returns missing diagnostics for unavailable runtimes", async () => {
     await expect(
       diagnoseCommandEnvironment(command({ command: "mvn", args: ["spring-boot:run"] }), {

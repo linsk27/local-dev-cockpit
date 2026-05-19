@@ -412,6 +412,10 @@ async function diagnoseProjectDependencyState(
   const normalized = normalizeExecutableName(command.command);
   if (PACKAGE_MANAGER_COMMANDS.has(normalized)) return diagnoseNodeDependencyState(command, options);
   if (PYTHON_COMMANDS.has(normalized)) return diagnosePythonDependencyState(command, options);
+  if (normalized === "mvn" || normalized === "gradle") return diagnoseJavaDependencyState(command, normalized, options);
+  if (normalized === "php" || normalized === "composer") return diagnosePhpDependencyState(command, options);
+  if (normalized === "bundle" || normalized === "ruby") return diagnoseRubyDependencyState(command, options);
+  if (normalized === "dotnet") return diagnoseDotnetDependencyState(command, options);
   return undefined;
 }
 
@@ -456,6 +460,88 @@ async function diagnosePythonDependencyState(
   };
 }
 
+async function diagnoseJavaDependencyState(
+  command: Command,
+  tool: "mvn" | "gradle",
+  options: CommandResolutionOptions
+): Promise<{ summary: string; detail: string } | undefined> {
+  const fileExistsFn = options.fileExists ?? fileExists;
+  const isMavenProject = await fileExistsFn(path.join(command.cwd, "pom.xml"));
+  const isGradleProject =
+    (await fileExistsFn(path.join(command.cwd, "build.gradle"))) ||
+    (await fileExistsFn(path.join(command.cwd, "build.gradle.kts"))) ||
+    (await fileExistsFn(path.join(command.cwd, "settings.gradle"))) ||
+    (await fileExistsFn(path.join(command.cwd, "settings.gradle.kts")));
+  if (tool === "mvn" && !isMavenProject) return undefined;
+  if (tool === "gradle" && !isGradleProject) return undefined;
+
+  if (tool === "mvn" && !(await hasAnyFile(command.cwd, ["mvnw", "mvnw.cmd"], fileExistsFn))) {
+    return {
+      summary: "Java 项目未提交 Maven wrapper。",
+      detail: "当前会使用系统 Maven。为了让其他机器更容易运行，建议项目提交 mvnw / mvnw.cmd；否则需要用户本机已安装 Maven。"
+    };
+  }
+
+  if (tool === "gradle" && !(await hasAnyFile(command.cwd, ["gradlew", "gradlew.bat"], fileExistsFn))) {
+    return {
+      summary: "Java 项目未提交 Gradle wrapper。",
+      detail: "当前会使用系统 Gradle。为了让其他机器更容易运行，建议项目提交 gradlew / gradlew.bat；否则需要用户本机已安装 Gradle。"
+    };
+  }
+
+  return undefined;
+}
+
+async function diagnosePhpDependencyState(
+  command: Command,
+  options: CommandResolutionOptions
+): Promise<{ summary: string; detail: string } | undefined> {
+  const fileExistsFn = options.fileExists ?? fileExists;
+  const hasComposerJson = await fileExistsFn(path.join(command.cwd, "composer.json"));
+  if (!hasComposerJson) return undefined;
+  if (await fileExistsFn(path.join(command.cwd, "vendor", "autoload.php"))) return undefined;
+  const commandName = normalizeExecutableName(command.command);
+  if (commandName !== "php" && commandName !== "composer") return undefined;
+
+  return {
+    summary: "PHP 依赖可能尚未安装。",
+    detail: "检测到 composer.json，但没有 vendor/autoload.php。首次运行 Laravel 或 Composer 脚本前建议执行：composer install。"
+  };
+}
+
+async function diagnoseRubyDependencyState(
+  command: Command,
+  options: CommandResolutionOptions
+): Promise<{ summary: string; detail: string } | undefined> {
+  const fileExistsFn = options.fileExists ?? fileExists;
+  if (!(await fileExistsFn(path.join(command.cwd, "Gemfile")))) return undefined;
+  if (await fileExistsFn(path.join(command.cwd, "Gemfile.lock"))) return undefined;
+  const commandName = normalizeExecutableName(command.command);
+  if (commandName !== "bundle" && commandName !== "ruby") return undefined;
+
+  return {
+    summary: "Ruby 依赖锁定文件缺失。",
+    detail: "检测到 Gemfile，但没有 Gemfile.lock。首次运行 Rails/Rack 前建议执行：bundle install，并提交 Gemfile.lock 以减少不同机器的依赖差异。"
+  };
+}
+
+async function diagnoseDotnetDependencyState(
+  command: Command,
+  options: CommandResolutionOptions
+): Promise<{ summary: string; detail: string } | undefined> {
+  const fileExistsFn = options.fileExists ?? fileExists;
+  const hasDotnetProject =
+    (await directoryHasFileEnding(command.cwd, ".csproj", fileExistsFn)) ||
+    (await directoryHasFileEnding(command.cwd, ".sln", fileExistsFn));
+  if (!hasDotnetProject) return undefined;
+  if (await fileExistsFn(path.join(command.cwd, "obj", "project.assets.json"))) return undefined;
+
+  return {
+    summary: ".NET restore 产物未发现。",
+    detail: "检测到 .NET 项目，但没有 obj/project.assets.json。首次运行前建议执行：dotnet restore；否则运行时可能需要联网恢复 NuGet 包。"
+  };
+}
+
 function isPackageManagerScriptCommand(command: Command): boolean {
   const normalized = normalizeExecutableName(command.command);
   if (!PACKAGE_MANAGER_COMMANDS.has(normalized)) return false;
@@ -492,6 +578,33 @@ async function hasPythonDependencyManifest(
     }
   }
   return false;
+}
+
+async function hasAnyFile(
+  directory: string,
+  fileNames: string[],
+  fileExistsFn: (filePath: string) => Promise<boolean>
+): Promise<boolean> {
+  for (const fileName of fileNames) {
+    if (await fileExistsFn(path.join(directory, fileName))) return true;
+  }
+  return false;
+}
+
+async function directoryHasFileEnding(
+  directory: string,
+  suffix: string,
+  fileExistsFn: (filePath: string) => Promise<boolean>
+): Promise<boolean> {
+  if (fileExistsFn !== fileExists) {
+    return (await fileExistsFn(path.join(directory, `project${suffix}`))) || (await fileExistsFn(path.join(directory, `app${suffix}`)));
+  }
+  try {
+    const entries = await fs.readdir(directory, { withFileTypes: true });
+    return entries.some((entry) => entry.isFile() && entry.name.endsWith(suffix));
+  } catch {
+    return false;
+  }
 }
 
 function commandVerificationKind(commandName: string): "verified" | "unverified" {
