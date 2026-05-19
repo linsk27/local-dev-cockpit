@@ -1,6 +1,19 @@
 import { defineStore } from "pinia";
-import type { ProcessRun, Project } from "@local-dev-cockpit/core";
-import { getContext, getLogs, getProject, getProjects, startCommand, stopPort as stopPortRequest, stopProcess, type ContextResponse } from "../api";
+import type { PortStatus, ProcessRun, Project } from "@local-dev-cockpit/core";
+import {
+  getContext,
+  getLogs,
+  getProject,
+  getProjects,
+  openProjectEditor as openProjectEditorRequest,
+  openProjectFolder as openProjectFolderRequest,
+  startCommand,
+  stopPort as stopPortRequest,
+  stopProcess,
+  writeContext,
+  type ContextResponse,
+  type WriteContextResponse
+} from "../api";
 
 export type CommandActionState = "starting" | "stopping";
 export type PortActionState = "stopping";
@@ -31,7 +44,8 @@ export const useProjectsStore = defineStore("projects", {
       if (!options.silent) this.loading = true;
       this.error = "";
       try {
-        this.projects = await getProjects({ force: options.force, rootId: options.rootId });
+        const incomingProjects = await getProjects({ force: options.force, rootId: options.rootId });
+        this.projects = mergeIncomingProjects(this.projects, incomingProjects, this.runtimeWatches);
         if (this.selectedId && !this.projects.some((project) => project.id === this.selectedId)) {
           this.selectedId = this.projects[0]?.id ?? "";
         }
@@ -182,16 +196,55 @@ export const useProjectsStore = defineStore("projects", {
       this.logs = "";
       this.logsRunId = "";
     },
-    async loadContext(): Promise<ContextResponse | undefined> {
-      const project = this.selectedProject;
+    async loadContext(projectId?: string): Promise<ContextResponse | undefined> {
+      const project = projectId ? this.projects.find((item) => item.id === projectId) : this.selectedProject;
       if (!project) return;
       try {
-        this.context = await getContext(project.id);
+        const context = await getContext(project.id);
+        if (!projectId || project.id === this.selectedId) {
+          this.context = context;
+        }
         this.error = "";
-        return this.context;
+        return context;
       } catch (error) {
         this.error = error instanceof Error ? error.message : String(error);
         return undefined;
+      }
+    },
+    async writeContextFiles(): Promise<WriteContextResponse | undefined> {
+      const project = this.selectedProject;
+      if (!project) return;
+      try {
+        const result = await writeContext(project.id);
+        this.error = "";
+        return result;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : String(error);
+        return undefined;
+      }
+    },
+    async openProjectFolder(projectId?: string): Promise<boolean> {
+      const project = projectId ? this.projects.find((item) => item.id === projectId) : this.selectedProject;
+      if (!project) return false;
+      try {
+        await openProjectFolderRequest(project.id);
+        this.error = "";
+        return true;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : String(error);
+        return false;
+      }
+    },
+    async openProjectEditor(projectId?: string): Promise<boolean> {
+      const project = projectId ? this.projects.find((item) => item.id === projectId) : this.selectedProject;
+      if (!project) return false;
+      try {
+        await openProjectEditorRequest(project.id);
+        this.error = "";
+        return true;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : String(error);
+        return false;
       }
     },
     commandAction(projectId: string, commandId: string): CommandActionState | undefined {
@@ -230,4 +283,36 @@ function commandActionKey(projectId: string, commandId: string): string {
 
 function portActionKey(projectId: string, port: number): string {
   return `${projectId}:port:${port}`;
+}
+
+function mergeIncomingProjects(currentProjects: Project[], incomingProjects: Project[], runtimeWatches: Record<string, string>): Project[] {
+  const currentById = new Map(currentProjects.map((project) => [project.id, project]));
+  return incomingProjects.map((incoming) => {
+    const current = currentById.get(incoming.id);
+    const watchedRunId = runtimeWatches[incoming.id];
+    const currentRun = current?.lastRun;
+    if (!current || !currentRun || currentRun.status !== "running" || currentRun.id !== watchedRunId) return incoming;
+    if (incoming.lastRun?.id === currentRun.id && incoming.lastRun.status === "running") return incoming;
+
+    return {
+      ...incoming,
+      ports: mergeRuntimePorts(incoming.ports, current.ports),
+      lastRun: currentRun,
+      lastError: current.lastError
+    };
+  });
+}
+
+function mergeRuntimePorts(incomingPorts: PortStatus[], currentPorts: PortStatus[]): PortStatus[] {
+  const ports = new Map(incomingPorts.map((port) => [portKey(port), port]));
+  for (const port of currentPorts) {
+    if (port.status === "open" && port.source !== "common") {
+      ports.set(portKey(port), port);
+    }
+  }
+  return [...ports.values()].sort((left, right) => left.port - right.port || (left.host ?? "").localeCompare(right.host ?? ""));
+}
+
+function portKey(port: PortStatus): string {
+  return `${port.host ?? ""}:${port.port}:${port.source}`;
 }

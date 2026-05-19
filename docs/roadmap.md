@@ -1,0 +1,43 @@
+# Roadmap
+
+Dev Cockpit is currently a 0.1 MVP. The goal is to make local project recovery obvious, stable, and lightweight before adding larger platform features.
+
+## 0.1 MVP
+
+- Local Vue 3 dashboard launched by `npx local-dev-cockpit`.
+- Minimal Electron desktop shell for Windows packaging validation.
+- Project root management.
+- Node, Python, Go, Rust, Docker, and mixed project detection.
+- Git branch, dirty count, command inference, ports, logs, and AI context.
+- Managed process start/stop.
+- External service detection with HTTP reachability checks.
+- Stale port detection for occupied but unreachable local endpoints.
+- Multilingual UI, themes, accent colors, and low-overhead polling.
+
+## 0.2 Reliability
+
+- Better macOS and Linux external process attribution.
+- More accurate Python backend entry detection.
+- Safer cleanup flows for orphaned process trees.
+- More fixture projects and browser-based regression checks.
+- Clearer error recovery for missing package managers and virtual environments.
+
+## 0.3 Packaging
+
+- Publish npm package after clean install verification.
+- Add signed release artifacts.
+- Harden the Electron shell or evaluate Tauri after the Web + CLI flow is stable.
+- Add import/export for local workspace configuration.
+
+## Later
+
+- Optional AI summaries through user-configured providers.
+- Optional plugin system for custom detectors.
+- Optional SQLite storage if JSON state becomes limiting.
+
+## Non-goals
+
+- Replacing IDE project management.
+- Cloud sync, accounts, or team permissions in the core MVP.
+- Uploading source code for analysis by default.
+- CI/CD, deployment monitoring, or production observability.

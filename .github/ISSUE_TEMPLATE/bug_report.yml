@@ -1,0 +1,40 @@
+name: Bug report
+description: Report a reproducible Dev Cockpit problem
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include the project type, command clicked, and visible status if relevant.
+      placeholder: |
+        1. Run npx local-dev-cockpit
+        2. Add root ...
+        3. Click ...
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: Windows 11 / macOS / Ubuntu
+    validations:
+      required: true
+  - type: input
+    id: node
+    attributes:
+      label: Node version
+      placeholder: node -v
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or screenshots
+      description: Do not paste secrets or tokens.

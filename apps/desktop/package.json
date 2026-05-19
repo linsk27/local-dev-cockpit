@@ -1,0 +1,43 @@
+{
+  "name": "@local-dev-cockpit/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Electron desktop shell for Dev Cockpit.",
+  "main": "dist/main.cjs",
+  "scripts": {
+    "build": "node ../../scripts/build-desktop.mjs",
+    "dist:win": "pnpm build && electron-builder --win portable --x64"
+  },
+  "build": {
+    "appId": "dev.local-dev-cockpit.app",
+    "productName": "Dev Cockpit",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "win": {
+      "signAndEditExecutable": false,
+      "icon": "assets/icon.ico",
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "portable": {
+      "artifactName": "Dev-Cockpit-${version}-win-${arch}.exe"
+    }
+  },
+  "devDependencies": {
+    "@local-dev-cockpit/server": "workspace:*",
+    "electron": "^38.6.0",
+    "electron-builder": "^26.0.12"
+  }
+}

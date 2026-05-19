@@ -5,11 +5,7 @@
         <p class="eyebrow">{{ preferences.t("projectsEyebrow") }}</p>
         <h1>{{ preferences.t("projectsTitle") }}</h1>
       </div>
-      <div class="header-actions">
-        <div v-if="performanceLabel" class="performance-pill" :title="performanceTitle">
-          <Activity :size="15" />
-          <span>{{ performanceLabel }}</span>
-        </div>
+      <div v-if="roots.length > 0" class="header-actions">
         <div v-if="roots.length > 0" ref="rootFilterRef" class="root-filter">
           <button
             class="root-filter-button"
@@ -50,7 +46,47 @@
 
     <div v-if="store.error" class="error-banner">{{ store.error }}</div>
 
-    <div class="dashboard-grid">
+    <section v-if="roots.length === 0" class="surface onboarding-panel">
+      <div class="onboarding-copy">
+        <p class="eyebrow">{{ preferences.t("onboardingEyebrow") }}</p>
+        <h2>{{ preferences.t("onboardingTitle") }}</h2>
+        <p>{{ preferences.t("onboardingDescription") }}</p>
+      </div>
+
+      <div class="onboarding-steps" aria-label="Dev Cockpit onboarding">
+        <div class="onboarding-step">
+          <FolderPlus :size="18" />
+          <strong>{{ preferences.t("onboardingStepScan") }}</strong>
+          <span>{{ preferences.t("onboardingStepScanDetail") }}</span>
+        </div>
+        <div class="onboarding-step">
+          <PlayCircle :size="18" />
+          <strong>{{ preferences.t("onboardingStepRun") }}</strong>
+          <span>{{ preferences.t("onboardingStepRunDetail") }}</span>
+        </div>
+        <div class="onboarding-step">
+          <Bot :size="18" />
+          <strong>{{ preferences.t("onboardingStepContext") }}</strong>
+          <span>{{ preferences.t("onboardingStepContextDetail") }}</span>
+        </div>
+      </div>
+
+      <form class="onboarding-root-form" @submit.prevent="submitRootFromDashboard">
+        <label>
+          {{ preferences.t("rootPath") }}
+          <input v-model="rootPath" :placeholder="preferences.t('rootPlaceholder')" />
+        </label>
+        <button class="primary-button" type="submit" :disabled="!canSubmitRoot || rootSubmitting">
+          <Loader2 v-if="rootSubmitting" :size="16" class="spin-icon" />
+          <Plus v-else :size="16" />
+          {{ preferences.t("onboardingAddRoot") }}
+        </button>
+      </form>
+
+      <p class="onboarding-privacy">{{ preferences.t("onboardingPrivacy") }}</p>
+    </section>
+
+    <div v-else class="dashboard-grid">
       <ProjectList
         :projects="visibleProjects"
         :total-count="scopedProjects.length"
@@ -73,6 +109,14 @@
         <FolderSearch :size="34" />
         <h2>{{ preferences.t("emptyTitle") }}</h2>
         <p>{{ preferences.t("emptyDescription") }}</p>
+        <form class="empty-root-form" @submit.prevent="submitRootFromDashboard">
+          <input v-model="rootPath" :aria-label="preferences.t('rootPath')" :placeholder="preferences.t('rootPlaceholder')" />
+          <button class="primary-button" type="submit" :disabled="!canSubmitRoot || rootSubmitting">
+            <Loader2 v-if="rootSubmitting" :size="16" class="spin-icon" />
+            <Plus v-else :size="16" />
+            {{ preferences.t("addAnotherRoot") }}
+          </button>
+        </form>
       </section>
     </div>
   </section>
@@ -80,9 +124,10 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { Activity, Check, ChevronDown, FolderOpen, FolderSearch, RefreshCw, Search } from "lucide-vue-next";
-import { getPerformance, getRoots, type PerformanceSnapshot, type RootEntry } from "../../api";
+import { Bot, Check, ChevronDown, FolderOpen, FolderPlus, FolderSearch, Loader2, PlayCircle, Plus, RefreshCw, Search } from "lucide-vue-next";
+import { addRoot, getRoots, type RootEntry } from "../../api";
 import { useNotificationsStore } from "../../stores/notifications";
+import { usePerformanceStore } from "../../stores/performance";
 import { useProjectsStore } from "../../stores/projects";
 import { usePreferencesStore } from "../../stores/preferences";
 import ProjectDetail from "./ProjectDetail.vue";
@@ -92,12 +137,14 @@ import { formatDisplayPath, projectMatchesQuery, sortProjectsForDashboard } from
 const store = useProjectsStore();
 const preferences = usePreferencesStore();
 const notifications = useNotificationsStore();
+const performance = usePerformanceStore();
 const searchQuery = ref("");
 const selectedRootId = ref("");
 const roots = ref<RootEntry[]>([]);
 const rootMenuOpen = ref(false);
 const rootFilterRef = ref<HTMLElement | null>(null);
-const performance = ref<PerformanceSnapshot | null>(null);
+const rootPath = ref("");
+const rootSubmitting = ref(false);
 const RUNTIME_REFRESH_INTERVAL_MS = 3_000;
 const OVERVIEW_REFRESH_INTERVAL_MS = 30_000;
 const PERFORMANCE_REFRESH_INTERVAL_MS = 5_000;
@@ -113,37 +160,10 @@ const visibleProjects = computed(() => sortProjectsForDashboard(scopedProjects.v
 
 const hasRunningProject = computed(() => store.projects.some((project) => project.lastRun?.status === "running"));
 const hasRuntimeWatch = computed(() => hasRunningProject.value || Object.keys(store.runtimeWatches).length > 0);
+const canSubmitRoot = computed(() => rootPath.value.trim().length > 0);
 
 const activeProject = computed(() => {
   return visibleProjects.value.find((project) => project.id === store.selectedId) ?? visibleProjects.value[0];
-});
-
-const performanceLabel = computed(() => {
-  if (!performance.value) return "";
-  return `占用${resourceLevelLabel.value} · 内存 ${performance.value.process.rssMb}MB · 扫描 ${formatMs(performance.value.scan.lastScanDurationMs)}`;
-});
-
-const performanceTitle = computed(() => {
-  if (!performance.value) return "";
-  const scan = performance.value.scan;
-  return [
-    "这里显示 Dev Cockpit 自己的资源消耗，不是项目服务的消耗。",
-    `整体判断：${resourceLevelLabel.value}`,
-    `内存占用：${performance.value.process.rssMb}MB`,
-    `CPU 占用：${performance.value.process.cpuPercent}%`,
-    `上次扫描：${formatMs(scan.lastScanDurationMs)}，共 ${scan.lastProjectCount} 个项目`,
-    `缓存状态：${formatScanStatus(scan.status)}，剩余 ${formatMs(scan.cacheExpiresInMs)}`,
-    `缓存命中/重新扫描：${scan.cacheHits}/${scan.cacheMisses}`
-  ].join("\n");
-});
-
-const resourceLevelLabel = computed(() => {
-  if (!performance.value) return "低";
-  const { rssMb, cpuSingleCorePercent } = performance.value.process;
-  const scanMs = performance.value.scan.lastScanDurationMs;
-  if (rssMb > 450 || cpuSingleCorePercent > 60 || scanMs > 15_000) return "高";
-  if (rssMb > 220 || cpuSingleCorePercent > 20 || scanMs > 6_000) return "中";
-  return "低";
 });
 
 const loadingLabel = computed(() => `当前目录：${selectedRootLabel.value}`);
@@ -208,6 +228,22 @@ async function refreshProjects(): Promise<void> {
   }
 }
 
+async function submitRootFromDashboard(): Promise<void> {
+  if (!canSubmitRoot.value || rootSubmitting.value) return;
+  rootSubmitting.value = true;
+  try {
+    await addRoot(rootPath.value.trim());
+    rootPath.value = "";
+    await loadRoots();
+    await initialRefresh();
+    notifications.success(preferences.t("rootAddedNotice"));
+  } catch (error) {
+    notifications.error(preferences.t("rootActionFailedNotice", { message: error instanceof Error ? error.message : String(error) }));
+  } finally {
+    rootSubmitting.value = false;
+  }
+}
+
 async function loadRoots(): Promise<void> {
   try {
     roots.value = await getRoots();
@@ -223,6 +259,7 @@ function toggleRootMenu(): void {
 
 function selectRoot(rootId: string): void {
   selectedRootId.value = rootId;
+  performance.setRoot(rootId);
   rootMenuOpen.value = false;
   store.projects = [];
   store.selectedId = "";
@@ -281,34 +318,19 @@ function refreshAfterVisibilityChange(): void {
 
 async function loadPerformance(): Promise<void> {
   if (document.visibilityState === "hidden" || !selectedRootId.value) return;
-  try {
-    performance.value = await getPerformance({ rootId: selectedRootId.value });
-  } catch {
-    // Performance metrics are diagnostic only; project operations should not fail because of them.
-  }
+  await performance.refresh();
 }
 
 function ensureSelectedRoot(): void {
   if (roots.value.length === 0) {
     selectedRootId.value = "";
+    performance.setRoot("");
     return;
   }
   if (!roots.value.some((root) => root.id === selectedRootId.value)) {
     selectedRootId.value = roots.value[0]?.id ?? "";
   }
-}
-
-function formatMs(value: number): string {
-  if (value <= 0) return "0ms";
-  if (value < 1000) return `${Math.round(value)}ms`;
-  return `${(value / 1000).toFixed(1)}秒`;
-}
-
-function formatScanStatus(status: PerformanceSnapshot["scan"]["status"]): string {
-  if (status === "cached") return "已缓存";
-  if (status === "scanning") return "扫描中";
-  if (status === "stale") return "缓存过期";
-  return "暂无扫描";
+  performance.setRoot(selectedRootId.value);
 }
 
 onMounted(async () => {

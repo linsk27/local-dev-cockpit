@@ -8,7 +8,12 @@ import {
   projectHasAlreadyRunningConflict,
   projectBelongsToRoot,
   projectHasFailed,
+  projectHasStalePorts,
+  projectStatusReason,
+  projectDiagnostics,
+  projectRuntimeMode,
   projectMatchesQuery,
+  runtimeSourceLabel,
   recommendedProjectCommand,
   sortProjectsForDashboard
 } from "./project-view";
@@ -91,6 +96,18 @@ describe("project dashboard view helpers", () => {
         })
       )
     ).toBe(false);
+  });
+
+  it("does not let an auxiliary unknown port override a reachable endpoint", () => {
+    const target = project({
+      ports: [
+        { port: 3000, host: "127.0.0.1", status: "open", source: "detected" },
+        { port: 56290, host: "127.0.0.1", status: "unknown", source: "detected" }
+      ]
+    });
+
+    expect(projectHasStalePorts(target)).toBe(false);
+    expect(sortProjectsForDashboard([project({ name: "idle" }), target]).map((item) => item.name)).toEqual(["project", "idle"]);
   });
 
   it("treats an already-running port conflict as online instead of failed", () => {
@@ -196,6 +213,78 @@ describe("project dashboard view helpers", () => {
         })
       )
     ).toBe(false);
+  });
+
+  it("explains the project status source in user-facing language", () => {
+    expect(
+      projectStatusReason(
+        project({
+          ports: [{ port: 3000, host: "127.0.0.1", status: "open", source: "detected" }]
+        })
+      )
+    ).toContain("系统检测到");
+
+    expect(
+      projectStatusReason(
+        project({
+          lastError: {
+            commandId: "script-dev",
+            message: "yarn 未安装",
+            occurredAt: new Date().toISOString()
+          }
+        })
+      )
+    ).toContain("上次命令失败");
+
+    expect(projectStatusReason(project({ ports: [{ port: 5173, host: "localhost", status: "open", source: "detected" }] }), "en-US")).toContain(
+      "Detected"
+    );
+  });
+
+  it("separates managed running services from externally detected services", () => {
+    const managed = project({
+      lastRun: {
+        id: "run-1",
+        projectId: "project",
+        commandId: "script-dev",
+        status: "running",
+        startedAt: new Date().toISOString(),
+        logPath: "run.log"
+      },
+      ports: [{ port: 3001, host: "localhost", status: "open", source: "process" }]
+    });
+    const external = project({
+      ports: [{ port: 3001, host: "127.0.0.1", status: "open", source: "detected" }]
+    });
+
+    expect(projectRuntimeMode(managed)).toBe("managed-running");
+    expect(projectRuntimeMode(external)).toBe("detected-online");
+    expect(runtimeSourceLabel(managed)).toBe("Dev Cockpit 托管");
+    expect(runtimeSourceLabel(external)).toBe("系统外部检测");
+  });
+
+  it("builds compact diagnostics for commands, ports, failures, and next action", () => {
+    const target = project({
+      packageManager: "npm",
+      ports: [{ port: 8000, host: "127.0.0.1", status: "open", source: "detected" }]
+    });
+    target.commands = [
+      {
+        id: "python-fastapi-app-main",
+        label: "Uvicorn app.main",
+        command: "python",
+        args: ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8000"],
+        cwd: target.path,
+        source: "detected",
+        kind: "dev"
+      }
+    ];
+
+    const diagnostics = projectDiagnostics(target);
+
+    expect(diagnostics.map((item) => item.id)).toEqual(["command", "package-manager", "ports", "failure", "next"]);
+    expect(diagnostics.find((item) => item.id === "ports")?.value).toBe("系统检测");
+    expect(diagnostics.find((item) => item.id === "next")?.detail).toContain("127.0.0.1:8000");
   });
 
   it("formats ipv6 hosts as browser-safe URLs", () => {

@@ -17,7 +17,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run src --passWithNoTests",
+    "test": "vitest run src --passWithNoTests --pool forks --maxWorkers=1",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -29,4 +29,3 @@
     "@types/ws": "^8.18.1"
   }
 }
-

@@ -17,6 +17,17 @@
   "engines": {
     "node": ">=20"
   },
+  "keywords": [
+    "local-dev",
+    "developer-tools",
+    "dashboard",
+    "devtools",
+    "localhost",
+    "process-manager",
+    "ai-context",
+    "vue",
+    "cli"
+  ],
   "files": [
     "dist",
     "README.md"

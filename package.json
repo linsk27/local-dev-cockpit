@@ -7,9 +7,9 @@
   "type": "module",
   "packageManager": "pnpm@10.33.3",
   "scripts": {
-    "build": "pnpm --filter @local-dev-cockpit/core build && pnpm --filter @local-dev-cockpit/server build && pnpm --filter @local-dev-cockpit/web build && pnpm --filter local-dev-cockpit build",
+    "build": "pnpm --filter @local-dev-cockpit/core build && pnpm --filter @local-dev-cockpit/server build && pnpm --filter @local-dev-cockpit/web build && pnpm --filter local-dev-cockpit build && pnpm --filter @local-dev-cockpit/desktop build",
     "dev": "pnpm --filter local-dev-cockpit dev",
-    "test": "pnpm -r test",
+    "test": "pnpm --filter @local-dev-cockpit/core test && pnpm --filter @local-dev-cockpit/server test && pnpm --filter @local-dev-cockpit/web test && pnpm --filter local-dev-cockpit test",
     "typecheck": "pnpm --filter @local-dev-cockpit/core build && pnpm --filter @local-dev-cockpit/server build && pnpm -r typecheck",
     "release:check": "pnpm typecheck && pnpm test && pnpm build"
   },
@@ -23,6 +23,12 @@
     "ai-context",
     "project-dashboard"
   ],
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "electron-winstaller"
+    ]
+  },
   "devDependencies": {
     "@types/node": "^20.19.24",
     "@vitejs/plugin-vue": "^5.2.4",

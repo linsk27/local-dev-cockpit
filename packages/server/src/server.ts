@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { spawn } from "node:child_process";
 import http from "node:http";
 import https from "node:https";
 import { promises as fs } from "node:fs";
@@ -16,6 +17,7 @@ import {
   renderProjectContext,
   scanRoot,
   type ErrorSummary,
+  type Command,
   type PortStatus,
   type ProcessRun,
   type Project
@@ -27,6 +29,7 @@ import { ProcessManager } from "./process-manager.js";
 import { JsonStore, rootId } from "./store.js";
 
 const addRootSchema = z.object({ path: z.string().min(1) });
+const updateConfigSchema = z.object({ editorCommand: z.string().min(1).max(260).optional() });
 const PROJECT_SCAN_CACHE_TTL_MS = 20_000;
 const EXTERNAL_PORT_OWNER_CACHE_TTL_MS = 5_000;
 const startedAt = Date.now();
@@ -126,6 +129,21 @@ async function route(
     return;
   }
 
+  if (method === "GET" && url.pathname === "/api/config") {
+    sendJson(res, 200, { config: await context.store.readConfig() });
+    return;
+  }
+
+  if (method === "PATCH" && url.pathname === "/api/config") {
+    const body = updateConfigSchema.parse(await readJson(req));
+    let config = await context.store.readConfig();
+    if (body.editorCommand !== undefined) {
+      config = await context.store.updateEditorCommand(body.editorCommand);
+    }
+    sendJson(res, 200, { config });
+    return;
+  }
+
   if (method === "POST" && url.pathname === "/api/roots") {
     const body = addRootSchema.parse(await readJson(req));
     const config = await context.store.addRoot(body.path);
@@ -149,12 +167,34 @@ async function route(
     return;
   }
 
+  const openProjectMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/open-folder$/);
+  if (method === "POST" && openProjectMatch) {
+    const project = await loadProject(openProjectMatch[1] ?? "", context.store, context.processManager);
+    const result = await openProjectFolder(project.path);
+    sendJson(res, 200, result);
+    return;
+  }
+
+  const openEditorMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/open-editor$/);
+  if (method === "POST" && openEditorMatch) {
+    const project = await loadProject(openEditorMatch[1] ?? "", context.store, context.processManager);
+    const config = await context.store.readConfig();
+    const result = await openProjectInEditor(project.path, config.editorCommand);
+    sendJson(res, 200, result);
+    return;
+  }
+
   const startMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/commands\/([^/]+)\/start$/);
   if (method === "POST" && startMatch) {
     const project = await loadProject(startMatch[1] ?? "", context.store, context.processManager);
     const command = project.commands.find((item) => item.id === decodeURIComponent(startMatch[2] ?? ""));
     if (!command) {
       sendJson(res, 404, { error: "Command not found" });
+      return;
+    }
+    const blockReason = commandStartBlockReason(project, command);
+    if (blockReason) {
+      sendJson(res, 409, { error: blockReason });
       return;
     }
     const run = await context.processManager.start(project.id, command);
@@ -218,7 +258,152 @@ async function route(
     return;
   }
 
+  const contextWriteMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/context\/write$/);
+  if (method === "POST" && contextWriteMatch) {
+    const project = await loadProject(contextWriteMatch[1] ?? "", context.store, context.processManager);
+    const result = await writeProjectContextFiles(project);
+    sendJson(res, 200, result);
+    return;
+  }
+
   await serveStatic(req, res, context.webRoot);
+}
+
+export async function writeProjectContextFiles(project: Project): Promise<{ files: string[] }> {
+  const contextPath = path.join(project.path, "PROJECT_CONTEXT.md");
+  const agentsPath = path.join(project.path, "AGENTS.md");
+  await fs.writeFile(contextPath, renderProjectContext(project), "utf8");
+  await fs.writeFile(agentsPath, renderAgentsFile(project), "utf8");
+  return { files: [contextPath, agentsPath] };
+}
+
+export async function openProjectFolder(folderPath: string): Promise<{ opened: true; path: string }> {
+  const stat = await fs.stat(folderPath);
+  if (!stat.isDirectory()) {
+    throw new Error("Project path is not a directory");
+  }
+  const { command, args } = createOpenFolderCommand(process.platform, folderPath);
+  const child = spawn(command, args, { detached: true, stdio: "ignore", windowsHide: true });
+  child.once("error", () => {
+    // Opening a folder is best-effort. The API already validated the path.
+  });
+  child.unref();
+  return { opened: true, path: folderPath };
+}
+
+export function createOpenFolderCommand(platform: NodeJS.Platform, folderPath: string): { command: string; args: string[] } {
+  if (platform === "win32") return { command: "explorer.exe", args: [folderPath] };
+  if (platform === "darwin") return { command: "open", args: [folderPath] };
+  return { command: "xdg-open", args: [folderPath] };
+}
+
+export async function openProjectInEditor(folderPath: string, editorCommand: string): Promise<{ opened: true; path: string; command: string }> {
+  const stat = await fs.stat(folderPath);
+  if (!stat.isDirectory()) {
+    throw new Error("Project path is not a directory");
+  }
+  const command = createEditorCommand(process.platform, editorCommand, folderPath);
+  const child = spawn(command.command, command.args, { detached: true, stdio: "ignore", windowsHide: true });
+  child.once("error", () => {
+    // Opening an editor is best-effort. The UI reports the configured command for correction if needed.
+  });
+  child.unref();
+  return { opened: true, path: folderPath, command: editorCommand };
+}
+
+export function createEditorCommand(platform: NodeJS.Platform, editorCommand: string, folderPath: string): { command: string; args: string[] } {
+  const parsed = parseEditorCommand(editorCommand);
+  if (platform !== "win32" || isDirectWindowsExecutable(parsed.command)) {
+    return { command: parsed.command, args: [...parsed.args, folderPath] };
+  }
+  return { command: "cmd.exe", args: ["/d", "/s", "/c", parsed.command, ...parsed.args, folderPath] };
+}
+
+export function parseEditorCommand(editorCommand: string): { command: string; args: string[] } {
+  const trimmed = editorCommand.trim();
+  const windowsExecutablePath = trimmed.match(/^([A-Za-z]:\\.*?\.exe|\\\\.*?\.exe)(?:\s+(.*))?$/i);
+  if (windowsExecutablePath?.[1]) {
+    return {
+      command: windowsExecutablePath[1],
+      args: tokenizeCommandLine(windowsExecutablePath[2] ?? "")
+    };
+  }
+
+  const [command, ...args] = tokenizeCommandLine(trimmed);
+  if (!command) throw new Error("Editor command is empty");
+  return { command, args };
+}
+
+function tokenizeCommandLine(input: string): string[] {
+  const tokens: string[] = [];
+  let current = "";
+  let quote: '"' | "'" | undefined;
+  for (const char of input.trim()) {
+    if (quote) {
+      if (char === quote) {
+        quote = undefined;
+      } else {
+        current += char;
+      }
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+    if (/\s/.test(char)) {
+      if (current) {
+        tokens.push(current);
+        current = "";
+      }
+      continue;
+    }
+    current += char;
+  }
+  if (quote) throw new Error("Editor command has an unclosed quote");
+  if (current) tokens.push(current);
+  return tokens;
+}
+
+function isDirectWindowsExecutable(command: string): boolean {
+  return /[\\/]/.test(command) || /\.exe$/i.test(command);
+}
+
+export function commandStartBlockReason(project: Project, command: Command): string | undefined {
+  if (project.lastRun?.status === "running") {
+    return project.lastRun.commandId === command.id
+      ? "该命令已经在运行，请使用停止按钮结束它。"
+      : "该项目已有命令正在运行，请先停止当前命令。";
+  }
+
+  const openPorts = project.ports.filter((port) => port.status === "open" && port.source !== "common");
+  if (commandWouldTouchPorts(command, openPorts)) {
+    return "服务已经在线，已阻止重复启动。需要重启时请先停止当前端口。";
+  }
+
+  const stalePorts = project.ports.filter((port) => port.status === "unknown" && port.source === "detected");
+  if (commandWouldTouchPorts(command, stalePorts)) {
+    return "检测到残留端口占用，已阻止启动。请先清理端口后再运行。";
+  }
+
+  return undefined;
+}
+
+function commandWouldTouchPorts(command: Command, ports: PortStatus[]): boolean {
+  if (ports.length === 0) return false;
+  const declaredPorts = commandDeclaredPorts(command);
+  if (declaredPorts.length > 0) return declaredPorts.some((port) => ports.some((item) => item.port === port));
+  return command.kind === "dev" || command.kind === "start";
+}
+
+function commandDeclaredPorts(command: Command): number[] {
+  const text = `${command.command} ${command.args.join(" ")}`;
+  const ports = new Set<number>();
+  for (const match of text.matchAll(/(?:--port(?:=|\s+)|-p\s+|PORT=|:)(\d{2,5})/gi)) {
+    const port = Number(match[1]);
+    if (Number.isInteger(port) && port > 0 && port < 65536) ports.add(port);
+  }
+  return [...ports];
 }
 
 async function loadProjects(store: JsonStore, processManager: ProcessManager, selectedRootId?: string | null): Promise<Project[]> {
@@ -362,11 +547,13 @@ async function enrichProject(
   const logPorts = managedRun
     ? await extractPortsFromLogs(await processManager.readLogs(managedRun.id), managedRun.status, project.path)
     : [];
-  const externalPorts = await findExternalProjectPorts(project, enrichment.externalPortOwnersByProject.get(project.id) ?? []);
+  const externalPorts = await findExternalProjectPorts(project, enrichment.externalPortOwnersByProject.get(project.id) ?? [], logPorts);
   const processPorts = filterStaleLogPorts(project.id, managedRun, logPorts, externalPorts, enrichment.externalPortClaims);
   const scannedPorts = normalizeScannedPorts(project, externalPorts, enrichment.detectedPortCounts);
-  const currentRun = hydrateLastRun(managedRun, processPorts);
-  const currentError = isStaleError(currentRun, lastError) ? undefined : lastError;
+  const hydratedRun = hydrateLastRun(managedRun, processPorts);
+  const obsoleteToolFailure = isObsoleteMissingToolFailure(project, hydratedRun, lastError);
+  const currentRun = obsoleteToolFailure ? undefined : hydratedRun;
+  const currentError = obsoleteToolFailure || isStaleError(currentRun, lastError) ? undefined : lastError;
 
   return {
     ...project,
@@ -493,23 +680,31 @@ export function filterStaleLogPorts(
   });
 }
 
-async function findExternalProjectPorts(project: Project, owners: ExternalPortOwner[]): Promise<PortStatus[]> {
+export async function findExternalProjectPorts(project: Project, owners: ExternalPortOwner[], knownPortHints: PortStatus[] = []): Promise<PortStatus[]> {
   const ports = new Map<string, PortStatus>();
+  const knownPorts = projectKnownPortNumbers(project, knownPortHints);
   for (const owner of owners) {
     if (!commandLineReferencesProject(owner.commandLine, project.path)) continue;
-    const host = normalizeExternalHost(owner.host);
-    const url = formatLocalUrl(owner.port, host);
-    const reachable = await isLocalHttpEndpointReachable({ port: owner.port, host, url });
+    const resolved = await resolveExternalProjectEndpoint(owner);
+    const isKnownEntrypoint = knownPorts.has(owner.port);
+    if (!resolved.reachable && !isKnownEntrypoint) continue;
     const endpoint: PortStatus = {
       port: owner.port,
-      host,
-      url,
-      status: reachable ? "open" : "unknown",
+      host: resolved.host,
+      url: resolved.url,
+      status: resolved.reachable ? "open" : "unknown",
       source: "detected"
     };
     ports.set(portKey(endpoint), endpoint);
   }
   return [...ports.values()];
+}
+
+function projectKnownPortNumbers(project: Project, hints: PortStatus[]): Set<number> {
+  return new Set([
+    ...project.ports.filter((port) => port.source !== "common" || port.status === "open").map((port) => port.port),
+    ...hints.map((port) => port.port)
+  ]);
 }
 
 async function detectExternalPortOwners(processAdapter: NodeProcessAdapter): Promise<ExternalPortOwner[]> {
@@ -600,6 +795,19 @@ function isStaleError(lastRun: ProcessRun | undefined, lastError: ErrorSummary |
   return new Date(lastRun.startedAt).getTime() >= new Date(lastError.occurredAt).getTime();
 }
 
+export function isObsoleteMissingToolFailure(project: Project, lastRun: ProcessRun | undefined, lastError: ErrorSummary | undefined): boolean {
+  if (lastRun?.status !== "failed" || !lastError?.commandId) return false;
+  const currentCommand = project.commands.find((command) => command.id === lastError.commandId);
+  if (!currentCommand) return true;
+  const missingTool = parseMissingToolName(lastError.message);
+  return Boolean(missingTool && missingTool !== currentCommand.command.toLowerCase());
+}
+
+export function parseMissingToolName(message: string): string | undefined {
+  const quoted = message.match(/['"`]?(npm|npx|pnpm|yarn|bun)(?:\.cmd)?['"`]?\s+(?:不是内部或外部命令|is not recognized|not found|未安装|不在 PATH)/i);
+  return quoted?.[1]?.toLowerCase();
+}
+
 async function extractPortsFromLogs(logs: string, status: ProcessRun["status"], projectPath: string): Promise<PortStatus[]> {
   const ports = new Map<string, Pick<PortStatus, "port" | "host" | "url">>();
   const cleanLogs = stripAnsiControlSequences(logs);
@@ -673,15 +881,50 @@ function isPathBoundary(character: string, side: "before" | "after"): boolean {
   return side === "after" ? character === "/" : true;
 }
 
-function normalizeExternalHost(host: string | undefined): string {
-  const normalized = normalizePortHost(host ?? "localhost");
-  if (normalized === "127.0.0.1" || normalized === "0.0.0.0") return "localhost";
-  if (normalized === "::" || normalized === "::1") return "localhost";
-  return normalized || "localhost";
-}
-
 function formatLocalUrl(port: number, host: string): string {
   return `http://${host.includes(":") && !host.startsWith("[") ? `[${host}]` : host}:${port}`;
+}
+
+interface ResolvedExternalProjectEndpoint {
+  host: string;
+  url: string;
+  reachable: boolean;
+}
+
+interface LocalProbeEndpoint {
+  port: number;
+  host: string;
+  url: string;
+}
+
+async function resolveExternalProjectEndpoint(owner: Pick<ExternalPortOwner, "port" | "host">): Promise<ResolvedExternalProjectEndpoint> {
+  const candidates = externalListenerProbeCandidates(owner.port, owner.host);
+  for (const candidate of candidates) {
+    if (await isLocalHttpEndpointReachable(candidate)) {
+      return { ...candidate, reachable: true };
+    }
+  }
+  return { ...candidates[0], reachable: false };
+}
+
+export function externalListenerProbeCandidates(port: number, host: string | undefined): LocalProbeEndpoint[] {
+  const normalized = normalizePortHost(host ?? "localhost");
+  const hosts =
+    normalized === "0.0.0.0"
+      ? ["127.0.0.1", "localhost"]
+      : normalized === "::"
+        ? ["127.0.0.1", "::1", "localhost"]
+        : normalized === "localhost"
+          ? ["127.0.0.1", "localhost", "::1"]
+          : normalized
+            ? [normalized]
+            : ["127.0.0.1", "localhost"];
+  const uniqueHosts = [...new Set(hosts)];
+  return uniqueHosts.map((candidateHost) => ({
+    port,
+    host: candidateHost,
+    url: formatLocalUrl(port, candidateHost)
+  }));
 }
 
 async function isEndpointOpen(processAdapter: NodeProcessAdapter, endpoint: Pick<PortStatus, "port" | "host">): Promise<boolean> {

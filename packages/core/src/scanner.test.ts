@@ -56,6 +56,33 @@ describe("scanRoot", () => {
     expect(project?.commands.find((command) => command.id === "script-build")?.args).toEqual(["run", "build"]);
   });
 
+  it("uses packageManager first and falls back to npm when package-lock and yarn.lock both exist", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-manager-"));
+    const packageLockProject = path.join(root, "mixed-locks");
+    const declaredProject = path.join(root, "declared-yarn");
+    await fs.mkdir(packageLockProject, { recursive: true });
+    await fs.mkdir(declaredProject, { recursive: true });
+    await fs.writeFile(path.join(packageLockProject, "package-lock.json"), "{}", "utf8");
+    await fs.writeFile(path.join(packageLockProject, "yarn.lock"), "", "utf8");
+    await fs.writeFile(path.join(packageLockProject, "package.json"), JSON.stringify({ name: "mixed-locks", scripts: { dev: "vite" } }), "utf8");
+    await fs.writeFile(path.join(declaredProject, "package-lock.json"), "{}", "utf8");
+    await fs.writeFile(path.join(declaredProject, "yarn.lock"), "", "utf8");
+    await fs.writeFile(
+      path.join(declaredProject, "package.json"),
+      JSON.stringify({ name: "declared-yarn", packageManager: "yarn@1.22.22", scripts: { dev: "vite" } }),
+      "utf8"
+    );
+
+    const result = await scanRoot(root, { maxDepth: 2 });
+    const mixedLocks = result.projects.find((item) => item.name === "mixed-locks");
+    const declaredYarn = result.projects.find((item) => item.name === "declared-yarn");
+
+    expect(mixedLocks?.packageManager).toBe("npm");
+    expect(mixedLocks?.commands.find((command) => command.id === "script-dev")?.command).toBe("npm");
+    expect(declaredYarn?.packageManager).toBe("yarn");
+    expect(declaredYarn?.commands.find((command) => command.id === "script-dev")?.command).toBe("yarn");
+  });
+
   it("hides dependency/cache packages that are not runnable projects", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-noise-"));
     const unityCachePackage = path.join(root, "UnityGame", "Library", "PackageCache", "com.unity.2d.animation@3.2.5");

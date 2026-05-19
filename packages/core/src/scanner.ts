@@ -219,12 +219,26 @@ function resolveProjectKind(markers: string[]): ProjectKind {
 }
 
 async function detectPackageManager(projectPath: string, fs: FileSystemAdapter): Promise<Project["packageManager"]> {
+  const declared = await readDeclaredPackageManager(projectPath, fs);
+  if (declared) return declared;
+
   if (await fs.exists(path.join(projectPath, "pnpm-lock.yaml"))) return "pnpm";
-  if (await fs.exists(path.join(projectPath, "yarn.lock"))) return "yarn";
-  if (await fs.exists(path.join(projectPath, "bun.lockb"))) return "bun";
+  if ((await fs.exists(path.join(projectPath, "bun.lockb"))) || (await fs.exists(path.join(projectPath, "bun.lock")))) return "bun";
   if (await fs.exists(path.join(projectPath, "package-lock.json"))) return "npm";
+  if (await fs.exists(path.join(projectPath, "yarn.lock"))) return "yarn";
   if (await fs.exists(path.join(projectPath, "package.json"))) return "npm";
   return undefined;
+}
+
+async function readDeclaredPackageManager(projectPath: string, fs: FileSystemAdapter): Promise<Project["packageManager"]> {
+  try {
+    const raw = await fs.readFile(path.join(projectPath, "package.json"));
+    const parsed = JSON.parse(raw) as { packageManager?: string };
+    const manager = parsed.packageManager?.split("@")[0]?.trim();
+    return manager === "npm" || manager === "pnpm" || manager === "yarn" || manager === "bun" ? manager : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 async function detectCommands(

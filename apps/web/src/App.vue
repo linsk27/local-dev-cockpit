@@ -24,9 +24,20 @@
           <span class="nav-label">{{ preferences.t("navSettings") }}</span>
         </RouterLink>
       </nav>
-      <div class="sidebar-footer">
-        <span>{{ preferences.t("localOnly") }}</span>
-        <span>{{ preferences.t("noCloudSync") }}</span>
+      <div class="sidebar-bottom">
+        <div class="sidebar-performance" :class="[`level-${performance.level}`, { loading: performance.loading }]" :title="performanceTitle">
+          <span class="performance-icon" aria-hidden="true">
+            <Activity :size="16" />
+          </span>
+          <span class="performance-copy">
+            <strong>{{ performanceHeadline }}</strong>
+            <span>{{ performanceDetail }}</span>
+          </span>
+        </div>
+        <div class="sidebar-footer">
+          <span>{{ preferences.t("localOnly") }}</span>
+          <span>{{ preferences.t("noCloudSync") }}</span>
+        </div>
       </div>
     </aside>
     <main class="main-surface">
@@ -38,16 +49,42 @@
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { LayoutDashboard, PanelLeftClose, PanelLeftOpen, Settings } from "lucide-vue-next";
+import { Activity, LayoutDashboard, PanelLeftClose, PanelLeftOpen, Settings } from "lucide-vue-next";
+import { formatMetricDuration, usePerformanceStore } from "./stores/performance";
 import { usePreferencesStore } from "./stores/preferences";
 import ToastStack from "./shared/ui/ToastStack.vue";
 
 const SIDEBAR_KEY = "dev-cockpit:sidebar-collapsed";
 const preferences = usePreferencesStore();
+const performance = usePerformanceStore();
 const sidebarCollapsed = ref(readSidebarCollapsed());
 const toggleTitle = computed(() =>
   sidebarCollapsed.value ? preferences.t("expandSidebar") : preferences.t("collapseSidebar")
 );
+const performanceHeadline = computed(() => {
+  if (!performance.snapshot) return preferences.t("resourceMonitor");
+  if (performance.level === "high") return preferences.t("resourceHigh");
+  if (performance.level === "medium") return preferences.t("resourceMedium");
+  return preferences.t("resourceLow");
+});
+const performanceDetail = computed(() => {
+  if (!performance.snapshot) return preferences.t("resourceWaiting");
+  return [
+    preferences.t("performanceMemory", { memory: performance.snapshot.process.rssMb }),
+    preferences.t("performanceScan", { duration: formatMetricDuration(performance.snapshot.scan.lastScanDurationMs) })
+  ].join(" · ");
+});
+const performanceTitle = computed(() => {
+  if (!performance.snapshot) return preferences.t("resourceWaiting");
+  const { process, scan } = performance.snapshot;
+  return [
+    preferences.t("performanceTooltip"),
+    preferences.t("performanceCpu", { cpu: process.cpuPercent }),
+    preferences.t("performanceMemory", { memory: process.rssMb }),
+    preferences.t("performanceScan", { duration: formatMetricDuration(scan.lastScanDurationMs) }),
+    preferences.t("performanceCache", { hits: scan.cacheHits, misses: scan.cacheMisses })
+  ].join("\n");
+});
 
 function toggleSidebar(): void {
   sidebarCollapsed.value = !sidebarCollapsed.value;

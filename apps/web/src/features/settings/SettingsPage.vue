@@ -69,6 +69,24 @@
 
     <section class="surface settings-panel">
       <div class="surface-heading">
+        <span>{{ preferences.t("editorTitle") }}</span>
+        <Code2 :size="16" />
+      </div>
+
+      <div class="root-form">
+        <label>
+          {{ preferences.t("editorCommand") }}
+          <input v-model="editorCommand" :placeholder="preferences.t('editorCommandPlaceholder')" />
+        </label>
+        <button class="primary-button" @click="saveEditorCommand">
+          <Save :size="16" />
+          {{ preferences.t("saveEditorCommand") }}
+        </button>
+      </div>
+    </section>
+
+    <section class="surface settings-panel">
+      <div class="surface-heading">
         <span>{{ preferences.t("rootsTitle") }}</span>
         <FolderPlus :size="16" />
       </div>
@@ -100,20 +118,32 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import { Check, FolderPlus, Palette, Plus, Trash2 } from "lucide-vue-next";
-import { addRoot, getRoots, removeRoot, type RootEntry } from "../../api";
+import { Check, Code2, FolderPlus, Palette, Plus, Save, Trash2 } from "lucide-vue-next";
+import { addRoot, getConfig, getRoots, removeRoot, updateConfig, type RootEntry } from "../../api";
 import { useNotificationsStore } from "../../stores/notifications";
 import { accentOptions, localeOptions, themeOptions, usePreferencesStore } from "../../stores/preferences";
 
 const preferences = usePreferencesStore();
 const notifications = useNotificationsStore();
+const editorCommand = ref("code");
 const rootPath = ref("");
 const message = ref("");
 const roots = ref<RootEntry[]>([]);
 
 onMounted(() => {
   void loadRoots();
+  void loadConfig();
 });
+
+async function loadConfig(): Promise<void> {
+  try {
+    const config = await getConfig();
+    editorCommand.value = config.editorCommand;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    notifications.error(preferences.t("rootActionFailedNotice", { message: errorMessage }));
+  }
+}
 
 async function loadRoots(): Promise<void> {
   try {
@@ -132,6 +162,18 @@ async function submitRoot() {
     message.value = preferences.t("rootSaved");
     await loadRoots();
     notifications.success(preferences.t("rootAddedNotice"));
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    notifications.error(preferences.t("rootActionFailedNotice", { message: errorMessage }));
+  }
+}
+
+async function saveEditorCommand(): Promise<void> {
+  if (!editorCommand.value.trim()) return;
+  try {
+    const config = await updateConfig({ editorCommand: editorCommand.value.trim() });
+    editorCommand.value = config.editorCommand;
+    notifications.success(preferences.t("editorSavedNotice"));
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     notifications.error(preferences.t("rootActionFailedNotice", { message: errorMessage }));

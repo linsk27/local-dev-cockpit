@@ -23,13 +23,13 @@ interface AppState {
 }
 
 export class JsonStore {
-  constructor(private readonly paths: AppPaths, private readonly cwd: string) {}
+  constructor(private readonly paths: AppPaths, _cwd: string) {}
 
   async ensure(): Promise<void> {
     await fs.mkdir(this.paths.dataDir, { recursive: true });
     await fs.mkdir(this.paths.logsDir, { recursive: true });
     if (!(await exists(this.paths.configPath))) {
-      await this.writeConfig({ roots: [this.cwd], ignoreNames: [], editorCommand: "code" });
+      await this.writeConfig({ roots: [], ignoreNames: [], editorCommand: "code" });
     }
     if (!(await exists(this.paths.statePath))) {
       await this.writeState({ runs: {}, errors: {} });
@@ -39,7 +39,7 @@ export class JsonStore {
   async readConfig(): Promise<AppConfig> {
     await this.ensure();
     const parsed = configSchema.safeParse(JSON.parse(await fs.readFile(this.paths.configPath, "utf8")));
-    return parsed.success ? parsed.data : { roots: [this.cwd], ignoreNames: [], editorCommand: "code" };
+    return parsed.success ? parsed.data : { roots: [], ignoreNames: [], editorCommand: "code" };
   }
 
   async writeConfig(config: AppConfig): Promise<void> {
@@ -62,6 +62,15 @@ export class JsonStore {
   async removeRoot(id: string): Promise<AppConfig> {
     const config = await this.readConfig();
     config.roots = config.roots.filter((root) => rootId(root) !== id);
+    await this.writeConfig(config);
+    return config;
+  }
+
+  async updateEditorCommand(editorCommand: string): Promise<AppConfig> {
+    const sanitized = sanitizeCommandInput(editorCommand);
+    if (!sanitized) throw new Error("Editor command is empty");
+    const config = await this.readConfig();
+    config.editorCommand = sanitized;
     await this.writeConfig(config);
     return config;
   }
@@ -130,6 +139,13 @@ export function sanitizePathInput(input: string): string {
   const unwrapped = cleaned.replace(/^["'`]+|["'`]+$/g, "").trim();
   const drivePath = unwrapped.match(/^[^\w\\/]*([A-Za-z]:[\\/].*)$/);
   return drivePath?.[1] ?? unwrapped;
+}
+
+export function sanitizeCommandInput(input: string): string {
+  return input
+    .normalize("NFKC")
+    .replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g, "")
+    .trim();
 }
 
 async function exists(filePath: string): Promise<boolean> {

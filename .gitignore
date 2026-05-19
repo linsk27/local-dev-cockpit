@@ -7,4 +7,4 @@ coverage
 .DS_Store
 apps/web/dist
 packages/*/dist
-
+apps/desktop/release

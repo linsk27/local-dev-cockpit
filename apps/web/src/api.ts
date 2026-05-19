@@ -15,6 +15,12 @@ export interface RootEntry {
   path: string;
 }
 
+export interface AppConfig {
+  roots: string[];
+  ignoreNames: string[];
+  editorCommand: string;
+}
+
 export interface PerformanceSnapshot {
   process: {
     pid: number;
@@ -53,12 +59,27 @@ export interface StopPortResponse {
   error?: string;
 }
 
+export interface WriteContextResponse {
+  files: string[];
+}
+
+export interface OpenFolderResponse {
+  opened: true;
+  path: string;
+}
+
+export interface OpenEditorResponse {
+  opened: true;
+  path: string;
+  command: string;
+}
+
 export async function getProjects(options: { force?: boolean; rootId?: string } = {}): Promise<Project[]> {
   const params = new URLSearchParams();
   if (options.force) params.set("force", "1");
   if (options.rootId) params.set("rootId", options.rootId);
   const response = await fetch(`/api/projects${params.size > 0 ? `?${params.toString()}` : ""}`);
-  if (!response.ok) throw new Error(`Failed to load projects: ${response.status}`);
+  await ensureOk(response, "Failed to load projects");
   return ((await response.json()) as ProjectsResponse).projects;
 }
 
@@ -66,21 +87,37 @@ export async function getPerformance(options: { rootId?: string } = {}): Promise
   const params = new URLSearchParams();
   if (options.rootId) params.set("rootId", options.rootId);
   const response = await fetch(`/api/performance${params.size > 0 ? `?${params.toString()}` : ""}`);
-  if (!response.ok) throw new Error(`Failed to load performance: ${response.status}`);
+  await ensureOk(response, "Failed to load performance");
   return response.json() as Promise<PerformanceSnapshot>;
 }
 
 export async function getProject(projectId: string): Promise<Project> {
   const response = await fetch(`/api/projects/${projectId}`);
-  if (!response.ok) throw new Error(`Failed to load project: ${response.status}`);
+  await ensureOk(response, "Failed to load project");
   return ((await response.json()) as { project: Project }).project;
+}
+
+export async function openProjectFolder(projectId: string): Promise<OpenFolderResponse> {
+  const response = await fetch(`/api/projects/${projectId}/open-folder`, {
+    method: "POST"
+  });
+  await ensureOk(response, "Failed to open project folder");
+  return response.json() as Promise<OpenFolderResponse>;
+}
+
+export async function openProjectEditor(projectId: string): Promise<OpenEditorResponse> {
+  const response = await fetch(`/api/projects/${projectId}/open-editor`, {
+    method: "POST"
+  });
+  await ensureOk(response, "Failed to open project in editor");
+  return response.json() as Promise<OpenEditorResponse>;
 }
 
 export async function startCommand(projectId: string, commandId: string) {
   const response = await fetch(`/api/projects/${projectId}/commands/${encodeURIComponent(commandId)}/start`, {
     method: "POST"
   });
-  if (!response.ok) throw new Error(`Failed to start command: ${response.status}`);
+  await ensureOk(response, "Failed to start command");
   return response.json() as Promise<{ run: ProcessRun }>;
 }
 
@@ -88,7 +125,7 @@ export async function stopProcess(projectId: string, processId: string): Promise
   const response = await fetch(`/api/projects/${projectId}/processes/${encodeURIComponent(processId)}/stop`, {
     method: "POST"
   });
-  if (!response.ok) throw new Error(`Failed to stop process: ${response.status}`);
+  await ensureOk(response, "Failed to stop process");
   return response.json() as Promise<StopProcessResponse>;
 }
 
@@ -96,20 +133,28 @@ export async function stopPort(projectId: string, port: number): Promise<StopPor
   const response = await fetch(`/api/projects/${projectId}/ports/${port}/stop`, {
     method: "POST"
   });
-  if (!response.ok) throw new Error(`Failed to stop port: ${response.status}`);
+  await ensureOk(response, "Failed to stop port");
   return response.json() as Promise<StopPortResponse>;
 }
 
 export async function getLogs(projectId: string, runId: string): Promise<string> {
   const response = await fetch(`/api/projects/${projectId}/logs?runId=${encodeURIComponent(runId)}`);
-  if (!response.ok) throw new Error(`Failed to load logs: ${response.status}`);
+  await ensureOk(response, "Failed to load logs");
   return ((await response.json()) as { logs: string }).logs;
 }
 
 export async function getContext(projectId: string): Promise<ContextResponse> {
   const response = await fetch(`/api/projects/${projectId}/context`);
-  if (!response.ok) throw new Error(`Failed to load context: ${response.status}`);
+  await ensureOk(response, "Failed to load context");
   return response.json() as Promise<ContextResponse>;
+}
+
+export async function writeContext(projectId: string): Promise<WriteContextResponse> {
+  const response = await fetch(`/api/projects/${projectId}/context/write`, {
+    method: "POST"
+  });
+  await ensureOk(response, "Failed to write context files");
+  return response.json() as Promise<WriteContextResponse>;
 }
 
 export async function addRoot(path: string) {
@@ -118,19 +163,55 @@ export async function addRoot(path: string) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ path })
   });
-  if (!response.ok) throw new Error(`Failed to add root: ${response.status}`);
+  await ensureOk(response, "Failed to add root");
   return response.json();
 }
 
 export async function getRoots(): Promise<RootEntry[]> {
   const response = await fetch("/api/roots");
-  if (!response.ok) throw new Error(`Failed to load roots: ${response.status}`);
+  await ensureOk(response, "Failed to load roots");
   return ((await response.json()) as { roots: RootEntry[] }).roots;
+}
+
+export async function getConfig(): Promise<AppConfig> {
+  const response = await fetch("/api/config");
+  await ensureOk(response, "Failed to load config");
+  return ((await response.json()) as { config: AppConfig }).config;
+}
+
+export async function updateConfig(config: Partial<Pick<AppConfig, "editorCommand">>): Promise<AppConfig> {
+  const response = await fetch("/api/config", {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(config)
+  });
+  await ensureOk(response, "Failed to update config");
+  return ((await response.json()) as { config: AppConfig }).config;
 }
 
 export async function removeRoot(rootId: string): Promise<void> {
   const response = await fetch(`/api/roots/${encodeURIComponent(rootId)}`, {
     method: "DELETE"
   });
-  if (!response.ok) throw new Error(`Failed to remove root: ${response.status}`);
+  await ensureOk(response, "Failed to remove root");
+}
+
+async function ensureOk(response: Response, fallback: string): Promise<void> {
+  if (response.ok) return;
+  throw new Error(await readApiError(response, fallback));
+}
+
+async function readApiError(response: Response, fallback: string): Promise<string> {
+  const statusText = `${fallback}: ${response.status}`;
+  const contentType = response.headers.get("content-type") ?? "";
+  try {
+    if (contentType.includes("application/json")) {
+      const body = (await response.json()) as { error?: unknown };
+      return typeof body.error === "string" && body.error.trim() ? body.error : statusText;
+    }
+    const text = await response.text();
+    return text.trim() ? text.trim() : statusText;
+  } catch {
+    return statusText;
+  }
 }

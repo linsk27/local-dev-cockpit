@@ -18,11 +18,10 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run src",
+    "test": "vitest run src --pool forks --maxWorkers=1",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "zod": "^3.25.76"
   }
 }
-

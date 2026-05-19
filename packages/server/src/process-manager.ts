@@ -1,6 +1,7 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { execFile, spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createWriteStream, promises as fs } from "node:fs";
 import path from "node:path";
+import { promisify } from "node:util";
 import type { Command, ErrorSummary, ProcessRun } from "@local-dev-cockpit/core";
 import type { AppPaths } from "./paths.js";
 import type { JsonStore } from "./store.js";
@@ -13,7 +14,22 @@ interface RunningProcess {
   buffer: string[];
 }
 
-const WINDOWS_COMMAND_SHIMS = new Set(["npm", "npx", "pnpm", "yarn", "bun"]);
+const WINDOWS_COMMAND_SHIMS = new Set(["npm", "npx", "pnpm", "yarn", "bun", "corepack"]);
+const PACKAGE_MANAGER_COMMANDS = new Set(["npm", "npx", "pnpm", "yarn", "bun"]);
+const COREPACK_MANAGERS = new Set(["pnpm", "yarn"]);
+const execFileAsync = promisify(execFile);
+
+interface SpawnInvocation {
+  command: string;
+  args: string[];
+  note?: string;
+}
+
+interface CommandResolutionOptions {
+  platform?: NodeJS.Platform;
+  commandExists?: (command: string, platform: NodeJS.Platform) => Promise<boolean>;
+  fileExists?: (filePath: string) => Promise<boolean>;
+}
 
 /**
  * Owns child-process lifecycle. It intentionally accepts structured commands
@@ -44,7 +60,10 @@ export class ProcessManager {
 
     let child: ChildProcessWithoutNullStreams;
     try {
-      const invocation = createSpawnInvocation(command.command, command.args);
+      const invocation = await resolveSpawnInvocation(command);
+      if (invocation.note) {
+        logStream.write(`[dev-cockpit] ${invocation.note}\n`);
+      }
       child = spawn(invocation.command, invocation.args, {
         cwd: command.cwd,
         windowsHide: true,
@@ -192,12 +211,124 @@ async function killProcessTree(child: ChildProcessWithoutNullStreams): Promise<v
   child.kill();
 }
 
-function createSpawnInvocation(command: string, args: string[]): { command: string; args: string[] } {
-  if (process.platform !== "win32") return { command, args };
+export async function resolveSpawnInvocation(command: Command, options: CommandResolutionOptions = {}): Promise<SpawnInvocation> {
+  const platform = options.platform ?? process.platform;
+  const commandName = command.command.trim();
+  const lower = commandName.toLowerCase();
+  if (!PACKAGE_MANAGER_COMMANDS.has(lower)) {
+    return createSpawnInvocation(commandName, command.args, platform);
+  }
+
+  if (await isPackageManagerAvailable(lower, platform, options.commandExists)) {
+    return createSpawnInvocation(commandName, command.args, platform);
+  }
+
+  const fallback = await resolvePackageManagerFallback(command, lower, platform, options);
+  if (fallback) return fallback;
+
+  throw new Error(packageManagerMissingMessage(lower));
+}
+
+async function resolvePackageManagerFallback(
+  command: Command,
+  packageManager: string,
+  platform: NodeJS.Platform,
+  options: CommandResolutionOptions
+): Promise<SpawnInvocation | undefined> {
+  if (COREPACK_MANAGERS.has(packageManager) && (await isCommandAvailable("corepack", platform, options.commandExists))) {
+    return {
+      ...createSpawnInvocation("corepack", [packageManager, ...command.args], platform),
+      note: `${packageManager} 未安装，已通过 corepack 尝试运行。`
+    };
+  }
+
+  const packageLockPath = path.join(command.cwd, "package-lock.json");
+  const hasPackageLock = options.fileExists ? await options.fileExists(packageLockPath) : await fileExists(packageLockPath);
+  if (packageManager !== "npm" && hasPackageLock && (await isPackageManagerAvailable("npm", platform, options.commandExists))) {
+    return {
+      ...createSpawnInvocation("npm", toNpmRunArgs(command.args), platform),
+      note: `${packageManager} 未安装，且项目存在 package-lock.json，已改用 npm 运行该脚本。`
+    };
+  }
+
+  return undefined;
+}
+
+export function toNpmRunArgs(args: string[]): string[] {
+  if (args[0] !== "run" || !args[1]) return args;
+  const scriptArgs = args.slice(2);
+  if (scriptArgs.length === 0 || scriptArgs[0] === "--") return args;
+  return ["run", args[1], "--", ...scriptArgs];
+}
+
+function createSpawnInvocation(command: string, args: string[], platform: NodeJS.Platform): SpawnInvocation {
+  if (platform !== "win32") return { command, args };
   const lower = command.toLowerCase();
   if (!WINDOWS_COMMAND_SHIMS.has(lower) && !lower.endsWith(".cmd") && !lower.endsWith(".bat")) {
     return { command, args };
   }
   const shim = lower.endsWith(".cmd") || lower.endsWith(".bat") ? command : `${command}.cmd`;
   return { command: "cmd.exe", args: ["/d", "/s", "/c", shim, ...args] };
+}
+
+async function isPackageManagerAvailable(
+  packageManager: string,
+  platform: NodeJS.Platform,
+  commandExists = defaultCommandExists
+): Promise<boolean> {
+  const candidates = platform === "win32" ? [`${packageManager}.cmd`, packageManager] : [packageManager];
+  for (const candidate of candidates) {
+    if (await commandExists(candidate, platform)) return true;
+  }
+  return false;
+}
+
+async function isCommandAvailable(
+  command: string,
+  platform: NodeJS.Platform,
+  commandExists = defaultCommandExists
+): Promise<boolean> {
+  const candidates = platform === "win32" ? [`${command}.cmd`, command] : [command];
+  for (const candidate of candidates) {
+    if (await commandExists(candidate, platform)) return true;
+  }
+  return false;
+}
+
+async function defaultCommandExists(command: string, platform: NodeJS.Platform): Promise<boolean> {
+  try {
+    if (platform === "win32") {
+      await execFileAsync("where.exe", [command], { windowsHide: true });
+      return true;
+    }
+    await execFileAsync("sh", ["-c", `command -v ${shellQuote(command)}`]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+function packageManagerMissingMessage(packageManager: string): string {
+  const installHint =
+    packageManager === "yarn"
+      ? "请安装 Yarn，或启用 corepack，或保留 package-lock.json 后改用 npm。"
+      : packageManager === "pnpm"
+        ? "请安装 pnpm，或启用 corepack。"
+        : packageManager === "bun"
+          ? "请安装 Bun，或改用 npm/pnpm/yarn 脚本。"
+          : `请确认 ${packageManager} 已加入 PATH。`;
+  return `${packageManager} 未安装或不在 PATH 中。${installHint}`;
 }

@@ -16,6 +16,7 @@
       :key="project.id"
       class="project-row"
       :class="{ active: project.id === selectedId }"
+      :title="projectStatusReason(project, preferences.locale)"
     >
       <button class="project-row-select" @click="$emit('select', project.id)">
         <div class="project-row-main">
@@ -76,6 +77,8 @@ import {
   projectHasFailed,
   projectHasStalePorts,
   projectIsOnline,
+  projectRuntimeMode,
+  projectStatusReason,
   staleProjectPorts,
   visibleProjectPorts
 } from "./project-view";
@@ -95,17 +98,19 @@ defineEmits<{
 }>();
 
 function statusClass(project: Project): string {
-  if (projectHasStalePorts(project)) return "stale";
-  if (projectHasFailed(project)) return "failed";
-  if (projectIsOnline(project)) return "running";
+  const mode = projectRuntimeMode(project);
+  if (mode === "managed-running" || mode === "detected-online") return "running";
+  if (mode === "stale") return "stale";
+  if (mode === "failed") return "failed";
   return "idle";
 }
 
 function statusLabel(project: Project): string {
-  if (projectHasStalePorts(project)) return "需清理";
-  if (projectHasFailed(project)) return preferences.t("projectFailed");
-  if (project.lastRun?.status === "running") return preferences.t("projectRunning");
-  if (projectIsOnline(project)) return preferences.t("projectDetectedOnline");
+  const mode = projectRuntimeMode(project);
+  if (mode === "managed-running") return preferences.t("projectManagedRunning");
+  if (mode === "detected-online") return preferences.t("projectDetectedOnline");
+  if (mode === "stale") return preferences.t("projectNeedsCleanup");
+  if (mode === "failed") return preferences.t("projectFailed");
   return preferences.t("projectOffline");
 }
 
