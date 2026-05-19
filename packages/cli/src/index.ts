@@ -13,14 +13,31 @@ import {
   renderProjectContext,
   scanRoot
 } from "@local-dev-cockpit/core";
-import { JsonStore, resolveAppPaths, startDevCockpitServer } from "@local-dev-cockpit/server";
+import { diagnoseCommandEnvironment, JsonStore, resolveAppPaths, startDevCockpitServer } from "@local-dev-cockpit/server";
 
-const CLI_VERSION = "0.1.0";
+const CLI_VERSION = "0.1.1";
 
 const program = new Command()
   .name("local-dev-cockpit")
   .description("Dev Cockpit: local project dashboard for processes, logs, Git state, ports, and AI context.")
   .version(CLI_VERSION);
+
+const DOCTOR_BINARIES = [
+  { name: "git", args: ["--version"], required: true },
+  { name: "node", args: ["--version"], required: true },
+  { name: "python", args: ["--version"], required: false },
+  { name: "conda", args: ["--version"], required: false },
+  { name: "docker", args: ["--version"], required: false },
+  { name: "go", args: ["version"], required: false },
+  { name: "cargo", args: ["--version"], required: false },
+  { name: "mvn", args: ["--version"], required: false },
+  { name: "gradle", args: ["--version"], required: false },
+  { name: "php", args: ["--version"], required: false },
+  { name: "composer", args: ["--version"], required: false },
+  { name: "ruby", args: ["--version"], required: false },
+  { name: "bundle", args: ["--version"], required: false },
+  { name: "dotnet", args: ["--version"], required: false }
+] as const;
 
 program
   .command("serve", { isDefault: true })
@@ -65,17 +82,33 @@ program
 program
   .command("doctor")
   .description("Check local dependencies used by Dev Cockpit.")
-  .action(async () => {
-    const checks = await Promise.all([
-      checkBinary("git", ["--version"]),
-      checkBinary("node", ["--version"]),
-      checkBinary("python", ["--version"]),
-      checkBinary("go", ["version"]),
-      checkBinary("cargo", ["--version"])
-    ]);
+  .argument("[projectPath]", "Optional project path for command environment diagnostics.")
+  .action(async (projectPath?: string) => {
+    const checks = await Promise.all(DOCTOR_BINARIES.map((item) => checkBinary(item.name, item.args, item.required)));
     process.stdout.write("Dev Cockpit doctor\n\n");
+    process.stdout.write("Local runtimes\n");
     for (const check of checks) {
-      process.stdout.write(`${check.ok ? "[ok]" : "[missing]"} ${check.name}${check.version ? ` - ${check.version}` : ""}\n`);
+      process.stdout.write(`${check.ok ? "[ok]" : check.required ? "[missing]" : "[optional]"} ${check.name}${check.version ? ` - ${check.version}` : ""}\n`);
+    }
+
+    if (projectPath) {
+      const project = await analyzeProject(path.resolve(projectPath), {
+        fs: new NodeFileSystemAdapter(),
+        process: new NodeProcessAdapter()
+      });
+      process.stdout.write(`\nProject: ${project.name} [${project.kind}]\n`);
+      process.stdout.write(`Path: ${project.path}\n`);
+      if (project.commands.length === 0) {
+        process.stdout.write("No runnable command detected for this project.\n");
+        return;
+      }
+      process.stdout.write("\nCommand environments\n");
+      for (const command of project.commands) {
+        const diagnostic = await diagnoseCommandEnvironment(command);
+        const status = diagnostic.status === "ready" ? "ok" : diagnostic.status;
+        process.stdout.write(`[${status}] ${diagnostic.label}: ${diagnostic.summary}\n`);
+        process.stdout.write(`       ${diagnostic.detail}\n`);
+      }
     }
   });
 
@@ -135,12 +168,13 @@ function openBrowser(url: string): void {
   child.unref();
 }
 
-async function checkBinary(name: string, args: string[]): Promise<{ name: string; ok: boolean; version?: string }> {
+async function checkBinary(name: string, args: readonly string[], required: boolean): Promise<{ name: string; ok: boolean; required: boolean; version?: string }> {
   const adapter = new NodeProcessAdapter();
-  const result = await adapter.execFile(name, args, { timeoutMs: 2500 });
+  const result = await adapter.execFile(name, [...args], { timeoutMs: 2500 });
   return {
     name,
+    required,
     ok: result.exitCode === 0,
-    version: result.stdout.trim().split(/\r?\n/)[0] || result.stderr.trim().split(/\r?\n/)[0]
+    version: result.exitCode === 0 ? result.stdout.trim().split(/\r?\n/)[0] || result.stderr.trim().split(/\r?\n/)[0] : undefined
   };
 }

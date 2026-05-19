@@ -184,6 +184,9 @@ npx local-dev-cockpit add-root D:\个人
 # 检查本机 Git / Node / Python / Go / Cargo
 npx local-dev-cockpit doctor
 
+# 检查某个项目的运行环境和推荐命令
+npx local-dev-cockpit doctor D:\个人\my-project
+
 # 输出某个项目的 AI 上下文
 npx local-dev-cockpit context D:\个人\my-project
 
@@ -264,4 +267,4 @@ apps/desktop     Electron 桌面壳，复用同一套 server 和 Vue 面板
 
 ## 当前阶段
 
-当前是 `0.1.0` 可运行原型，重点验证方向：本地项目恢复、日志聚合、运行地址识别、AI 上下文生成和简洁面板体验。下一步会继续减少操作步骤，补充更多真实项目扫描样本、进程异常恢复、配置编辑和桌面端封装。
+当前是 `0.1.1` 可运行原型，重点验证方向：本地项目恢复、日志聚合、运行地址识别、AI 上下文生成、运行环境诊断和简洁面板体验。下一步会继续减少操作步骤，补充更多真实项目扫描样本、进程异常恢复、配置编辑和桌面端安装体验。

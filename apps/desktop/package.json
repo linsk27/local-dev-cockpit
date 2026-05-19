@@ -1,6 +1,6 @@
 {
   "name": "@local-dev-cockpit/desktop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Electron desktop shell for Dev Cockpit.",
   "main": "dist/main.cjs",
