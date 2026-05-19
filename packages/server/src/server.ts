@@ -32,6 +32,8 @@ const addRootSchema = z.object({ path: z.string().min(1) });
 const updateConfigSchema = z.object({ editorCommand: z.string().min(1).max(260).optional() });
 const PROJECT_SCAN_CACHE_TTL_MS = 20_000;
 const EXTERNAL_PORT_OWNER_CACHE_TTL_MS = 5_000;
+const DEFAULT_APP_VERSION = "0.1.3";
+const LATEST_RELEASE_URL = "https://api.github.com/repos/linsk27/local-dev-cockpit/releases/latest";
 const startedAt = Date.now();
 let cpuSample = { at: startedAt, usage: process.cpuUsage() };
 
@@ -39,11 +41,29 @@ export interface DevCockpitServerOptions {
   cwd?: string;
   port?: number;
   webRoot?: string;
+  version?: string;
 }
 
 export interface RunningServer {
   port: number;
   close(): Promise<void>;
+}
+
+export interface ReleaseAssetSummary {
+  name: string;
+  size: number;
+  downloadUrl: string;
+}
+
+export interface UpdateCheckResult {
+  currentVersion: string;
+  latestVersion?: string;
+  hasUpdate: boolean;
+  releaseUrl?: string;
+  installerAsset?: ReleaseAssetSummary;
+  portableAsset?: ReleaseAssetSummary;
+  checkedAt: string;
+  error?: string;
 }
 
 export async function startDevCockpitServer(options: DevCockpitServerOptions = {}): Promise<RunningServer> {
@@ -55,10 +75,11 @@ export async function startDevCockpitServer(options: DevCockpitServerOptions = {
   const processManager = new ProcessManager(paths, store, eventBus);
   const projectCache = new ProjectScanCache();
   const webRoot = options.webRoot ? path.resolve(options.webRoot) : undefined;
+  const currentVersion = options.version ?? DEFAULT_APP_VERSION;
 
   const server = createServer(async (req, res) => {
     try {
-      await route(req, res, { store, processManager, projectCache, webRoot });
+      await route(req, res, { store, processManager, projectCache, webRoot, currentVersion });
     } catch (error) {
       sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
     }
@@ -87,13 +108,18 @@ export async function startDevCockpitServer(options: DevCockpitServerOptions = {
 async function route(
   req: IncomingMessage,
   res: ServerResponse,
-  context: { store: JsonStore; processManager: ProcessManager; projectCache: ProjectScanCache; webRoot?: string }
+  context: { store: JsonStore; processManager: ProcessManager; projectCache: ProjectScanCache; webRoot?: string; currentVersion: string }
 ): Promise<void> {
   const url = new URL(req.url ?? "/", "http://localhost");
   const method = req.method ?? "GET";
 
   if (method === "GET" && url.pathname === "/api/health") {
-    sendJson(res, 200, { ok: true, name: "Dev Cockpit" });
+    sendJson(res, 200, { ok: true, name: "Dev Cockpit", version: context.currentVersion });
+    return;
+  }
+
+  if (method === "GET" && url.pathname === "/api/update") {
+    sendJson(res, 200, await checkForUpdates(context.currentVersion));
     return;
   }
 
@@ -317,6 +343,106 @@ export async function openProjectInEditor(folderPath: string, editorCommand: str
   });
   child.unref();
   return { opened: true, path: folderPath, command: editorCommand };
+}
+
+export async function checkForUpdates(currentVersion: string): Promise<UpdateCheckResult> {
+  const checkedAt = new Date().toISOString();
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8_000);
+    let response: Response;
+    try {
+      response = await fetch(LATEST_RELEASE_URL, {
+        headers: {
+          accept: "application/vnd.github+json",
+          "user-agent": `Dev-Cockpit/${currentVersion}`
+        },
+        signal: controller.signal
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (!response.ok) {
+      throw new Error(`GitHub releases request failed: ${response.status}`);
+    }
+
+    const release = parseGithubRelease(await response.json());
+    const assets = selectUpdateAssets(release.assets);
+    return {
+      currentVersion,
+      latestVersion: release.version,
+      hasUpdate: isNewerVersion(release.version, currentVersion),
+      releaseUrl: release.htmlUrl,
+      installerAsset: assets.installerAsset,
+      portableAsset: assets.portableAsset,
+      checkedAt
+    };
+  } catch (error) {
+    return {
+      currentVersion,
+      hasUpdate: false,
+      checkedAt,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+export function isNewerVersion(candidate: string, current: string): boolean {
+  const left = normalizeVersion(candidate);
+  const right = normalizeVersion(current);
+  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
+    const delta = (left[index] ?? 0) - (right[index] ?? 0);
+    if (delta > 0) return true;
+    if (delta < 0) return false;
+  }
+  return false;
+}
+
+export function selectUpdateAssets(assets: ReleaseAssetSummary[]): {
+  installerAsset?: ReleaseAssetSummary;
+  portableAsset?: ReleaseAssetSummary;
+} {
+  const exeAssets = assets.filter((asset) => /\.exe$/i.test(asset.name));
+  return {
+    installerAsset:
+      exeAssets.find((asset) => /setup/i.test(asset.name) && /win/i.test(asset.name)) ??
+      exeAssets.find((asset) => /installer/i.test(asset.name)),
+    portableAsset:
+      exeAssets.find((asset) => !/setup|installer/i.test(asset.name) && /win/i.test(asset.name)) ??
+      exeAssets.find((asset) => !/setup|installer/i.test(asset.name))
+  };
+}
+
+function normalizeVersion(version: string): number[] {
+  return version
+    .trim()
+    .replace(/^v/i, "")
+    .split(/[.-]/)
+    .map((part) => Number.parseInt(part, 10))
+    .map((part) => (Number.isFinite(part) ? part : 0));
+}
+
+function parseGithubRelease(raw: unknown): { version: string; htmlUrl: string; assets: ReleaseAssetSummary[] } {
+  if (!raw || typeof raw !== "object") throw new Error("Invalid GitHub release response");
+  const release = raw as {
+    tag_name?: unknown;
+    html_url?: unknown;
+    assets?: Array<{ name?: unknown; size?: unknown; browser_download_url?: unknown }>;
+  };
+  const version = typeof release.tag_name === "string" ? release.tag_name.replace(/^v/i, "") : "";
+  const htmlUrl = typeof release.html_url === "string" ? release.html_url : "";
+  if (!version || !htmlUrl) throw new Error("GitHub release response is missing tag or URL");
+  return {
+    version,
+    htmlUrl,
+    assets: (release.assets ?? [])
+      .filter((asset) => typeof asset.name === "string" && typeof asset.browser_download_url === "string")
+      .map((asset) => ({
+        name: asset.name as string,
+        size: typeof asset.size === "number" ? asset.size : 0,
+        downloadUrl: asset.browser_download_url as string
+      }))
+  };
 }
 
 export function createEditorCommand(platform: NodeJS.Platform, editorCommand: string, folderPath: string): { command: string; args: string[] } {

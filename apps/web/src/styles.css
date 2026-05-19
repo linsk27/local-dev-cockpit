@@ -230,6 +230,40 @@ button {
   flex: 0 0 auto;
 }
 
+.brand-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.brand-actions .icon-button {
+  width: 34px;
+  height: 34px;
+}
+
+.update-badge {
+  position: relative;
+  border-color: var(--accent-border);
+  background:
+    radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--accent) 30%, transparent), transparent 54%),
+    var(--accent-soft);
+  color: var(--accent-strong);
+  animation: update-pulse 1.7s ease-in-out infinite;
+}
+
+.update-badge::after {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 7px;
+  height: 7px;
+  border: 2px solid var(--surface-bg);
+  border-radius: 999px;
+  background: var(--danger);
+  content: "";
+}
+
 .sidebar-collapsed .sidebar {
   padding-inline: 12px;
 }
@@ -243,6 +277,17 @@ button {
 
 .sidebar-collapsed .brand-main {
   justify-content: center;
+}
+
+.sidebar-collapsed .brand-actions {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
+.sidebar-collapsed .brand-actions .icon-button {
+  width: 38px;
+  height: 38px;
 }
 
 .sidebar-collapsed .brand-copy,
@@ -1655,11 +1700,39 @@ h2 {
 .setting-copy {
   display: grid;
   gap: 4px;
+  min-width: 0;
 }
 
 .setting-copy strong {
   color: var(--text);
   font-size: 13px;
+}
+
+.setting-copy span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.update-section {
+  align-items: flex-start;
+}
+
+.update-copy {
+  max-width: 640px;
+}
+
+.setting-warning {
+  color: var(--danger) !important;
+}
+
+.update-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .root-form label {
@@ -2005,6 +2078,19 @@ h2 {
   }
 }
 
+@keyframes update-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent);
+    transform: translateY(0);
+  }
+
+  50% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 14%, transparent);
+    transform: translateY(-1px);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .app-shell,
   .sidebar,
@@ -2019,6 +2105,7 @@ h2 {
 
   .sidebar-performance::before,
   .sidebar-performance.loading .performance-icon svg,
+  .update-badge,
   .project-row-skeleton span,
   .project-row-skeleton i {
     animation: none;

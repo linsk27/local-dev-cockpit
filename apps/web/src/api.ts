@@ -47,6 +47,23 @@ export interface PerformanceSnapshot {
   };
 }
 
+export interface ReleaseAssetSummary {
+  name: string;
+  size: number;
+  downloadUrl: string;
+}
+
+export interface UpdateCheckResult {
+  currentVersion: string;
+  latestVersion?: string;
+  hasUpdate: boolean;
+  releaseUrl?: string;
+  installerAsset?: ReleaseAssetSummary;
+  portableAsset?: ReleaseAssetSummary;
+  checkedAt: string;
+  error?: string;
+}
+
 export interface StopProcessResponse {
   stopped: boolean;
   run?: ProcessRun;
@@ -98,6 +115,12 @@ export async function getPerformance(options: { rootId?: string } = {}): Promise
   const response = await fetch(`/api/performance${params.size > 0 ? `?${params.toString()}` : ""}`);
   await ensureOk(response, "Failed to load performance");
   return response.json() as Promise<PerformanceSnapshot>;
+}
+
+export async function checkUpdates(): Promise<UpdateCheckResult> {
+  const response = await fetch("/api/update");
+  await ensureOk(response, "Failed to check updates");
+  return response.json() as Promise<UpdateCheckResult>;
 }
 
 export async function getProject(projectId: string): Promise<Project> {

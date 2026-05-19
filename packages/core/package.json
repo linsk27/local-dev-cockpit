@@ -1,6 +1,6 @@
 {
   "name": "@local-dev-cockpit/core",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Core project discovery and context engine for Dev Cockpit.",
   "license": "MIT",
   "type": "module",

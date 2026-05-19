@@ -9,10 +9,21 @@
             <span>{{ preferences.t("appSubtitle") }}</span>
           </div>
         </div>
-        <button class="icon-button sidebar-toggle" :title="toggleTitle" @click="toggleSidebar">
-          <PanelLeftOpen v-if="sidebarCollapsed" :size="17" />
-          <PanelLeftClose v-else :size="17" />
-        </button>
+        <div class="brand-actions">
+          <button
+            v-if="updates.hasUpdate"
+            class="icon-button update-badge"
+            :title="updateTitle"
+            type="button"
+            @click="openUpdate"
+          >
+            <Download :size="16" />
+          </button>
+          <button class="icon-button sidebar-toggle" :title="toggleTitle" type="button" @click="toggleSidebar">
+            <PanelLeftOpen v-if="sidebarCollapsed" :size="17" />
+            <PanelLeftClose v-else :size="17" />
+          </button>
+        </div>
       </div>
       <nav class="nav">
         <RouterLink to="/" class="nav-link">
@@ -48,18 +59,25 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import { Activity, LayoutDashboard, PanelLeftClose, PanelLeftOpen, Settings } from "lucide-vue-next";
+import { computed, onMounted, ref } from "vue";
+import { Activity, Download, LayoutDashboard, PanelLeftClose, PanelLeftOpen, Settings } from "lucide-vue-next";
 import { formatMetricDuration, usePerformanceStore } from "./stores/performance";
 import { usePreferencesStore } from "./stores/preferences";
+import { useUpdatesStore } from "./stores/updates";
 import ToastStack from "./shared/ui/ToastStack.vue";
 
 const SIDEBAR_KEY = "dev-cockpit:sidebar-collapsed";
 const preferences = usePreferencesStore();
 const performance = usePerformanceStore();
+const updates = useUpdatesStore();
 const sidebarCollapsed = ref(readSidebarCollapsed());
 const toggleTitle = computed(() =>
   sidebarCollapsed.value ? preferences.t("expandSidebar") : preferences.t("collapseSidebar")
+);
+const updateTitle = computed(() =>
+  updates.result?.latestVersion
+    ? preferences.t("updateAvailableTitle", { version: updates.result.latestVersion })
+    : preferences.t("updateAvailable")
 );
 const performanceHeadline = computed(() => {
   if (!performance.snapshot) return preferences.t("resourceMonitor");
@@ -91,7 +109,16 @@ function toggleSidebar(): void {
   localStorage.setItem(SIDEBAR_KEY, String(sidebarCollapsed.value));
 }
 
+function openUpdate(): void {
+  const target = updates.result?.installerAsset?.downloadUrl ?? updates.result?.releaseUrl;
+  if (target) window.open(target, "_blank", "noopener");
+}
+
 function readSidebarCollapsed(): boolean {
   return localStorage.getItem(SIDEBAR_KEY) === "true";
 }
+
+onMounted(() => {
+  void updates.check({ silent: true });
+});
 </script>

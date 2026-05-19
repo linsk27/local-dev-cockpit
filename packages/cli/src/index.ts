@@ -15,7 +15,7 @@ import {
 } from "@local-dev-cockpit/core";
 import { diagnoseCommandEnvironment, JsonStore, resolveAppPaths, startDevCockpitServer } from "@local-dev-cockpit/server";
 
-const CLI_VERSION = "0.1.2";
+const CLI_VERSION = "0.1.3";
 
 const program = new Command()
   .name("local-dev-cockpit")
@@ -46,7 +46,7 @@ program
   .option("--no-open", "Do not open the browser automatically.")
   .action(async (options: { port: number; open: boolean }) => {
     const webRoot = resolveWebRoot();
-    const server = await startDevCockpitServer({ port: options.port, webRoot });
+    const server = await startDevCockpitServer({ port: options.port, webRoot, version: CLI_VERSION });
     const url = `http://localhost:${server.port}`;
     process.stdout.write(`Dev Cockpit is running at ${url}\n`);
     if (options.open) {

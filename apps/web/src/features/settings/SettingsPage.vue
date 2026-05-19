@@ -69,6 +69,45 @@
 
     <section class="surface settings-panel">
       <div class="surface-heading">
+        <span>{{ preferences.t("updatesTitle") }}</span>
+        <DownloadCloud :size="16" />
+      </div>
+
+      <div class="settings-section update-section">
+        <div class="setting-copy update-copy">
+          <strong>{{ updateHeadline }}</strong>
+          <span>{{ updateDetail }}</span>
+          <span v-if="updates.error" class="setting-warning">{{ updates.error }}</span>
+        </div>
+        <div class="update-actions">
+          <button class="text-button" type="button" :disabled="updates.loading" @click="checkForUpdates">
+            <RefreshCw :size="16" :class="{ 'spin-icon': updates.loading }" />
+            {{ updates.loading ? preferences.t("checkingUpdates") : preferences.t("checkUpdates") }}
+          </button>
+          <button
+            v-if="updates.result?.installerAsset"
+            class="primary-button"
+            type="button"
+            @click="openUrl(updates.result.installerAsset.downloadUrl)"
+          >
+            <Download :size="16" />
+            {{ preferences.t("downloadInstaller") }}
+          </button>
+          <button
+            v-if="updates.result?.portableAsset"
+            class="text-button"
+            type="button"
+            @click="openUrl(updates.result.portableAsset.downloadUrl)"
+          >
+            <Download :size="16" />
+            {{ preferences.t("downloadPortable") }}
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section class="surface settings-panel">
+      <div class="surface-heading">
         <span>{{ preferences.t("editorTitle") }}</span>
         <Code2 :size="16" />
       </div>
@@ -117,23 +156,55 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
-import { Check, Code2, FolderPlus, Palette, Plus, Save, Trash2 } from "lucide-vue-next";
+import { computed, onMounted, ref } from "vue";
+import { Check, Code2, Download, DownloadCloud, FolderPlus, Palette, Plus, RefreshCw, Save, Trash2 } from "lucide-vue-next";
 import { addRoot, getConfig, getRoots, removeRoot, updateConfig, type RootEntry } from "../../api";
 import { useNotificationsStore } from "../../stores/notifications";
 import { accentOptions, localeOptions, themeOptions, usePreferencesStore } from "../../stores/preferences";
+import { useUpdatesStore } from "../../stores/updates";
 
 const preferences = usePreferencesStore();
 const notifications = useNotificationsStore();
+const updates = useUpdatesStore();
 const editorCommand = ref("code");
 const rootPath = ref("");
 const message = ref("");
 const roots = ref<RootEntry[]>([]);
+const updateHeadline = computed(() => {
+  if (!updates.result) return preferences.t("updatesUnknown");
+  if (updates.result.hasUpdate && updates.result.latestVersion) {
+    return preferences.t("updatesAvailable", { version: updates.result.latestVersion });
+  }
+  return preferences.t("updatesCurrent", { version: updates.result.currentVersion });
+});
+const updateDetail = computed(() => {
+  if (!updates.result) return preferences.t("updatesDescription");
+  if (updates.result.hasUpdate) return preferences.t("updatesInstallHint");
+  return preferences.t("updatesNoAction");
+});
 
 onMounted(() => {
   void loadRoots();
   void loadConfig();
+  void updates.check({ silent: true });
 });
+
+async function checkForUpdates(): Promise<void> {
+  const result = await updates.check({ force: true });
+  if (!result) {
+    notifications.error(preferences.t("updateCheckFailedNotice", { message: updates.error || preferences.t("checkUpdates") }));
+    return;
+  }
+  if (result.error) {
+    notifications.error(preferences.t("updateCheckFailedNotice", { message: result.error }));
+    return;
+  }
+  notifications.success(result.hasUpdate ? preferences.t("updateAvailableNotice") : preferences.t("alreadyLatestNotice"));
+}
+
+function openUrl(url: string): void {
+  window.open(url, "_blank", "noopener");
+}
 
 async function loadConfig(): Promise<void> {
   try {

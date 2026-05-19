@@ -1,12 +1,12 @@
 {
   "name": "@local-dev-cockpit/desktop",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "description": "Electron desktop shell for Dev Cockpit.",
   "main": "dist/main.cjs",
   "scripts": {
     "build": "node ../../scripts/build-desktop.mjs",
-    "dist:win": "pnpm build && electron-builder --win portable --x64"
+    "dist:win": "pnpm build && electron-builder --win nsis portable --x64"
   },
   "build": {
     "appId": "dev.local-dev-cockpit.app",
@@ -24,12 +24,28 @@
       "icon": "assets/icon.ico",
       "target": [
         {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
           "target": "portable",
           "arch": [
             "x64"
           ]
         }
       ]
+    },
+    "nsis": {
+      "artifactName": "Dev-Cockpit-Setup-${version}-win-${arch}.exe",
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": false
     },
     "portable": {
       "artifactName": "Dev-Cockpit-${version}-win-${arch}.exe"

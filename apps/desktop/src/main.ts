@@ -7,7 +7,7 @@ let runningServer: RunningServer | undefined;
 
 async function createMainWindow(): Promise<void> {
   const webRoot = path.join(__dirname, "web");
-  runningServer = await startDevCockpitServer({ port: 8787, webRoot });
+  runningServer = await startDevCockpitServer({ port: 8787, webRoot, version: app.getVersion() });
   const appUrl = `http://127.0.0.1:${runningServer.port}`;
 
   mainWindow = new BrowserWindow({
