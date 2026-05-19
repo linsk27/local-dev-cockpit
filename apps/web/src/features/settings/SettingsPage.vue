@@ -1,12 +1,5 @@
 <template>
   <section class="workspace settings-page">
-    <header class="workspace-header">
-      <div>
-        <p class="eyebrow">{{ preferences.t("settingsEyebrow") }}</p>
-        <h1>{{ preferences.t("settingsTitle") }}</h1>
-      </div>
-    </header>
-
     <section class="surface settings-panel">
       <div class="surface-heading">
         <span>{{ preferences.t("appearanceTitle") }}</span>
@@ -76,31 +69,21 @@
       <div class="settings-section update-section">
         <div class="setting-copy update-copy">
           <strong>{{ updateHeadline }}</strong>
-          <span>{{ updateDetail }}</span>
           <span v-if="updates.error" class="setting-warning">{{ updates.error }}</span>
         </div>
         <div class="update-actions">
-          <button class="text-button" type="button" :disabled="updates.loading" @click="checkForUpdates">
+          <button v-if="showCheckButton" class="text-button" type="button" :disabled="updates.loading" @click="checkForUpdates">
             <RefreshCw :size="16" :class="{ 'spin-icon': updates.loading }" />
             {{ updates.loading ? preferences.t("checkingUpdates") : preferences.t("checkUpdates") }}
           </button>
           <button
-            v-if="updates.result?.installerAsset"
+            v-else-if="updateUrl"
             class="primary-button"
             type="button"
-            @click="openUrl(updates.result.installerAsset.downloadUrl)"
+            @click="openUrl(updateUrl)"
           >
             <Download :size="16" />
-            {{ preferences.t("downloadInstaller") }}
-          </button>
-          <button
-            v-if="updates.result?.portableAsset"
-            class="text-button"
-            type="button"
-            @click="openUrl(updates.result.portableAsset.downloadUrl)"
-          >
-            <Download :size="16" />
-            {{ preferences.t("downloadPortable") }}
+            {{ preferences.t("updateNow") }}
           </button>
         </div>
       </div>
@@ -170,27 +153,25 @@ const editorCommand = ref("code");
 const rootPath = ref("");
 const message = ref("");
 const roots = ref<RootEntry[]>([]);
+const checkedManually = ref(false);
 const updateHeadline = computed(() => {
-  if (!updates.result) return preferences.t("updatesUnknown");
-  if (updates.result.hasUpdate && updates.result.latestVersion) {
+  if (updates.result?.hasUpdate && updates.result.latestVersion) {
     return preferences.t("updatesAvailable", { version: updates.result.latestVersion });
   }
+  if (!checkedManually.value || !updates.result) return preferences.t("updatesUnknown");
   return preferences.t("updatesCurrent", { version: updates.result.currentVersion });
 });
-const updateDetail = computed(() => {
-  if (!updates.result) return preferences.t("updatesDescription");
-  if (updates.result.hasUpdate) return preferences.t("updatesInstallHint");
-  return preferences.t("updatesNoAction");
-});
+const updateUrl = computed(() => (updates.result?.hasUpdate ? updates.result.installerAsset?.downloadUrl ?? updates.result.releaseUrl : ""));
+const showCheckButton = computed(() => !updates.result?.hasUpdate && (!checkedManually.value || Boolean(updates.error)));
 
 onMounted(() => {
   void loadRoots();
   void loadConfig();
-  void updates.check({ silent: true });
 });
 
 async function checkForUpdates(): Promise<void> {
   const result = await updates.check({ force: true });
+  checkedManually.value = true;
   if (!result) {
     notifications.error(preferences.t("updateCheckFailedNotice", { message: updates.error || preferences.t("checkUpdates") }));
     return;

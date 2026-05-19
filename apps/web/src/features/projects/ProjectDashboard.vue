@@ -8,12 +8,8 @@
       @submit="submitRootFromDashboard"
     />
 
-    <header class="workspace-header">
-      <div>
-        <p class="eyebrow">{{ preferences.t("projectsEyebrow") }}</p>
-        <h1>{{ preferences.t("projectsTitle") }}</h1>
-      </div>
-      <div v-if="roots.length > 0" class="header-actions">
+    <header v-if="roots.length > 0" class="workspace-header compact-workspace-header">
+      <div class="header-actions">
         <div v-if="roots.length > 0" ref="rootFilterRef" class="root-filter">
           <button
             class="root-filter-button"
@@ -56,7 +52,6 @@
 
     <section v-if="roots.length === 0" class="surface onboarding-panel">
       <div class="onboarding-copy">
-        <p class="eyebrow">{{ preferences.t("onboardingEyebrow") }}</p>
         <h2>{{ preferences.t("onboardingTitle") }}</h2>
         <p>{{ preferences.t("onboardingDescription") }}</p>
       </div>
