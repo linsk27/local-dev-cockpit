@@ -62,10 +62,12 @@ export interface UpdateCheckResult {
   currentVersion: string;
   latestVersion?: string;
   hasUpdate: boolean;
+  source?: "github" | "npm";
   releaseUrl?: string;
   installerAsset?: ReleaseAssetSummary;
   portableAsset?: ReleaseAssetSummary;
   checkedAt: string;
+  warning?: string;
   error?: string;
 }
 

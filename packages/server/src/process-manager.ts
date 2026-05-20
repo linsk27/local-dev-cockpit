@@ -240,7 +240,8 @@ function summarizeKnownFailure(rawLog: string, exitCode: number | null, command?
     return [
       `缺少 Python 依赖：${moduleName}。`,
       `请在该项目当前 Python 环境中安装：python -m pip install ${packageName}。`,
-      "如果项目有 requirements.txt / pyproject.toml，请先同步依赖；如果已经安装过，通常是 Dev Cockpit、终端或 IDE 使用的 Python 环境不一致。",
+      "如果项目有 requirements.txt / pyproject.toml，请先同步依赖；如果依赖已经安装过，通常是 Dev Cockpit、终端或 IDE 使用的 Python 环境不一致。",
+      "Conda 项目请在项目详情的运行环境中选择检测到的 Conda 候选，或填写 conda:环境名；如果习惯从终端运行，也可以先 conda activate 后再从同一终端启动 npx local-dev-cockpit。",
       `(exit code ${exitCode ?? "unknown"})`
     ].join(" ");
   }

@@ -15,7 +15,7 @@ Dev Cockpit is currently a 0.1 MVP. The goal is to make local project recovery o
 - External service detection with HTTP reachability checks.
 - Stale port detection for occupied but unreachable local endpoints.
 - Multilingual UI, themes, accent colors, and low-overhead polling.
-- Settings-based update check and top-left update indicator for new releases.
+- Settings-based update check with GitHub Release first, npm registry fallback, and top-left update indicator for new releases.
 
 ## 0.2 Reliability
 
@@ -28,7 +28,6 @@ Dev Cockpit is currently a 0.1 MVP. The goal is to make local project recovery o
 
 ## 0.3 Packaging
 
-- Publish npm package after clean install verification.
 - Add signed release artifacts and optional in-app background updater.
 - Harden the Electron shell or evaluate Tauri after the Web + CLI flow is stable.
 - Add import/export for local workspace configuration.

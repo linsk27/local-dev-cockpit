@@ -69,7 +69,7 @@
       <div class="settings-section update-section">
         <div class="setting-copy update-copy">
           <strong>{{ updateHeadline }}</strong>
-          <span v-if="updates.error" class="setting-warning">{{ updates.error }}</span>
+          <span v-if="updateMessage" class="setting-warning">{{ updateMessage }}</span>
         </div>
         <div class="update-actions">
           <button v-if="showCheckButton" class="text-button" type="button" :disabled="updates.loading" @click="checkForUpdates">
@@ -163,6 +163,7 @@ const updateHeadline = computed(() => {
 });
 const updateUrl = computed(() => (updates.result?.hasUpdate ? updates.result.installerAsset?.downloadUrl ?? updates.result.releaseUrl : ""));
 const showCheckButton = computed(() => !updates.result?.hasUpdate && (!checkedManually.value || Boolean(updates.error)));
+const updateMessage = computed(() => updates.result?.warning ?? updates.error);
 
 onMounted(() => {
   void loadRoots();

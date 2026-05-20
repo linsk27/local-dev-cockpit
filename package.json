@@ -1,6 +1,6 @@
 {
   "name": "local-dev-cockpit-repo",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "private": true,
   "description": "Local developer cockpit for restoring project state, commands, logs, git status, ports, and AI context.",
   "license": "MIT",

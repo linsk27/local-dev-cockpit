@@ -151,7 +151,7 @@ Dev Cockpit 的运行按钮不是简单调用脚本，它会先做一次轻量�
 
 注意：Windows 桌面双击启动的应用不能读取另一个终端窗口里 `conda activate` 后的状态，因为环境变量只会从父进程继承。别人平时用终端启动 Conda 项目时，可以从同一个已激活终端启动 `npx local-dev-cockpit`；如果用桌面安装版，可以在项目详情里手动绑定 `conda:环境名`，也可以在项目里保留 `.venv` / `.conda` / `environment.yml` / `.vscode/settings.json` 这类可发现配置。
 
-如果 Python 项目启动后出现 `ModuleNotFoundError: No module named 'xxx'`，Dev Cockpit 会在最近失败里提取缺失模块，并提示在当前 Python 环境中运行 `python -m pip install xxx`。如果依赖已经安装过，通常说明 IDE、终端和 Dev Cockpit 使用的不是同一个 `.venv` / Conda 环境。
+如果 Python 项目启动后出现 `ModuleNotFoundError: No module named 'xxx'`，Dev Cockpit 会在最近失败里提取缺失模块，并提示在当前 Python 环境中运行 `python -m pip install xxx`。如果依赖已经安装过，通常说明 IDE、终端和 Dev Cockpit 使用的不是同一个 `.venv` / Conda 环境。Conda 项目优先在“运行环境”区域选择候选环境或填写 `conda:环境名`；如果习惯终端启动，可以先 `conda activate 环境名`，再从同一个终端运行 `npx local-dev-cockpit`。
 
 如果 Node 项目出现 `Cannot find package 'xxx'`、`Cannot find module 'xxx'`，或者 `vite` / `next` / `ts-node` 这类脚本命令找不到，Dev Cockpit 会提示先执行当前包管理器的 install 命令，例如 `pnpm install` / `npm install`，再按需安装缺失依赖。相对路径模块缺失会被当成源码或构建产物问题，不会误导用户安装一个不存在的 npm 包。
 
@@ -226,7 +226,7 @@ Dev-Cockpit-<version>-win-x64.exe         免安装版
 
 推荐普通用户下载 `Setup` 安装包。它会出现常规安装向导，可以选择安装路径、创建桌面快捷方式，并对已安装版本执行覆盖升级。免安装版适合临时试用；如果之前运行过旧的免安装 exe，直接关闭旧进程后替换新文件即可。
 
-应用启动后会自动轻量检查 GitHub Release。发现新版本时，左上角品牌区会出现闪烁的下载图标；也可以在设置页点击“检查更新”，手动下载安装包或免安装版。当前版本仍未签名，Windows 可能提示未知发布者；正式公开分发前需要补代码签名。
+应用启动后会自动轻量检查更新：优先读取 GitHub Release；如果 GitHub API 因网络、代理、证书或限流失败，会改用 npm registry 获取最新版本号，并继续给出 GitHub Release 下载入口。发现新版本时，左上角品牌区会出现闪烁的下载图标；也可以在设置页点击“检查更新”，手动下载安装包或免安装版。当前版本仍未签名，Windows 可能提示未知发布者；正式公开分发前需要补代码签名。
 
 ## 开发与贡献
 
@@ -296,4 +296,4 @@ apps/desktop     Electron 桌面壳，复用同一套 server 和 Vue 面板
 
 ## 当前阶段
 
-当前是 `0.1.8` 可运行原型，重点验证方向：本地项目恢复、日志聚合、运行地址识别、AI 上下文生成、运行环境诊断、终端 Conda/venv 继承、按需 Conda 环境候选、简洁面板体验、Windows 安装更新流程和 Dev Pilot 首屏品牌体验。下一步会继续减少操作步骤，补充更多真实项目扫描样本、进程异常恢复和配置编辑能力。
+当前是 `0.1.9` 可运行原型，重点验证方向：本地项目恢复、日志聚合、运行地址识别、AI 上下文生成、运行环境诊断、终端 Conda/venv 继承、按需 Conda 环境候选、更新检查兜底、简洁面板体验、Windows 安装更新流程和 Dev Pilot 首屏品牌体验。下一步会继续减少操作步骤，补充更多真实项目扫描样本、进程异常恢复和配置编辑能力。

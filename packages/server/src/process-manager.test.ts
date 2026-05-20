@@ -25,6 +25,7 @@ describe("summarizeFailedRun", () => {
     expect(summary).toContain("缺少 Python 依赖：portalocker");
     expect(summary).toContain("python -m pip install portalocker");
     expect(summary).toContain("Python 环境不一致");
+    expect(summary).toContain("conda:环境名");
   });
 
   it("turns Node missing packages into package-manager install guidance", () => {

@@ -2,10 +2,11 @@ import { createServer } from "node:http";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Project } from "@local-dev-cockpit/core";
 import {
   assignExternalPortOwners,
+  checkForUpdates,
   commandStartBlockReason,
   commandLineReferencesProject,
   createEditorCommand,
@@ -23,11 +24,17 @@ import {
   parseLocalEndpointsFromLogs,
   parseMissingToolName,
   parseNetstatListeningPids,
+  parseNpmLatest,
   parseStoppedChildrenOutput,
   selectUpdateAssets,
   stopPort,
   writeProjectContextFiles
 } from "./server.js";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 describe("update checks", () => {
   it("compares semantic versions without treating equal versions as updates", () => {
@@ -52,6 +59,77 @@ describe("update checks", () => {
   it("returns user-facing update errors instead of raw fetch failures", () => {
     expect(formatUpdateCheckError(new TypeError("fetch failed"))).toContain("无法连接 GitHub Releases");
     expect(formatUpdateCheckError(new Error("GitHub releases request failed: 403"))).toContain("GitHub API");
+  });
+
+  it("parses npm latest package metadata", () => {
+    expect(parseNpmLatest({ version: "v0.1.9" })).toEqual({ version: "0.1.9" });
+    expect(() => parseNpmLatest({})).toThrow("missing version");
+  });
+
+  it("uses GitHub release metadata when GitHub is reachable", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            tag_name: "v0.1.9",
+            html_url: "https://github.com/linsk27/local-dev-cockpit/releases/tag/v0.1.9",
+            assets: [
+              {
+                name: "Dev-Cockpit-Setup-0.1.9-win-x64.exe",
+                size: 100,
+                browser_download_url: "https://example.test/setup.exe"
+              }
+            ]
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      )
+    );
+
+    await expect(checkForUpdates("0.1.8")).resolves.toMatchObject({
+      latestVersion: "0.1.9",
+      hasUpdate: true,
+      source: "github",
+      installerAsset: {
+        name: "Dev-Cockpit-Setup-0.1.9-win-x64.exe",
+        size: 100,
+        downloadUrl: "https://example.test/setup.exe"
+      }
+    });
+  });
+
+  it("falls back to npm latest when GitHub releases cannot be reached", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockRejectedValueOnce(new TypeError("fetch failed"))
+        .mockResolvedValueOnce(new Response(JSON.stringify({ version: "0.1.9" }), { status: 200, headers: { "content-type": "application/json" } }))
+    );
+
+    await expect(checkForUpdates("0.1.8")).resolves.toMatchObject({
+      latestVersion: "0.1.9",
+      hasUpdate: true,
+      source: "npm",
+      warning: expect.stringContaining("npm registry"),
+      releaseUrl: "https://github.com/linsk27/local-dev-cockpit/releases/tag/v0.1.9",
+      installerAsset: {
+        name: "Dev-Cockpit-Setup-0.1.9-win-x64.exe",
+        size: 0,
+        downloadUrl: "https://github.com/linsk27/local-dev-cockpit/releases/download/v0.1.9/Dev-Cockpit-Setup-0.1.9-win-x64.exe"
+      }
+    });
+  });
+
+  it("returns a manual release URL when both update sources fail", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("fetch failed")));
+
+    await expect(checkForUpdates("0.1.8")).resolves.toMatchObject({
+      hasUpdate: false,
+      releaseUrl: "https://github.com/linsk27/local-dev-cockpit/releases/latest",
+      error: expect.stringContaining("无法连接 GitHub Releases，也无法连接 npm registry")
+    });
   });
 });
 
