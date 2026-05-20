@@ -1882,7 +1882,7 @@ h2 {
 .onboarding-root-form,
 .empty-root-form {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: end;
   gap: 10px;
   width: min(760px, 100%);
@@ -1910,7 +1910,9 @@ h2 {
 }
 
 .onboarding-root-form .primary-button,
-.empty-root-form .primary-button {
+.onboarding-root-form .text-button,
+.empty-root-form .primary-button,
+.empty-root-form .text-button {
   height: 40px;
   white-space: nowrap;
 }
@@ -2210,7 +2212,7 @@ h2 {
 .welcome-root-form {
   display: grid;
   grid-column: 1 / -1;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   min-width: 0;
   gap: 8px;
   padding: 12px;
@@ -2239,10 +2241,17 @@ h2 {
 }
 
 .welcome-root-form p {
+  grid-column: 1 / -1;
   margin: 0;
   color: var(--muted);
   font-size: 12px;
   line-height: 1.55;
+}
+
+.welcome-root-picker {
+  align-self: end;
+  height: 42px;
+  white-space: nowrap;
 }
 
 .welcome-actions {
@@ -2712,6 +2721,13 @@ h2 {
     display: flex;
   }
 
+  .onboarding-root-form .primary-button,
+  .onboarding-root-form .text-button,
+  .empty-root-form .primary-button,
+  .empty-root-form .text-button {
+    width: 100%;
+  }
+
   .welcome-modal {
     grid-template-columns: 1fr;
     width: calc(100vw - 20px);
@@ -2734,6 +2750,14 @@ h2 {
 
   .welcome-actions .primary-button,
   .welcome-actions .text-button {
+    width: 100%;
+  }
+
+  .welcome-root-form {
+    grid-template-columns: 1fr;
+  }
+
+  .welcome-root-picker {
     width: 100%;
   }
 }

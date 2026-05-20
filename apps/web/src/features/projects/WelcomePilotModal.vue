@@ -58,6 +58,10 @@
               @input="$emit('update:rootPath', ($event.target as HTMLInputElement).value)"
             />
           </label>
+          <button class="text-button welcome-root-picker" type="button" :disabled="pickingRoot || submitting" @click="$emit('pickRoot')">
+            <FolderOpen :size="16" />
+            {{ pickingRoot ? preferences.t("choosingRootFolder") : preferences.t("chooseRootFolder") }}
+          </button>
           <p>{{ preferences.t("welcomePrivacy") }}</p>
         </form>
 
@@ -90,10 +94,12 @@ import { usePreferencesStore, type MessageKey } from "../../stores/preferences";
 const props = defineProps<{
   rootPath: string;
   submitting: boolean;
+  pickingRoot: boolean;
 }>();
 
 const emit = defineEmits<{
   dismiss: [];
+  pickRoot: [];
   submit: [];
   "update:rootPath": [value: string];
 }>();

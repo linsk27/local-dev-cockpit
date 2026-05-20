@@ -4,7 +4,9 @@
       v-if="showWelcomeModal"
       v-model:root-path="rootPath"
       :submitting="rootSubmitting"
+      :picking-root="rootPicking"
       @dismiss="dismissWelcome"
+      @pick-root="pickRootFolder"
       @submit="submitRootFromDashboard"
     />
 
@@ -79,6 +81,10 @@
           {{ preferences.t("rootPath") }}
           <input v-model="rootPath" :placeholder="preferences.t('rootPlaceholder')" />
         </label>
+        <button class="text-button" type="button" :disabled="rootPicking || rootSubmitting" @click="pickRootFolder">
+          <FolderOpen :size="16" />
+          {{ rootPicking ? preferences.t("choosingRootFolder") : preferences.t("chooseRootFolder") }}
+        </button>
         <button class="primary-button" type="submit" :disabled="!canSubmitRoot || rootSubmitting">
           <Loader2 v-if="rootSubmitting" :size="16" class="spin-icon" />
           <Plus v-else :size="16" />
@@ -117,6 +123,10 @@
         <p>{{ preferences.t("emptyDescription") }}</p>
         <form class="empty-root-form" @submit.prevent="submitRootFromDashboard">
           <input v-model="rootPath" :aria-label="preferences.t('rootPath')" :placeholder="preferences.t('rootPlaceholder')" />
+          <button class="text-button" type="button" :disabled="rootPicking || rootSubmitting" @click="pickRootFolder">
+            <FolderOpen :size="16" />
+            {{ rootPicking ? preferences.t("choosingRootFolder") : preferences.t("chooseRootFolder") }}
+          </button>
           <button class="primary-button" type="submit" :disabled="!canSubmitRoot || rootSubmitting">
             <Loader2 v-if="rootSubmitting" :size="16" class="spin-icon" />
             <Plus v-else :size="16" />
@@ -131,7 +141,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { Bot, Check, ChevronDown, FolderOpen, FolderPlus, FolderSearch, Loader2, PlayCircle, Plus, RefreshCw, Search } from "lucide-vue-next";
-import { addRoot, getRoots, type RootEntry } from "../../api";
+import { addRoot, chooseRootFolder, getRoots, type RootEntry } from "../../api";
 import { useNotificationsStore } from "../../stores/notifications";
 import { usePerformanceStore } from "../../stores/performance";
 import { useProjectsStore } from "../../stores/projects";
@@ -152,6 +162,7 @@ const rootMenuOpen = ref(false);
 const rootFilterRef = ref<HTMLElement | null>(null);
 const rootPath = ref("");
 const rootSubmitting = ref(false);
+const rootPicking = ref(false);
 const WELCOME_DISMISSED_KEY = "dev-cockpit:onboarding-dismissed";
 const RUNTIME_REFRESH_INTERVAL_MS = 3_000;
 const OVERVIEW_REFRESH_INTERVAL_MS = 30_000;
@@ -253,6 +264,22 @@ async function submitRootFromDashboard(): Promise<void> {
     notifications.error(preferences.t("rootActionFailedNotice", { message: error instanceof Error ? error.message : String(error) }));
   } finally {
     rootSubmitting.value = false;
+  }
+}
+
+async function pickRootFolder(): Promise<void> {
+  if (rootPicking.value || rootSubmitting.value) return;
+  rootPicking.value = true;
+  try {
+    const result = await chooseRootFolder(rootPath.value);
+    if (!result.canceled && result.path) {
+      rootPath.value = result.path;
+      notifications.success(preferences.t("rootFolderSelectedNotice"));
+    }
+  } catch (error) {
+    notifications.error(preferences.t("rootFolderPickerFailedNotice", { message: error instanceof Error ? error.message : String(error) }));
+  } finally {
+    rootPicking.value = false;
   }
 }
 
