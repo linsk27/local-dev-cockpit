@@ -20,6 +20,7 @@ const WINDOWS_PATHEXT_SHIMS = new Set(["bundle", "composer", "conda", "dotnet", 
 const PACKAGE_MANAGER_COMMANDS = new Set(["npm", "npx", "pnpm", "yarn", "bun"]);
 const COREPACK_MANAGERS = new Set(["pnpm", "yarn"]);
 const PYTHON_COMMANDS = new Set(["python", "python3", "py"]);
+const JAVA_BUILD_COMMANDS = new Set(["mvn", "mvnw", "gradle", "gradlew"]);
 const VERIFIED_RUNTIME_COMMANDS = new Set(["bundle", "composer", "docker", "dotnet", "go", "gradle", "mvn", "php", "ruby", "cargo"]);
 const execFileAsync = promisify(execFile);
 
@@ -363,6 +364,7 @@ export async function resolveSpawnInvocation(command: Command, options: CommandR
   const platform = options.platform ?? process.platform;
   const commandName = command.command.trim();
   const lower = commandName.toLowerCase();
+  const normalized = normalizeExecutableName(commandName);
   if (PYTHON_COMMANDS.has(lower)) {
     const pythonInvocation = await resolvePythonInvocation(command, lower, platform, options);
     if (pythonInvocation) return pythonInvocation;
@@ -370,6 +372,8 @@ export async function resolveSpawnInvocation(command: Command, options: CommandR
   if (!PACKAGE_MANAGER_COMMANDS.has(lower)) {
     const missingRuntime = await missingVerifiedRuntimeMessage(commandName, platform, options.commandExists);
     if (missingRuntime) throw new Error(missingRuntime);
+    const missingJava = await missingJavaRuntimeForBuildTool(normalized, platform, options);
+    if (missingJava) throw new Error(missingJava);
     return createSpawnInvocation(commandName, command.args, platform);
   }
 
@@ -570,7 +574,8 @@ async function diagnoseProjectDependencyState(
   const normalized = normalizeExecutableName(command.command);
   if (PACKAGE_MANAGER_COMMANDS.has(normalized)) return diagnoseNodeDependencyState(command, options);
   if (PYTHON_COMMANDS.has(normalized)) return diagnosePythonDependencyState(command, options);
-  if (normalized === "mvn" || normalized === "gradle") return diagnoseJavaDependencyState(command, normalized, options);
+  const javaTool = javaBuildToolFromCommand(normalized);
+  if (javaTool) return diagnoseJavaDependencyState(command, javaTool, options);
   if (normalized === "php" || normalized === "composer") return diagnosePhpDependencyState(command, options);
   if (normalized === "bundle" || normalized === "ruby") return diagnoseRubyDependencyState(command, options);
   if (normalized === "dotnet") return diagnoseDotnetDependencyState(command, options);
@@ -896,6 +901,34 @@ async function missingVerifiedRuntimeMessage(
   if (!VERIFIED_RUNTIME_COMMANDS.has(normalized)) return undefined;
   if (await isCommandAvailable(normalized, platform, commandExists)) return undefined;
   return runtimeMissingMessage(normalized);
+}
+
+async function missingJavaRuntimeForBuildTool(
+  normalizedCommand: string,
+  platform: NodeJS.Platform,
+  options: CommandResolutionOptions
+): Promise<string | undefined> {
+  if (!JAVA_BUILD_COMMANDS.has(normalizedCommand)) return undefined;
+  if (await isJavaRuntimeAvailable(platform, options)) return undefined;
+  return "Java/JDK 不可用。Maven/Gradle 项目需要 Java。请安装 JDK，并配置 JAVA_HOME 或把 java 加入 PATH。";
+}
+
+async function isJavaRuntimeAvailable(platform: NodeJS.Platform, options: CommandResolutionOptions): Promise<boolean> {
+  if (await isCommandAvailable("java", platform, options.commandExists)) return true;
+
+  const env = options.env ?? process.env;
+  const javaHome = env.JAVA_HOME?.trim();
+  if (!javaHome) return false;
+
+  const javaExecutable = platform === "win32" ? "java.exe" : "java";
+  const fileExistsFn = options.fileExists ?? fileExists;
+  return fileExistsFn(path.join(javaHome, "bin", javaExecutable));
+}
+
+function javaBuildToolFromCommand(normalizedCommand: string): "mvn" | "gradle" | undefined {
+  if (normalizedCommand === "mvn" || normalizedCommand === "mvnw") return "mvn";
+  if (normalizedCommand === "gradle" || normalizedCommand === "gradlew") return "gradle";
+  return undefined;
 }
 
 async function findLocalPythonInterpreter(

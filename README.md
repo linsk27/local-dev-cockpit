@@ -140,7 +140,7 @@ Dev Cockpit 的运行按钮不是简单调用脚本，它会先做一次轻量�
 - 如果存在 `uv.lock`、`poetry.lock` / `[tool.poetry]` 或 `Pipfile`，且本机能找到对应工具，会分别通过 `uv run python ...`、`poetry run python ...`、`pipenv run python ...` 执行。
 - 如果用户是在已激活的终端里启动 Dev Cockpit，例如先 `conda activate api-env` 或激活 `.venv`，再运行 `npx local-dev-cockpit`，Dev Cockpit 会继承 `CONDA_PREFIX` / `CONDA_DEFAULT_ENV` / `VIRTUAL_ENV`，在没有更明确项目环境时用这个终端环境跑 Python 命令。
 - 如果没有项目环境，会回退到系统 `python`；Windows 上找不到 `python` 时会尝试 `py` launcher。
-- Java 项目会优先使用项目自带的 `mvnw` / `gradlew` wrapper；没有 wrapper 时才使用系统 `mvn` / `gradle`。
+- Java 项目会优先使用项目自带的 `mvnw` / `gradlew` wrapper；没有 wrapper 时才使用系统 `mvn` / `gradle`。无论使用 wrapper 还是系统 Maven/Gradle，启动前都会检查本机是否能找到 `java` 或有效的 `JAVA_HOME`。
 - Spring Boot 项目会识别 `spring-boot:run` / `bootRun`，普通 Maven/Gradle 项目仍提供 `test` 和 `build` 命令。
 - PHP 项目会识别 Laravel `artisan serve` 和常见 Composer scripts。
 - Ruby 项目会识别 Rails、Rack 和 `app.rb`，优先通过 `bundle exec` 运行。
@@ -156,7 +156,7 @@ Dev Cockpit 的运行按钮不是简单调用脚本，它会先做一次轻量�
 
 如果 Node 项目出现 `Cannot find package 'xxx'`、`Cannot find module 'xxx'`，或者 `vite` / `next` / `ts-node` 这类脚本命令找不到，Dev Cockpit 会提示先执行当前包管理器的 install 命令，例如 `pnpm install` / `npm install`，再按需安装缺失依赖。相对路径模块缺失会被当成源码或构建产物问题，不会误导用户安装一个不存在的 npm 包。
 
-诊断页也会做启动前预检：Node 项目如果有 `package.json` 依赖，但当前目录和父级目录都没有 `node_modules`，会提前提示先安装依赖；monorepo 子项目会复用父级 `node_modules`，缺依赖时也会提示到工作区根目录执行 install。Python 项目如果有 `requirements.txt` / `pyproject.toml` 但没有 `.venv`、Conda、uv、Poetry 或 Pipenv 环境入口，会提示当前会回退系统 Python，避免用户点运行后才看到一长串缺包日志。Java 会提示缺少 Maven/Gradle wrapper 的可移植性风险；PHP 会识别 `composer.json` 但缺少 `vendor/autoload.php`；Ruby 会提示 `Gemfile` 缺少 `Gemfile.lock`；.NET 会提示缺少 `obj/project.assets.json` 时应先 `dotnet restore`。
+诊断页也会做启动前预检：Node 项目如果有 `package.json` 依赖，但当前目录和父级目录都没有 `node_modules`，会提前提示先安装依赖；monorepo 子项目会复用父级 `node_modules`，缺依赖时也会提示到工作区根目录执行 install。Python 项目如果有 `requirements.txt` / `pyproject.toml` 但没有 `.venv`、Conda、uv、Poetry 或 Pipenv 环境入口，会提示当前会回退系统 Python，避免用户点运行后才看到一长串缺包日志。Java 会提示缺少 Maven/Gradle wrapper 的可移植性风险，也会在 JDK 不可用时直接拦截并提示配置 `JAVA_HOME` 或 `java`；PHP 会识别 `composer.json` 但缺少 `vendor/autoload.php`；Ruby 会提示 `Gemfile` 缺少 `Gemfile.lock`；.NET 会提示缺少 `obj/project.assets.json` 时应先 `dotnet restore`。
 
 ## 性能策略
 

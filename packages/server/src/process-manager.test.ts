@@ -324,6 +324,16 @@ describe("resolveSpawnInvocation", () => {
       })
     ).rejects.toThrow("dotnet 未安装或不在 PATH 中");
   });
+
+  it("requires Java for Maven wrapper commands", async () => {
+    await expect(
+      resolveSpawnInvocation(command({ command: "D:\\projects\\java-api\\mvnw.cmd", args: ["spring-boot:run"] }), {
+        platform: "win32",
+        commandExists: async () => false,
+        env: {}
+      })
+    ).rejects.toThrow("Java/JDK 不可用");
+  });
 });
 
 describe("diagnoseCommandEnvironment", () => {
@@ -439,13 +449,43 @@ describe("diagnoseCommandEnvironment", () => {
     await expect(
       diagnoseCommandEnvironment(command({ command: "mvn", args: ["spring-boot:run"], cwd: "D:\\projects\\java-api" }), {
         platform: "win32",
-        commandExists: async (name) => name === "mvn.cmd",
+        commandExists: async (name) => name === "mvn.cmd" || name === "java",
         fileExists: async (filePath) => filePath === "D:\\projects\\java-api\\pom.xml"
       })
     ).resolves.toMatchObject({
       status: "warn",
       summary: "Java 项目未提交 Maven wrapper。",
       detail: expect.stringContaining("mvnw")
+    });
+  });
+
+  it("marks Maven wrapper commands missing when Java is unavailable", async () => {
+    await expect(
+      diagnoseCommandEnvironment(command({ command: "D:\\projects\\java-api\\mvnw.cmd", args: ["spring-boot:run"], cwd: "D:\\projects\\java-api" }), {
+        platform: "win32",
+        commandExists: async () => false,
+        fileExists: async (filePath) =>
+          filePath === "D:\\projects\\java-api\\pom.xml" || filePath === "D:\\projects\\java-api\\mvnw.cmd",
+        env: {}
+      })
+    ).resolves.toMatchObject({
+      status: "missing",
+      detail: expect.stringContaining("Java/JDK 不可用")
+    });
+  });
+
+  it("treats Maven wrapper commands as ready when Java is available", async () => {
+    await expect(
+      diagnoseCommandEnvironment(command({ command: "D:\\projects\\java-api\\mvnw.cmd", args: ["spring-boot:run"], cwd: "D:\\projects\\java-api" }), {
+        platform: "win32",
+        commandExists: async (name) => name === "java",
+        fileExists: async (filePath) =>
+          filePath === "D:\\projects\\java-api\\pom.xml" || filePath === "D:\\projects\\java-api\\mvnw.cmd",
+        env: {}
+      })
+    ).resolves.toMatchObject({
+      status: "ready",
+      resolvedCommand: "D:\\projects\\java-api\\mvnw.cmd spring-boot:run"
     });
   });
 
