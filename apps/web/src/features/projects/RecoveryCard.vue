@@ -1,31 +1,54 @@
 <template>
-  <section class="recovery surface">
-    <div class="recovery-main">
-      <div class="project-title-row">
-        <div class="project-title-copy">
-          <h2>{{ project.name }}</h2>
-          <p class="project-path" :title="project.path">{{ project.path }}</p>
-        </div>
-        <div class="quick-actions" :aria-label="preferences.t('quickActions')">
-          <button class="text-button quick-action" type="button" :title="preferences.t('openFolder')" @click="openFolder">
-            <FolderOpen :size="14" />
-            <span>{{ preferences.t("openFolder") }}</span>
-          </button>
-          <button class="text-button quick-action" type="button" :title="preferences.t('openEditor')" @click="openEditor">
-            <Code2 :size="14" />
-            <span>{{ preferences.t("openEditor") }}</span>
-          </button>
-          <button class="text-button quick-action" type="button" :title="preferences.t('copyPath')" @click="copyProjectPath">
-            <Copy :size="14" />
-            <span>{{ preferences.t("copyPath") }}</span>
-          </button>
-          <button class="text-button quick-action" type="button" :title="preferences.t('copyAiContext')" @click="copyProjectContext">
-            <Bot :size="14" />
-            <span>{{ preferences.t("copyAiContext") }}</span>
-          </button>
-        </div>
+  <section class="project-overview-card surface">
+    <div class="project-overview-header">
+      <div class="project-title-copy">
+        <h2>{{ project.name }}</h2>
+        <p class="project-path" :title="project.path">{{ project.path }}</p>
       </div>
+      <div class="quick-actions" :aria-label="preferences.t('quickActions')">
+        <button class="text-button quick-action" type="button" :title="preferences.t('openFolder')" @click="openFolder">
+          <FolderOpen :size="14" />
+          <span>{{ preferences.t("openFolder") }}</span>
+        </button>
+        <button class="text-button quick-action" type="button" :title="preferences.t('openEditor')" @click="openEditor">
+          <Code2 :size="14" />
+          <span>{{ preferences.t("openEditor") }}</span>
+        </button>
+        <button class="text-button quick-action" type="button" :title="preferences.t('copyPath')" @click="copyProjectPath">
+          <Copy :size="14" />
+          <span>{{ preferences.t("copyPath") }}</span>
+        </button>
+        <button class="text-button quick-action" type="button" :title="preferences.t('copyAiContext')" @click="copyProjectContext">
+          <Bot :size="14" />
+          <span>{{ preferences.t("copyAiContext") }}</span>
+        </button>
+      </div>
+    </div>
 
+    <div class="project-meta-strip">
+      <div class="fact">
+        <span>{{ preferences.t("stack") }}</span>
+        <strong>{{ project.kind }}</strong>
+      </div>
+      <div class="fact">
+        <span>{{ preferences.t("branch") }}</span>
+        <strong>{{ project.git.branch }}</strong>
+      </div>
+      <div class="fact">
+        <span>{{ preferences.t("dirty") }}</span>
+        <strong>{{ project.git.dirtyCount }}</strong>
+      </div>
+      <div class="fact">
+        <span>{{ preferences.t("runtimeSource") }}</span>
+        <strong>{{ sourceLabel }}</strong>
+      </div>
+      <div class="fact">
+        <span>{{ preferences.t("ports") }}</span>
+        <strong>{{ ports }}</strong>
+      </div>
+    </div>
+
+    <div class="runtime-panel" :class="statusTone">
       <div class="project-status-card" :class="statusTone">
         <span class="project-status-icon">
           <Activity :size="15" />
@@ -93,28 +116,6 @@
             </button>
           </span>
         </div>
-      </div>
-    </div>
-    <div class="recovery-facts">
-      <div class="fact">
-        <span>{{ preferences.t("stack") }}</span>
-        <strong>{{ project.kind }}</strong>
-      </div>
-      <div class="fact">
-        <span>{{ preferences.t("branch") }}</span>
-        <strong>{{ project.git.branch }}</strong>
-      </div>
-      <div class="fact">
-        <span>{{ preferences.t("dirty") }}</span>
-        <strong>{{ project.git.dirtyCount }}</strong>
-      </div>
-      <div class="fact">
-        <span>{{ preferences.t("runtimeSource") }}</span>
-        <strong>{{ sourceLabel }}</strong>
-      </div>
-      <div class="fact">
-        <span>{{ preferences.t("ports") }}</span>
-        <strong>{{ ports }}</strong>
       </div>
     </div>
   </section>

@@ -964,27 +964,19 @@ h2 {
   padding-right: 2px;
 }
 
-.recovery {
-  display: grid;
-  grid-template-columns: minmax(0, 1.6fr) minmax(260px, 0.9fr);
-  align-items: stretch;
-  gap: 16px;
-  min-width: 0;
-  padding: 18px;
-}
-
-.recovery-main {
+.project-overview-card {
   display: grid;
   align-content: start;
-  gap: 14px;
+  gap: 16px;
   min-width: 0;
+  padding: 16px;
 }
 
-.project-title-row {
+.project-overview-header {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: start;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
   min-width: 0;
 }
 
@@ -1016,7 +1008,7 @@ h2 {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  justify-content: flex-start;
+  justify-content: flex-end;
   gap: 8px;
   margin-top: 0;
 }
@@ -1033,39 +1025,61 @@ h2 {
   color: var(--text);
 }
 
+.project-meta-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.runtime-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(240px, 0.75fr);
+  gap: 12px;
+  align-items: stretch;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--surface-soft) 72%, transparent), transparent 64%),
+    color-mix(in srgb, var(--panel-solid) 58%, transparent);
+}
+
+.runtime-panel.good {
+  border-color: color-mix(in srgb, var(--success) 24%, var(--border));
+}
+
+.runtime-panel.warn {
+  border-color: color-mix(in srgb, var(--warn) 28%, var(--border));
+}
+
+.runtime-panel.danger {
+  border-color: color-mix(in srgb, var(--danger) 24%, var(--border));
+}
+
 .project-status-card {
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr);
   gap: 12px;
   align-items: start;
   min-width: 0;
-  padding: 14px;
-  border: 1px solid var(--border);
+  padding: 10px;
+  border: 0;
   border-radius: 10px;
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--surface-soft) 74%, transparent), transparent 72%),
-    color-mix(in srgb, var(--panel-solid) 74%, transparent);
+  background: transparent;
 }
 
 .project-status-card.good {
-  border-color: color-mix(in srgb, var(--success) 28%, var(--border));
-  background:
-    radial-gradient(circle at 16px 18px, color-mix(in srgb, var(--success) 12%, transparent), transparent 120px),
-    color-mix(in srgb, var(--panel-solid) 78%, transparent);
+  background: radial-gradient(circle at 16px 18px, color-mix(in srgb, var(--success) 10%, transparent), transparent 180px);
 }
 
 .project-status-card.warn {
-  border-color: color-mix(in srgb, var(--warn) 34%, var(--border));
-  background:
-    radial-gradient(circle at 16px 18px, color-mix(in srgb, var(--warn) 12%, transparent), transparent 120px),
-    color-mix(in srgb, var(--panel-solid) 78%, transparent);
+  background: radial-gradient(circle at 16px 18px, color-mix(in srgb, var(--warn) 10%, transparent), transparent 180px);
 }
 
 .project-status-card.danger {
-  border-color: color-mix(in srgb, var(--danger) 28%, var(--border));
-  background:
-    radial-gradient(circle at 16px 18px, color-mix(in srgb, var(--danger) 10%, transparent), transparent 120px),
-    color-mix(in srgb, var(--panel-solid) 78%, transparent);
+  background: radial-gradient(circle at 16px 18px, color-mix(in srgb, var(--danger) 10%, transparent), transparent 180px);
 }
 
 .project-status-card strong,
@@ -1116,8 +1130,10 @@ h2 {
 .port-overview {
   display: grid;
   gap: 9px;
+  align-content: center;
   min-width: 0;
-  padding-top: 2px;
+  padding: 10px 12px;
+  border-left: 1px solid var(--border);
 }
 
 .port-group {
@@ -1201,22 +1217,14 @@ h2 {
   opacity: 0.62;
 }
 
-.recovery-facts {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 9px;
-  align-content: stretch;
-  min-width: 0;
-}
-
 .fact {
   display: grid;
   align-content: space-between;
   min-width: 0;
-  min-height: 76px;
-  padding: 13px;
+  min-height: 62px;
+  padding: 10px 11px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 9px;
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--surface-soft) 82%, transparent), transparent 120%),
     color-mix(in srgb, var(--panel-solid) 68%, transparent);
@@ -1229,7 +1237,7 @@ h2 {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text-strong);
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1.1;
 }
 
@@ -2528,9 +2536,14 @@ h2 {
     padding: 16px;
   }
 
-  .recovery,
+  .runtime-panel,
   .detail-grid {
     grid-template-columns: 1fr;
+  }
+
+  .port-overview {
+    border-left: 0;
+    border-top: 1px solid var(--border);
   }
 
   .diagnostics-list {
@@ -2547,8 +2560,16 @@ h2 {
     width: min(360px, 42vw);
   }
 
-  .recovery-facts {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .project-overview-header {
+    grid-template-columns: 1fr;
+  }
+
+  .quick-actions {
+    justify-content: flex-start;
+  }
+
+  .project-meta-strip {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   }
 
   .onboarding-steps {
@@ -2629,16 +2650,12 @@ h2 {
     width: 100%;
   }
 
-  .project-title-row {
-    grid-template-columns: 1fr;
-  }
-
   .detail-tab {
     flex: 1 1 0;
     min-width: max-content;
   }
 
-  .recovery-facts {
+  .project-meta-strip {
     grid-template-columns: 1fr;
   }
 
