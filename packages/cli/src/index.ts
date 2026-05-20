@@ -21,8 +21,9 @@ import {
   resolveAppPaths,
   startDevCockpitServer
 } from "@local-dev-cockpit/server";
+import { noCommandGuidance, shouldInspectPythonEnvironment } from "./doctor-guidance.js";
 
-const CLI_VERSION = "0.1.10";
+const CLI_VERSION = "0.1.11";
 
 const program = new Command()
   .name("local-dev-cockpit")
@@ -113,6 +114,7 @@ program
       }
       if (project.commands.length === 0) {
         process.stdout.write("No runnable command detected for this project.\n");
+        process.stdout.write(`Hint: ${noCommandGuidance(project)}\n`);
         if (shouldInspectPythonEnvironment(project)) {
           await printPythonEnvironmentCandidates(project.path);
         }
@@ -219,17 +221,4 @@ async function printPythonEnvironmentCandidates(projectPath: string): Promise<vo
     process.stdout.write("\nPython environment candidates\n");
     process.stdout.write(`- unable to inspect candidates: ${error instanceof Error ? error.message : String(error)}\n`);
   }
-}
-
-function isPythonCommand(commandName: string): boolean {
-  const normalized = path.basename(commandName).replace(/\.(exe|cmd|bat)$/i, "").toLowerCase();
-  return normalized === "python" || normalized === "python3" || normalized === "py";
-}
-
-function shouldInspectPythonEnvironment(project: { kind: string; markers: string[]; commands: Array<{ command: string }> }): boolean {
-  if (project.kind === "python" || project.kind === "mixed") return true;
-  if (project.commands.some((command) => isPythonCommand(command.command))) return true;
-  return project.markers.some((marker) =>
-    ["requirements.txt", "requirements-dev.txt", "pyproject.toml", "environment.yml", "environment.yaml", "Pipfile", "poetry.lock"].includes(marker)
-  );
 }
