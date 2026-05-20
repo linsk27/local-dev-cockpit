@@ -210,7 +210,7 @@ npx local-dev-cockpit context D:\个人\my-project
 npx local-dev-cockpit context D:\个人\my-project --write
 ```
 
-`doctor <项目路径>` 对 Python 项目会额外列出检测到的环境候选，例如 `.venv`、父级工作区虚拟环境、`.vscode/settings.json`、`environment.yml` 和本机 Conda 环境。终端用户可以用它确认 Dev Cockpit 实际会选哪个解释器；桌面版用户可以把候选里的 `conda:环境名` 或 `python.exe` 路径填到项目详情的“运行环境”区域。
+`doctor <项目路径>` 对 Python 项目会额外列出检测到的环境候选，例如 `.venv`、父级工作区虚拟环境、`.vscode/settings.json`、`environment.yml` 和本机 Conda 环境。它也会读取面板里已经保存的项目级 Python/Conda 绑定，所以终端诊断和桌面面板的启动逻辑保持一致。终端用户可以用它确认 Dev Cockpit 实际会选哪个解释器；桌面版用户可以把候选里的 `conda:环境名` 或 `python.exe` 路径填到项目详情的“运行环境”区域。
 
 ## 页面结构
 

@@ -3,4 +3,4 @@ export { startDevCockpitServer } from "./server.js";
 export type { CommandEnvironmentDiagnostic, PythonEnvironmentCandidate } from "./process-manager.js";
 export { diagnoseCommandEnvironment, discoverPythonEnvironmentCandidates } from "./process-manager.js";
 export { resolveAppPaths } from "./paths.js";
-export { JsonStore } from "./store.js";
+export { JsonStore, projectEnvironmentForPath } from "./store.js";

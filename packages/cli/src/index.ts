@@ -17,6 +17,7 @@ import {
   diagnoseCommandEnvironment,
   discoverPythonEnvironmentCandidates,
   JsonStore,
+  projectEnvironmentForPath,
   resolveAppPaths,
   startDevCockpitServer
 } from "@local-dev-cockpit/server";
@@ -98,19 +99,27 @@ program
     }
 
     if (projectPath) {
+      const store = new JsonStore(resolveAppPaths(), process.cwd());
+      const config = await store.readConfig();
       const project = await analyzeProject(path.resolve(projectPath), {
         fs: new NodeFileSystemAdapter(),
         process: new NodeProcessAdapter()
       });
       process.stdout.write(`\nProject: ${project.name} [${project.kind}]\n`);
       process.stdout.write(`Path: ${project.path}\n`);
+      const configuredEnvironment = projectEnvironmentForPath(config, project.path);
+      if (configuredEnvironment?.python) {
+        process.stdout.write(`Configured Python environment: ${configuredEnvironment.python}\n`);
+      }
       if (project.commands.length === 0) {
         process.stdout.write("No runnable command detected for this project.\n");
         return;
       }
       process.stdout.write("\nCommand environments\n");
       for (const command of project.commands) {
-        const diagnostic = await diagnoseCommandEnvironment(command);
+        const diagnostic = await diagnoseCommandEnvironment(command, {
+          projectEnvironment: projectEnvironmentForPath(config, command.cwd)
+        });
         const status = diagnostic.status === "ready" ? "ok" : diagnostic.status;
         process.stdout.write(`[${status}] ${diagnostic.label}: ${diagnostic.summary}\n`);
         process.stdout.write(`       ${diagnostic.detail}\n`);
