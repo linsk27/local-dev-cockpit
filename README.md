@@ -69,6 +69,7 @@ Dev Cockpit 只做一件事：本地项目现场恢复。它不接云端账号�
 - 自动扫描 Git 项目和常见技术栈项目。
 - 识别 Node、Python、Java、PHP、Ruby、.NET、Go、Rust、Docker 和混合项目。
 - 从 `package.json`、Flask/FastAPI/Django、Maven/Gradle/Spring Boot、Laravel/Composer、Rails/Rack、.NET、Go、Cargo、Docker Compose 推断常用命令。
+- Python 后端会识别 `app.py`、`main.py`、`app/main.py`、`src/app/main.py`、`server.py`、`api.py` 等常见入口；Flask 默认用 `python -m flask --app ... run`，FastAPI 默认用 `python -m uvicorn ...`，让启动地址更容易被浏览器访问。
 - 遇到 `pnpm-workspace.yaml`、`turbo.json`、`nx.json`、`lerna.json`、`rush.json` 这类 monorepo 根目录时，会继续向 `apps`、`packages`、`services`、`frontend`、`backend` 等子目录扫描，不会只停在根目录。
 - Node 项目会优先读取 `packageManager` 字段；没有声明时按 lockfile 推断，混有 `package-lock.json` 和 `yarn.lock` 时默认选择更常见且更容易可用的 npm，减少 `yarn.cmd` 缺失这类误启动。
 - 显示 Git 分支、未提交文件数、最近提交、端口状态和最近失败。

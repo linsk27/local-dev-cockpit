@@ -29,6 +29,19 @@ const DEFAULT_IGNORE_NAMES = new Set([
 
 const CHILD_PROJECT_DIRECTORY_HINTS = new Set(["frontend", "front", "backend", "api", "server", "client", "web", "apps", "packages", "services"]);
 const NODE_WORKSPACE_MARKERS = new Set(["pnpm-workspace.yaml", "turbo.json", "nx.json", "lerna.json", "rush.json"]);
+const PYTHON_ENTRYPOINT_MARKERS = [
+  "app/main.py",
+  "src/app/main.py",
+  "main.py",
+  "src/main.py",
+  "app.py",
+  "src/app.py",
+  "server.py",
+  "api.py",
+  "application.py",
+  "wsgi.py",
+  "asgi.py"
+];
 
 const COMMON_PORTS_BY_KIND: Record<ProjectKind, number[]> = {
   node: [3000, 5173, 4173, 8080],
@@ -214,9 +227,7 @@ async function detectMarkers(projectPath: string, fs: FileSystemAdapter): Promis
     "pyproject.toml",
     "manage.py",
     "run.py",
-    "app.py",
-    "main.py",
-    "app/main.py",
+    ...PYTHON_ENTRYPOINT_MARKERS,
     "go.mod",
     "pom.xml",
     "build.gradle",
@@ -262,7 +273,7 @@ async function detectMarkers(projectPath: string, fs: FileSystemAdapter): Promis
 function resolveProjectKind(markers: string[]): ProjectKind {
   const kinds = new Set<ProjectKind>();
   if (markers.includes("package.json") || markers.some((marker) => NODE_WORKSPACE_MARKERS.has(marker))) kinds.add("node");
-  if (markers.some((marker) => ["requirements.txt", "pyproject.toml", "manage.py", "run.py", "app.py", "main.py", "app/main.py"].includes(marker))) {
+  if (markers.some((marker) => ["requirements.txt", "pyproject.toml", "manage.py", "run.py", ...PYTHON_ENTRYPOINT_MARKERS].includes(marker))) {
     kinds.add("python");
   }
   if (markers.some((marker) => ["pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts", "mvnw", "mvnw.cmd", "gradlew", "gradlew.bat"].includes(marker))) {
@@ -331,14 +342,33 @@ async function detectCommands(
       )
     );
   }
+  const flaskEntrypoint = await detectFlaskEntrypoint(projectPath, markers, fs);
+  if (flaskEntrypoint) {
+    commands.push(
+      command(
+        `python-flask-${flaskEntrypoint.module.replace(/\W/g, "-")}`,
+        `Flask ${flaskEntrypoint.module}`,
+        "python",
+        ["-m", "flask", "--app", flaskEntrypoint.module, "run", "--host", "127.0.0.1", "--port", "5000"],
+        projectPath,
+        "detected",
+        "dev"
+      )
+    );
+  }
   if (markers.includes("run.py")) {
     commands.push(command("python-run", "Run run.py", "python", ["run.py"], projectPath, "detected", "dev"));
   }
-  if (markers.includes("app.py") && fastApiEntrypoint?.marker !== "app.py") {
+  if (markers.includes("app.py") && !isDetectedPythonWebEntrypoint("app.py", fastApiEntrypoint, flaskEntrypoint)) {
     commands.push(command("python-app", "Run app.py", "python", ["app.py"], projectPath, "detected", "dev"));
   }
-  if (markers.includes("main.py") && fastApiEntrypoint?.marker !== "main.py") {
+  if (markers.includes("main.py") && !isDetectedPythonWebEntrypoint("main.py", fastApiEntrypoint, flaskEntrypoint)) {
     commands.push(command("python-main", "Run main.py", "python", ["main.py"], projectPath, "detected", "dev"));
+  }
+  for (const marker of ["server.py", "api.py", "application.py"]) {
+    if (markers.includes(marker) && !isDetectedPythonWebEntrypoint(marker, fastApiEntrypoint, flaskEntrypoint)) {
+      commands.push(command(`python-${marker.replace(/\.py$/, "")}`, `Run ${marker}`, "python", [marker], projectPath, "detected", "dev"));
+    }
   }
   if (markers.includes("go.mod")) {
     commands.push(command("go-run", "Go run", "go", ["run", "."], projectPath, "detected", "dev"));
@@ -465,17 +495,47 @@ async function detectFastApiEntrypoint(
   markers: string[],
   fs: FileSystemAdapter
 ): Promise<{ marker: string; module: string } | undefined> {
-  for (const marker of ["app/main.py", "main.py", "app.py"]) {
+  for (const marker of PYTHON_ENTRYPOINT_MARKERS) {
     if (!markers.includes(marker)) continue;
     try {
       const source = await fs.readFile(path.join(projectPath, marker));
       if (!/\bFastAPI\s*\(/.test(source)) continue;
-      return { marker, module: marker.replace(/\.py$/, "").replace(/[\\/]/g, ".") };
+      return { marker, module: pythonModuleName(marker) };
     } catch {
       // If an entrypoint disappears during scanning, skip it and continue.
     }
   }
   return undefined;
+}
+
+async function detectFlaskEntrypoint(
+  projectPath: string,
+  markers: string[],
+  fs: FileSystemAdapter
+): Promise<{ marker: string; module: string } | undefined> {
+  for (const marker of PYTHON_ENTRYPOINT_MARKERS) {
+    if (!markers.includes(marker)) continue;
+    try {
+      const source = await fs.readFile(path.join(projectPath, marker));
+      if (!/\bFlask\s*\(/.test(source) && !/\bfrom\s+flask\s+import\b|\bimport\s+flask\b/i.test(source)) continue;
+      return { marker, module: pythonModuleName(marker) };
+    } catch {
+      // If an entrypoint disappears during scanning, skip it and continue.
+    }
+  }
+  return undefined;
+}
+
+function isDetectedPythonWebEntrypoint(
+  marker: string,
+  fastApiEntrypoint?: { marker: string },
+  flaskEntrypoint?: { marker: string }
+): boolean {
+  return fastApiEntrypoint?.marker === marker || flaskEntrypoint?.marker === marker;
+}
+
+function pythonModuleName(marker: string): string {
+  return marker.replace(/\.py$/, "").replace(/[\\/]/g, ".");
 }
 
 async function readPackageScripts(projectPath: string, packageManager: NonNullable<Project["packageManager"]>, fs: FileSystemAdapter): Promise<Command[]> {

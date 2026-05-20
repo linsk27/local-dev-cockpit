@@ -227,6 +227,51 @@ describe("scanRoot", () => {
     expect(project?.commands.find((command) => command.id === "python-run")?.args).toEqual(["run.py"]);
   });
 
+  it("detects Flask apps as a browser-reachable dev command", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-python-flask-"));
+    const backend = path.join(root, "flask-api");
+    await fs.mkdir(backend, { recursive: true });
+    await fs.writeFile(path.join(backend, "requirements.txt"), "flask\n", "utf8");
+    await fs.writeFile(path.join(backend, "app.py"), "from flask import Flask\napp = Flask(__name__)\n", "utf8");
+
+    const result = await scanRoot(root, { maxDepth: 2 });
+    const project = result.projects.find((item) => item.name === "flask-api");
+
+    expect(project?.commands.find((command) => command.id === "python-flask-app")?.args).toEqual([
+      "-m",
+      "flask",
+      "--app",
+      "app",
+      "run",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "5000"
+    ]);
+    expect(project?.commands.find((command) => command.id === "python-app")).toBeUndefined();
+  });
+
+  it("detects nested src FastAPI entrypoints", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-python-src-fastapi-"));
+    const backend = path.join(root, "api");
+    await fs.mkdir(path.join(backend, "src", "app"), { recursive: true });
+    await fs.writeFile(path.join(backend, "pyproject.toml"), "[project]\nname='api'\n", "utf8");
+    await fs.writeFile(path.join(backend, "src", "app", "main.py"), "from fastapi import FastAPI\napp = FastAPI()\n", "utf8");
+
+    const result = await scanRoot(root, { maxDepth: 4 });
+    const project = result.projects.find((item) => item.name === "api");
+
+    expect(project?.commands.find((command) => command.id === "python-fastapi-src-app-main")?.args).toEqual([
+      "-m",
+      "uvicorn",
+      "src.app.main:app",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "8000"
+    ]);
+  });
+
   it("detects Maven Spring Boot projects and prefers the Maven wrapper", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-java-maven-"));
     const api = path.join(root, "spring-api");
