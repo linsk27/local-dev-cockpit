@@ -15,7 +15,7 @@ import {
 } from "@local-dev-cockpit/core";
 import { diagnoseCommandEnvironment, JsonStore, resolveAppPaths, startDevCockpitServer } from "@local-dev-cockpit/server";
 
-const CLI_VERSION = "0.1.6";
+const CLI_VERSION = "0.1.7";
 
 const program = new Command()
   .name("local-dev-cockpit")

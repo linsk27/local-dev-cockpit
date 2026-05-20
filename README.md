@@ -137,6 +137,7 @@ Dev Cockpit 的运行按钮不是简单调用脚本，它会先做一次轻量�
 - 如果项目拆成 `frontend` / `backend`，后端目录没有虚拟环境，也会检查上一层工作区里的虚拟环境。
 - 如果存在 `environment.yml` / `environment.yaml`，且本机能找到 Conda，会按里面的 `name:` 使用 `conda run -n <env> ...`。
 - 如果存在 `uv.lock`、`poetry.lock` / `[tool.poetry]` 或 `Pipfile`，且本机能找到对应工具，会分别通过 `uv run python ...`、`poetry run python ...`、`pipenv run python ...` 执行。
+- 如果用户是在已激活的终端里启动 Dev Cockpit，例如先 `conda activate api-env` 或激活 `.venv`，再运行 `npx local-dev-cockpit`，Dev Cockpit 会继承 `CONDA_PREFIX` / `CONDA_DEFAULT_ENV` / `VIRTUAL_ENV`，在没有更明确项目环境时用这个终端环境跑 Python 命令。
 - 如果没有项目环境，会回退到系统 `python`；Windows 上找不到 `python` 时会尝试 `py` launcher。
 - Java 项目会优先使用项目自带的 `mvnw` / `gradlew` wrapper；没有 wrapper 时才使用系统 `mvn` / `gradle`。
 - Spring Boot 项目会识别 `spring-boot:run` / `bootRun`，普通 Maven/Gradle 项目仍提供 `test` 和 `build` 命令。
@@ -145,6 +146,8 @@ Dev Cockpit 的运行按钮不是简单调用脚本，它会先做一次轻量�
 - .NET 项目会识别 `.csproj` / `.sln`，提供 `dotnet run`、`dotnet test` 和 `dotnet build`。
 
 这部分仍然保持本地确定性规则，不会上传代码，也不会自动安装依赖。若环境本身没有创建，面板会在日志里给出原因，而不是假装已经成功启动。
+
+注意：Windows 桌面双击启动的应用不能读取另一个终端窗口里 `conda activate` 后的状态，因为环境变量只会从父进程继承。别人平时用终端启动 Conda 项目时，可以从同一个已激活终端启动 `npx local-dev-cockpit`；如果用桌面安装版，建议项目里保留 `.venv` / `.conda` / `environment.yml` / `.vscode/settings.json` 这类可发现配置。
 
 如果 Python 项目启动后出现 `ModuleNotFoundError: No module named 'xxx'`，Dev Cockpit 会在最近失败里提取缺失模块，并提示在当前 Python 环境中运行 `python -m pip install xxx`。如果依赖已经安装过，通常说明 IDE、终端和 Dev Cockpit 使用的不是同一个 `.venv` / Conda 环境。
 
@@ -291,4 +294,4 @@ apps/desktop     Electron 桌面壳，复用同一套 server 和 Vue 面板
 
 ## 当前阶段
 
-当前是 `0.1.6` 可运行原型，重点验证方向：本地项目恢复、日志聚合、运行地址识别、AI 上下文生成、运行环境诊断、简洁面板体验、Windows 安装更新流程和 Dev Pilot 首屏品牌体验。下一步会继续减少操作步骤，补充更多真实项目扫描样本、进程异常恢复和配置编辑能力。
+当前是 `0.1.7` 可运行原型，重点验证方向：本地项目恢复、日志聚合、运行地址识别、AI 上下文生成、运行环境诊断、终端 Conda/venv 继承、简洁面板体验、Windows 安装更新流程和 Dev Pilot 首屏品牌体验。下一步会继续减少操作步骤，补充更多真实项目扫描样本、进程异常恢复和配置编辑能力。

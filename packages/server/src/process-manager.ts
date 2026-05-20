@@ -43,6 +43,7 @@ interface CommandResolutionOptions {
   commandExists?: (command: string, platform: NodeJS.Platform) => Promise<boolean>;
   fileExists?: (filePath: string) => Promise<boolean>;
   readFile?: (filePath: string) => Promise<string>;
+  env?: NodeJS.ProcessEnv;
 }
 
 /**
@@ -455,6 +456,7 @@ async function diagnosePythonDependencyState(
   if (await findLocalPythonInterpreter(command.cwd, platform, options.fileExists)) return undefined;
   if (await findDeclaredCondaEnvironment(command.cwd, options)) return undefined;
   if (await findPythonProjectRunner(command.cwd, platform, options)) return undefined;
+  if (await resolveInheritedPythonInvocation(command, normalizeExecutableName(command.command), platform, options)) return undefined;
 
   return {
     summary: "Python 项目依赖环境未固定。",
@@ -657,6 +659,9 @@ async function resolvePythonInvocation(
     };
   }
 
+  const inheritedInvocation = await resolveInheritedPythonInvocation(command, lowerCommand, platform, options);
+  if (inheritedInvocation) return inheritedInvocation;
+
   if (await isCommandAvailable(command.command, platform, options.commandExists)) return undefined;
   if (platform === "win32" && lowerCommand !== "py" && (await isCommandAvailable("py", platform, options.commandExists))) {
     return {
@@ -731,6 +736,39 @@ async function findConfiguredPythonInterpreter(
       }
     }
   }
+  return undefined;
+}
+
+async function resolveInheritedPythonInvocation(
+  command: Command,
+  lowerCommand: string,
+  platform: NodeJS.Platform,
+  options: CommandResolutionOptions
+): Promise<SpawnInvocation | undefined> {
+  const env = options.env ?? process.env;
+  const fileExistsFn = options.fileExists ?? fileExists;
+  const activeEnvPath = env.VIRTUAL_ENV || env.CONDA_PREFIX;
+  if (activeEnvPath) {
+    const label = env.CONDA_PREFIX ? "当前终端 Conda 环境" : "当前终端虚拟环境";
+    for (const pythonPath of candidatePythonInterpreterPaths(activeEnvPath, platform)) {
+      if (await fileExistsFn(pythonPath)) {
+        return {
+          ...createSpawnInvocation(pythonPath, command.args, platform),
+          note: `已使用${label}：${pythonPath}。`
+        };
+      }
+    }
+  }
+
+  const condaName = env.CONDA_DEFAULT_ENV?.trim();
+  if (condaName && condaName.toLowerCase() !== "base" && (await isCommandAvailable("conda", platform, options.commandExists))) {
+    const pythonCommand = lowerCommand === "py" ? "python" : command.command;
+    return {
+      ...createSpawnInvocation("conda", ["run", "-n", condaName, pythonCommand, ...command.args], platform),
+      note: `已通过当前终端 Conda 环境 ${condaName} 运行。`
+    };
+  }
+
   return undefined;
 }
 

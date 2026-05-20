@@ -141,6 +141,37 @@ describe("resolveSpawnInvocation", () => {
     });
   });
 
+  it("uses an inherited Conda environment when Dev Cockpit is started from an activated terminal", async () => {
+    const condaPrefix = "C:\\Users\\tester\\miniconda3\\envs\\terminal-api";
+    const condaPython = `${condaPrefix}\\python.exe`;
+    await expect(
+      resolveSpawnInvocation(command({ command: "python", args: ["app.py"], cwd: "D:\\projects\\api" }), {
+        platform: "win32",
+        env: { CONDA_PREFIX: condaPrefix, CONDA_DEFAULT_ENV: "terminal-api" },
+        fileExists: async (filePath) => filePath === condaPython,
+        commandExists: async () => false
+      })
+    ).resolves.toEqual({
+      command: condaPython,
+      args: ["app.py"],
+      note: `已使用当前终端 Conda 环境：${condaPython}。`
+    });
+  });
+
+  it("uses an inherited virtualenv when Dev Cockpit is started from an activated terminal", async () => {
+    await expect(
+      resolveSpawnInvocation(command({ command: "python", args: ["app.py"], cwd: "D:\\projects\\api" }), {
+        platform: "win32",
+        env: { VIRTUAL_ENV: "D:\\projects\\api\\.venv" },
+        fileExists: async (filePath) => filePath === "D:\\projects\\api\\.venv\\Scripts\\python.exe",
+        commandExists: async () => false
+      })
+    ).resolves.toMatchObject({
+      command: "D:\\projects\\api\\.venv\\Scripts\\python.exe",
+      args: ["app.py"]
+    });
+  });
+
   it("runs Python commands through a declared Conda environment when no local env exists", async () => {
     await expect(
       resolveSpawnInvocation(command({ command: "python", args: ["run.py"], cwd: "D:\\projects\\conda-api" }), {
@@ -299,6 +330,22 @@ describe("diagnoseCommandEnvironment", () => {
       status: "warn",
       summary: "Python 项目依赖环境未固定。",
       detail: expect.stringContaining("系统 Python")
+    });
+  });
+
+  it("does not warn when the launching terminal has an active Conda environment", async () => {
+    await expect(
+      diagnoseCommandEnvironment(command({ command: "python", args: ["app.py"], cwd: "D:\\projects\\api" }), {
+        platform: "win32",
+        env: { CONDA_PREFIX: "C:\\Users\\tester\\miniconda3\\envs\\api-env" },
+        fileExists: async (filePath) =>
+          filePath === "D:\\projects\\api\\requirements.txt" ||
+          filePath === "C:\\Users\\tester\\miniconda3\\envs\\api-env\\python.exe",
+        commandExists: async () => false
+      })
+    ).resolves.toMatchObject({
+      status: "ready",
+      resolvedCommand: "C:\\Users\\tester\\miniconda3\\envs\\api-env\\python.exe app.py"
     });
   });
 

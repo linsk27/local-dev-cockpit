@@ -1,6 +1,6 @@
 {
   "name": "local-dev-cockpit",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Local developer cockpit for projects, processes, logs, ports, Git state, and AI context.",
   "license": "MIT",
   "type": "module",
