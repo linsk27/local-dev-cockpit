@@ -110,7 +110,7 @@ export interface PythonEnvironmentCandidate {
   id: string;
   label: string;
   value: string;
-  source: "manual" | "vscode" | "local" | "conda-file" | "terminal";
+  source: "manual" | "vscode" | "local" | "conda-file" | "conda-list" | "terminal";
   detail: string;
 }
 

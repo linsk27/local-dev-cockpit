@@ -3,6 +3,7 @@ import type { Command } from "@local-dev-cockpit/core";
 import {
   diagnoseCommandEnvironment,
   discoverPythonEnvironmentCandidates,
+  parseCondaEnvironmentPaths,
   resolveSpawnInvocation,
   summarizeFailedRun,
   toNpmRunArgs,
@@ -481,6 +482,7 @@ describe("discoverPythonEnvironmentCandidates", () => {
     const candidates = await discoverPythonEnvironmentCandidates(projectPath, {
       platform: "win32",
       env: { CONDA_PREFIX: "C:\\Users\\tester\\miniconda3\\envs\\terminal-api", CONDA_DEFAULT_ENV: "terminal-api" },
+      commandExists: async () => false,
       fileExists: async (filePath) =>
         [settingsPath, vscodePython, localPython, parentPython, terminalPython, "D:\\projects\\workspace\\environment.yml"].includes(filePath),
       readFile: async (filePath) =>
@@ -496,6 +498,40 @@ describe("discoverPythonEnvironmentCandidates", () => {
         expect.objectContaining({ value: terminalPython, source: "terminal" })
       ])
     );
+  });
+
+  it("lists Conda environments on demand without requiring editor state", async () => {
+    const projectPath = "D:\\projects\\workspace\\backend";
+    const apiEnv = "C:\\Users\\tester\\miniconda3\\envs\\backend-api";
+    const unrelatedEnv = "C:\\Users\\tester\\miniconda3\\envs\\tools";
+    const candidates = await discoverPythonEnvironmentCandidates(projectPath, {
+      platform: "win32",
+      env: {},
+      commandExists: async (command) => command === "conda" || command === "conda.cmd",
+      execFile: async (command, args) => {
+        expect(command).toBe("conda");
+        expect(args).toEqual(["env", "list", "--json"]);
+        return {
+          stdout: JSON.stringify({ envs: [unrelatedEnv, apiEnv] }),
+          stderr: "",
+          exitCode: 0
+        };
+      },
+      fileExists: async (filePath) =>
+        [`${apiEnv}\\Scripts\\python.exe`, `${unrelatedEnv}\\Scripts\\python.exe`].includes(filePath)
+    });
+
+    expect(candidates).toEqual([
+      expect.objectContaining({ label: "Conda: backend-api", value: `${apiEnv}\\Scripts\\python.exe`, source: "conda-list" }),
+      expect.objectContaining({ label: "Conda: tools", value: `${unrelatedEnv}\\Scripts\\python.exe`, source: "conda-list" })
+    ]);
+  });
+});
+
+describe("parseCondaEnvironmentPaths", () => {
+  it("parses conda env list json defensively", () => {
+    expect(parseCondaEnvironmentPaths(JSON.stringify({ envs: ["C:\\envs\\api", "", 123] }))).toEqual(["C:\\envs\\api"]);
+    expect(parseCondaEnvironmentPaths("not json")).toEqual([]);
   });
 });
 

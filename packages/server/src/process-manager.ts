@@ -42,13 +42,14 @@ export interface PythonEnvironmentCandidate {
   id: string;
   label: string;
   value: string;
-  source: "manual" | "vscode" | "local" | "conda-file" | "terminal";
+  source: "manual" | "vscode" | "local" | "conda-file" | "conda-list" | "terminal";
   detail: string;
 }
 
 interface CommandResolutionOptions {
   platform?: NodeJS.Platform;
   commandExists?: (command: string, platform: NodeJS.Platform) => Promise<boolean>;
+  execFile?: (command: string, args: string[], options?: { timeoutMs?: number; env?: NodeJS.ProcessEnv }) => Promise<{ stdout: string; stderr: string; exitCode: number }>;
   fileExists?: (filePath: string) => Promise<boolean>;
   readFile?: (filePath: string) => Promise<string>;
   env?: NodeJS.ProcessEnv;
@@ -487,6 +488,8 @@ export async function discoverPythonEnvironmentCandidates(
     });
   }
 
+  candidates.push(...(await discoverCondaEnvironmentCandidates(projectPath, platform, options)));
+
   return uniquePythonCandidates(candidates);
 }
 
@@ -521,6 +524,42 @@ export async function validatePythonEnvironmentBinding(
     if (await fileExistsFn(pythonPath)) return;
   }
   throw new Error(`找不到可用的 Python 解释器：${value}`);
+}
+
+async function discoverCondaEnvironmentCandidates(
+  projectPath: string,
+  platform: NodeJS.Platform,
+  options: CommandResolutionOptions
+): Promise<PythonEnvironmentCandidate[]> {
+  if (!(await isCommandAvailable("conda", platform, options.commandExists))) return [];
+  const result = await runExecFile("conda", ["env", "list", "--json"], platform, options, 3500);
+  if (result.exitCode !== 0 || !result.stdout.trim()) return [];
+  const envPaths = parseCondaEnvironmentPaths(result.stdout);
+  const fileExistsFn = options.fileExists ?? fileExists;
+  const candidates: PythonEnvironmentCandidate[] = [];
+
+  for (const envPath of envPaths) {
+    for (const pythonPath of candidatePythonInterpreterPaths(envPath, platform)) {
+      if (await fileExistsFn(pythonPath)) {
+        const envName = condaEnvironmentNameFromPath(envPath);
+        candidates.push({
+          id: `conda-list:${pythonPath}`,
+          label: `Conda: ${envName}`,
+          value: pythonPath,
+          source: "conda-list",
+          detail: envPath
+        });
+        break;
+      }
+    }
+  }
+
+  const projectTokens = projectEnvironmentMatchTokens(projectPath);
+  return candidates
+    .map((candidate) => ({ candidate, score: scoreCondaCandidate(candidate, projectTokens) }))
+    .sort((left, right) => right.score - left.score || left.candidate.label.localeCompare(right.candidate.label))
+    .slice(0, 10)
+    .map((item) => item.candidate);
 }
 
 async function diagnoseProjectDependencyState(
@@ -1066,6 +1105,38 @@ function parseCondaEnvironmentName(raw: string): string | undefined {
   return name;
 }
 
+export function parseCondaEnvironmentPaths(raw: string): string[] {
+  try {
+    const parsed = JSON.parse(raw) as { envs?: unknown };
+    if (!Array.isArray(parsed.envs)) return [];
+    return parsed.envs
+      .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+      .map((item) => path.resolve(item.trim()));
+  } catch {
+    return [];
+  }
+}
+
+function condaEnvironmentNameFromPath(envPath: string): string {
+  const normalized = path.resolve(envPath);
+  const parent = path.basename(path.dirname(normalized)).toLowerCase();
+  if (parent === "envs") return path.basename(normalized);
+  return path.basename(normalized) || "base";
+}
+
+function projectEnvironmentMatchTokens(projectPath: string): string[] {
+  return path
+    .basename(projectPath)
+    .toLowerCase()
+    .split(/[^a-z0-9]+/i)
+    .filter((token) => token.length >= 3);
+}
+
+function scoreCondaCandidate(candidate: PythonEnvironmentCandidate, projectTokens: string[]): number {
+  const haystack = `${candidate.label} ${candidate.value} ${candidate.detail}`.toLowerCase();
+  return projectTokens.reduce((score, token) => score + (haystack.includes(token) ? 2 : 0), 0);
+}
+
 function uniquePythonCandidates(candidates: PythonEnvironmentCandidate[]): PythonEnvironmentCandidate[] {
   const seen = new Set<string>();
   const unique: PythonEnvironmentCandidate[] = [];
@@ -1173,6 +1244,32 @@ async function defaultCommandExists(command: string, platform: NodeJS.Platform):
     return true;
   } catch {
     return false;
+  }
+}
+
+async function runExecFile(
+  command: string,
+  args: string[],
+  platform: NodeJS.Platform,
+  options: CommandResolutionOptions,
+  timeoutMs: number
+): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  if (options.execFile) return options.execFile(command, args, { timeoutMs, env: options.env });
+  const invocation = createSpawnInvocation(command, args, platform);
+  try {
+    const result = await execFileAsync(invocation.command, invocation.args, {
+      timeout: timeoutMs,
+      windowsHide: true,
+      env: options.env ?? process.env
+    });
+    return { stdout: result.stdout, stderr: result.stderr, exitCode: 0 };
+  } catch (error) {
+    const failed = error as { stdout?: string; stderr?: string; code?: number };
+    return {
+      stdout: failed.stdout ?? "",
+      stderr: failed.stderr ?? "",
+      exitCode: typeof failed.code === "number" ? failed.code : 1
+    };
   }
 }
 

@@ -147,7 +147,7 @@ Dev Cockpit 的运行按钮不是简单调用脚本，它会先做一次轻量�
 
 这部分仍然保持本地确定性规则，不会上传代码，也不会自动安装依赖。若环境本身没有创建，面板会在日志里给出原因，而不是假装已经成功启动。
 
-项目详情的“运行环境”区域可以给 Python 项目手动绑定环境。只有在自动识别不到、桌面版无法继承终端 Conda/venv，或出现“终端能跑但面板缺包”时才需要配置；如果项目已有 `.venv`、`environment.yml`、`uv.lock`、Poetry/Pipenv 或 `.vscode/settings.json`，通常可以留空。面板会把检测到的候选环境显示成小按钮，点击即可填入。填写 `conda:环境名` 会通过 `conda run -n 环境名 python ...` 运行；填写 `C:\path\to\python.exe` 或虚拟环境目录会直接使用对应解释器。保存时会做轻量校验，避免明显不存在的路径或错误格式进入配置。绑定保存在 Dev Cockpit 自己的配置文件里，不会写入用户项目。
+项目详情的“运行环境”区域可以给 Python 项目手动绑定环境。只有在自动识别不到、桌面版无法继承终端 Conda/venv，或出现“终端能跑但面板缺包”时才需要配置；如果项目已有 `.venv`、`environment.yml`、`uv.lock`、Poetry/Pipenv 或 `.vscode/settings.json`，通常可以留空。面板会把检测到的候选环境显示成小按钮，点击即可填入；如果本机装了 Conda，也会在打开该区域时按需读取 `conda env list --json`，列出可用 Conda 解释器。填写 `conda:环境名` 会通过 `conda run -n 环境名 python ...` 运行；填写 `C:\path\to\python.exe` 或虚拟环境目录会直接使用对应解释器。保存时会做轻量校验，避免明显不存在的路径或错误格式进入配置。绑定保存在 Dev Cockpit 自己的配置文件里，不会写入用户项目。
 
 注意：Windows 桌面双击启动的应用不能读取另一个终端窗口里 `conda activate` 后的状态，因为环境变量只会从父进程继承。别人平时用终端启动 Conda 项目时，可以从同一个已激活终端启动 `npx local-dev-cockpit`；如果用桌面安装版，可以在项目详情里手动绑定 `conda:环境名`，也可以在项目里保留 `.venv` / `.conda` / `environment.yml` / `.vscode/settings.json` 这类可发现配置。
 
