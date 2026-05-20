@@ -31,9 +31,10 @@
         <CircleCheck v-else-if="isAlreadyOnlineCommand(command.id) || isBlockedByStalePort(command.id)" :size="15" />
         <CircleAlert v-else-if="hasMissingDiagnostic(command.id) || hasWarnDiagnostic(command.id)" :size="15" />
         <Play v-else :size="15" />
-        <div>
+        <div class="command-copy">
           <strong>{{ command.label }}</strong>
           <span>{{ command.command }} {{ command.args.join(" ") }}</span>
+          <small v-if="commandHint(command.id)" class="command-diagnostic-hint">{{ commandHint(command.id) }}</small>
         </div>
         <em>{{ commandStateLabel(command.id, command.kind) }}</em>
       </button>
@@ -119,6 +120,20 @@ function commandTitle(commandId: string): string {
   if (isAlreadyOnlineCommand(commandId)) return label("服务已经在线，已避免重复启动。需要重启时请先停止当前端口。", "Service is already online. Stop the current endpoint before restarting.");
   if (isBlockedByStalePort(commandId)) return label("检测到残留端口，已阻止启动。请先在概况页清理端口。", "A stale port is blocking this command. Clean it from the overview first.");
   return isRunningCommand(commandId) ? preferences.t("stopCommand") : preferences.t("runCommand");
+}
+
+function commandHint(commandId: string): string {
+  const diagnostic = diagnosticFor(commandId);
+  if (diagnostic?.status === "missing" || diagnostic?.status === "warn") {
+    return `${diagnostic.summary} ${diagnostic.detail}`.trim();
+  }
+  if (isAlreadyOnlineCommand(commandId)) {
+    return label("服务已在线；需要重启时先停止当前端口。", "Service is online; stop it before restarting.");
+  }
+  if (isBlockedByStalePort(commandId)) {
+    return label("残留端口阻塞启动，请先在概况页清理。", "A stale port is blocking startup. Clean it in Overview first.");
+  }
+  return "";
 }
 
 function commandStateLabel(commandId: string, fallback: string): string {

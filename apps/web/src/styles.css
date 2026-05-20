@@ -1640,7 +1640,7 @@ h2 {
 
 .command-row:disabled {
   cursor: not-allowed;
-  opacity: 0.48;
+  opacity: 0.86;
 }
 
 .command-row:disabled:hover {
@@ -1661,6 +1661,31 @@ h2 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.command-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.command-diagnostic-hint {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+}
+
+.command-row.warning .command-diagnostic-hint {
+  color: color-mix(in srgb, var(--warn) 74%, var(--text));
+}
+
+.command-row.missing .command-diagnostic-hint {
+  color: color-mix(in srgb, var(--danger) 74%, var(--text));
 }
 
 .command-row em {
