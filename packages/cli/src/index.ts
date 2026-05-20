@@ -22,6 +22,7 @@ import {
   startDevCockpitServer
 } from "@local-dev-cockpit/server";
 import { noCommandGuidance, shouldInspectPythonEnvironment } from "./doctor-guidance.js";
+import { formatScanProject } from "./scan-output.js";
 
 const CLI_VERSION = "0.1.11";
 
@@ -70,7 +71,7 @@ program
     const result = await scanRoot(dir);
     process.stdout.write(`Found ${result.projects.length} project(s) in ${result.root}\n`);
     for (const project of result.projects) {
-      process.stdout.write(`- ${project.name} [${project.kind}] ${project.path}\n`);
+      process.stdout.write(`${formatScanProject(project).join("\n")}\n`);
     }
     for (const warning of result.warnings) {
       process.stderr.write(`warning: ${warning}\n`);
