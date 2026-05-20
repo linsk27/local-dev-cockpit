@@ -18,7 +18,9 @@ Dev Cockpit is currently a 0.1 MVP. The goal is to make local project recovery o
 - Multilingual UI, themes, accent colors, and low-overhead polling.
 - Settings-based update check with GitHub Release first, npm registry fallback, and top-left update indicator for new releases.
 
-## 0.2 Reliability
+## 0.2 Stable Core
+
+This milestone is about making the existing two-section app dependable. The sidebar intentionally stays limited to Projects and Settings until project recovery is boringly reliable.
 
 - Better macOS and Linux external process attribution.
 - More accurate Python backend entry detection and environment diagnostics.
@@ -26,6 +28,8 @@ Dev Cockpit is currently a 0.1 MVP. The goal is to make local project recovery o
 - Safer cleanup flows for orphaned process trees.
 - More fixture projects and browser-based regression checks.
 - Clearer error recovery for missing package managers and virtual environments.
+- No new sidebar modules unless they directly improve project recovery, settings, or diagnostics.
+- Keep commands, logs, ports, Git state, diagnostics, and AI context inside the project detail tabs instead of adding separate navigation entries.
 
 ## 0.3 Packaging
 
@@ -33,11 +37,15 @@ Dev Cockpit is currently a 0.1 MVP. The goal is to make local project recovery o
 - Harden the Electron shell or evaluate Tauri after the Web + CLI flow is stable.
 - Add import/export for local workspace configuration.
 
-## Later
+## Later Modules
+
+New modules should be added only after the stable core has enough real-user coverage. Candidate modules:
 
 - Optional AI summaries through user-configured providers.
 - Optional plugin system for custom detectors.
 - Optional SQLite storage if JSON state becomes limiting.
+- Task recipes for repeatable multi-command startup flows.
+- Local dependency health overview for projects that opt in.
 
 ## Non-goals
 
