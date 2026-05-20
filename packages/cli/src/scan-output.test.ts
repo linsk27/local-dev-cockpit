@@ -22,6 +22,22 @@ describe("scan output", () => {
     expect(lines.join("\n")).toContain("hint:");
     expect(lines.join("\n")).toContain("app.py");
   });
+
+  it("hides closed and unattributed common port probes", () => {
+    const lines = formatScanProject(
+      project({
+        ports: [
+          { port: 3000, status: "open", source: "common" },
+          { port: 5000, status: "closed", source: "detected" },
+          { port: 8000, host: "127.0.0.1", status: "open", source: "detected" }
+        ]
+      })
+    );
+
+    expect(lines.join("\n")).toContain("127.0.0.1:8000 open");
+    expect(lines.join("\n")).not.toContain("3000 open");
+    expect(lines.join("\n")).not.toContain("5000 closed");
+  });
 });
 
 function project(overrides: Partial<Project> = {}): Project {
