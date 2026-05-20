@@ -13,6 +13,7 @@ import {
   projectDiagnostics,
   projectRuntimeMode,
   projectMatchesQuery,
+  noCommandGuidance,
   runtimeSourceLabel,
   recommendedProjectCommand,
   sortProjectsForDashboard
@@ -285,6 +286,29 @@ describe("project dashboard view helpers", () => {
     expect(diagnostics.map((item) => item.id)).toEqual(["command", "package-manager", "ports", "failure", "next"]);
     expect(diagnostics.find((item) => item.id === "ports")?.value).toBe("系统检测");
     expect(diagnostics.find((item) => item.id === "next")?.detail).toContain("127.0.0.1:8000");
+  });
+
+  it("shows actionable guidance when no commands are detected", () => {
+    const pythonApi = project({
+      kind: "python",
+      commands: [],
+      markers: ["requirements.txt", "pyproject.toml"]
+    });
+    const nodeApp = project({
+      kind: "node",
+      commands: [],
+      markers: ["package.json"]
+    });
+    const shellRepo = project({
+      kind: "unknown",
+      commands: [],
+      markers: []
+    });
+
+    expect(noCommandGuidance(pythonApi)).toContain("app.py");
+    expect(projectDiagnostics(pythonApi).find((item) => item.id === "next")?.detail).toContain("后端目录");
+    expect(noCommandGuidance(nodeApp)).toContain("dev/start");
+    expect(noCommandGuidance(shellRepo, "en-US")).toContain("child app folder");
   });
 
   it("formats ipv6 hosts as browser-safe URLs", () => {

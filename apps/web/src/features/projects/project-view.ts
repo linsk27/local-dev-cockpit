@@ -152,6 +152,44 @@ export function recommendedProjectCommand(project: Project): Command | undefined
   );
 }
 
+export function noCommandGuidance(project: Project, locale: StatusReasonLocale = "zh-CN"): string {
+  const hasMarker = (...markers: string[]) => markers.some((marker) => project.markers.includes(marker));
+  const isEnglish = locale === "en-US";
+
+  if (project.kind === "node" || hasMarker("package.json")) {
+    return isEnglish
+      ? "package.json was found but no runnable scripts were detected. Add a dev/start script, or choose a more specific app directory."
+      : "检测到 package.json，但没有可运行 scripts。请添加 dev/start 脚本，或选择更具体的应用目录。";
+  }
+
+  if (project.kind === "python" || hasMarker("requirements.txt", "pyproject.toml")) {
+    if (hasMarker("requirements.txt", "pyproject.toml")) {
+      return isEnglish
+        ? "Python dependencies were found, but no app entrypoint was detected. Add manage.py, app.py, main.py, app/main.py, src/app/main.py, or choose the backend directory."
+        : "检测到 Python 依赖文件，但没有识别到应用入口。请确认有 manage.py、app.py、main.py、app/main.py、src/app/main.py，或选择真正的后端目录。";
+    }
+    return isEnglish
+      ? "Python project detected, but no supported entrypoint was found. Add a common entry file or run doctor on the backend directory."
+      : "检测到 Python 项目，但没有支持的入口文件。请添加常见入口，或对后端目录运行 doctor。";
+  }
+
+  if (project.kind === "docker" || hasMarker("Dockerfile")) {
+    return isEnglish
+      ? "Docker markers were found, but no compose command was detected. Add docker-compose.yml/compose.yml for one-click startup."
+      : "检测到 Docker 标记，但没有 compose 启动命令。建议添加 docker-compose.yml 或 compose.yml，方便一键启动。";
+  }
+
+  if (project.kind === "unknown") {
+    return isEnglish
+      ? "This looks like a repository shell without a known app marker. Select a child app folder such as frontend, backend, apps, packages, or services."
+      : "这更像仓库外壳，未发现已支持的应用标记。请选择 frontend、backend、apps、packages、services 等子项目目录。";
+  }
+
+  return isEnglish
+    ? "No runnable command has been detected for this project yet. Check entry files or add a more specific root directory."
+    : "暂未识别到可运行命令。请检查项目入口文件，或添加更具体的根目录。";
+}
+
 function commandSourceDiagnostic(project: Project, locale: StatusReasonLocale): ProjectDiagnosticItem {
   const labels = diagnosticLabels(locale);
   if (project.commands.length === 0) {
@@ -159,7 +197,7 @@ function commandSourceDiagnostic(project: Project, locale: StatusReasonLocale): 
       id: "command",
       label: labels.commandSource,
       value: labels.none,
-      detail: labels.noCommandsDetail,
+      detail: noCommandGuidance(project, locale),
       tone: "warn"
     };
   }
@@ -333,7 +371,7 @@ function nextActionDiagnostic(project: Project, locale: StatusReasonLocale): Pro
     id: "next",
     label: labels.nextAction,
     value: labels.inspectEntry,
-    detail: labels.inspectEntryDetail,
+    detail: noCommandGuidance(project, locale),
     tone: "warn"
   };
 }
@@ -356,7 +394,6 @@ function diagnosticLabels(locale: StatusReasonLocale) {
       packageScripts: "package.json scripts",
       detectedCommands: "detected entry",
       userCommands: "user command",
-      noCommandsDetail: "No runnable command has been detected for this project yet.",
       recommendedCommand: (command: string) => `Recommended: ${command}`,
       commandCount: (count: number) => `${count} command(s) detected.`,
       notNodeProject: "Not a Node project",
@@ -379,8 +416,7 @@ function diagnosticLabels(locale: StatusReasonLocale) {
       reviewLogs: "Review logs",
       reviewLogsDetail: "Open the Logs tab, fix the failing command, then run it again.",
       runCommand: "Run command",
-      inspectEntry: "Inspect entry",
-      inspectEntryDetail: "Check project entry files or add a more specific root directory."
+      inspectEntry: "Inspect entry"
     };
   }
 
@@ -396,7 +432,6 @@ function diagnosticLabels(locale: StatusReasonLocale) {
     packageScripts: "package.json scripts",
     detectedCommands: "入口探测",
     userCommands: "用户命令",
-    noCommandsDetail: "暂未识别到可运行命令。",
     recommendedCommand: (command: string) => `建议：${command}`,
     commandCount: (count: number) => `已识别 ${count} 个命令。`,
     notNodeProject: "非 Node 项目",
@@ -419,8 +454,7 @@ function diagnosticLabels(locale: StatusReasonLocale) {
     reviewLogs: "查看日志",
     reviewLogsDetail: "打开日志页，修复失败原因后再运行。",
     runCommand: "运行命令",
-    inspectEntry: "检查入口",
-    inspectEntryDetail: "检查项目入口文件，或添加更具体的根目录。"
+    inspectEntry: "检查入口"
   };
 }
 
