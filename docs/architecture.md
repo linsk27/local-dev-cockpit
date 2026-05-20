@@ -94,7 +94,7 @@ flowchart LR
 - Python 优先级：Dev Cockpit 项目级手动绑定，`.vscode/settings.json` 里显式选择的 `python.defaultInterpreterPath` / `python.pythonPath`，项目本地 `.venv` / `venv` / `.env` / `env` / `.conda` / `conda`，上一层工作区同名环境，`environment.yml` 的 `conda run -n <name>`，`uv.lock` / Poetry / Pipenv 的 `uv run`、`poetry run`、`pipenv run`，已激活终端继承的 `CONDA_PREFIX` / `VIRTUAL_ENV`，最后回退系统 `python` 或 Windows `py` launcher。
 - Java 优先级：项目自带 `mvnw.cmd` / `mvnw`、`gradlew.bat` / `gradlew`，再回退系统 `mvn` / `gradle`。
 - PHP/Ruby/.NET 优先提供常见本地开发命令，但仍依赖用户机器已经安装对应运行时和依赖。
-- Node 优先级：`packageManager` 字段、lockfile、Corepack、必要时从 pnpm/yarn 回退到 npm。
+- Node 优先级：`packageManager` 字段、lockfile、Corepack、必要时从 pnpm/yarn 回退到 npm。依赖预检会从当前目录向父级查找 `node_modules`，匹配 Node 的模块解析习惯；如果识别到 `pnpm-workspace.yaml`、Turbo、Nx、Lerna、Rush 或 `package.json#workspaces` 工作区根目录，会提示到工作区根目录执行 install。
 
 环境解析只选择已有工具，不自动安装依赖，不自动修改用户项目。项目级 Python 绑定保存在 Dev Cockpit 配置里，保存前只做轻量校验：路径绑定必须能解析到存在的 Python 解释器，`conda:<name>` 绑定必须格式正确且本机能找到 conda。Web 面板、服务端启动前拦截和 CLI `doctor <项目路径>` 都读取同一份项目级绑定，避免“面板能跑、终端诊断却说缺环境”的不一致。Conda 环境枚举只在用户打开单个项目的“运行环境”区域或显式运行 doctor 时按需执行 `conda env list --json`，不参与项目列表扫描，避免启动期和常驻轮询变慢。
 

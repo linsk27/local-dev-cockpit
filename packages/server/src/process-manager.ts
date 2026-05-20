@@ -593,9 +593,14 @@ async function diagnoseNodeDependencyState(
   if (await hasNodeModulesInResolutionPath(command.cwd, fileExistsFn)) return undefined;
 
   const installCommand = packageInstallCommand(command);
+  const workspaceRoot = await findNodeWorkspaceRoot(command.cwd, fileExistsFn, readFileFn);
+  const installHint =
+    workspaceRoot && path.resolve(workspaceRoot) !== path.resolve(command.cwd)
+      ? `检测到工作区根目录：${formatPathHint(workspaceRoot, command.cwd)}。建议在工作区根目录执行：${installCommand}。`
+      : `首次运行前建议执行：${installCommand}。`;
   return {
     summary: "项目依赖可能尚未安装。",
-    detail: `检测到 package.json 声明了依赖，但项目目录没有 node_modules。首次运行前建议执行：${installCommand}。`
+    detail: `检测到 package.json 声明了依赖，但当前目录及父级目录都没有 node_modules。${installHint}`
   };
 }
 
@@ -610,6 +615,42 @@ async function hasNodeModulesInResolutionPath(
     if (parent === current) return false;
     current = parent;
   }
+}
+
+async function findNodeWorkspaceRoot(
+  projectPath: string,
+  fileExistsFn: (filePath: string) => Promise<boolean>,
+  readFileFn: (filePath: string) => Promise<string>
+): Promise<string | undefined> {
+  let current = path.resolve(projectPath);
+  while (true) {
+    if (await hasAnyFile(current, ["pnpm-workspace.yaml", "turbo.json", "nx.json", "lerna.json", "rush.json"], fileExistsFn)) {
+      return current;
+    }
+
+    const packageJsonPath = path.join(current, "package.json");
+    if ((await fileExistsFn(packageJsonPath)) && (await packageJsonDeclaresWorkspaces(packageJsonPath, readFileFn))) {
+      return current;
+    }
+
+    const parent = path.dirname(current);
+    if (parent === current) return undefined;
+    current = parent;
+  }
+}
+
+async function packageJsonDeclaresWorkspaces(packageJsonPath: string, readFileFn: (filePath: string) => Promise<string>): Promise<boolean> {
+  try {
+    const parsed = JSON.parse(await readFileFn(packageJsonPath)) as { workspaces?: unknown };
+    return Array.isArray(parsed.workspaces) || hasPackageEntries(parsed.workspaces);
+  } catch {
+    return false;
+  }
+}
+
+function formatPathHint(targetPath: string, basePath: string): string {
+  const relative = path.relative(basePath, targetPath);
+  return relative && !relative.startsWith("..") && !path.isAbsolute(relative) ? relative : targetPath;
 }
 
 async function diagnosePythonDependencyState(

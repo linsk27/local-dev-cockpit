@@ -338,7 +338,24 @@ describe("diagnoseCommandEnvironment", () => {
     ).resolves.toMatchObject({
       status: "warn",
       summary: "项目依赖可能尚未安装。",
-      detail: expect.stringContaining("pnpm install")
+      detail: expect.stringContaining("当前目录及父级目录都没有 node_modules")
+    });
+  });
+
+  it("points workspace child apps to the workspace root when dependencies are missing", async () => {
+    await expect(
+      diagnoseCommandEnvironment(command({ command: "pnpm", args: ["run", "dev"], cwd: "D:\\projects\\workspace\\apps\\web" }), {
+        platform: "win32",
+        commandExists: async (name) => name === "pnpm.cmd",
+        fileExists: async (filePath) =>
+          filePath === "D:\\projects\\workspace\\apps\\web\\package.json" ||
+          filePath === "D:\\projects\\workspace\\pnpm-workspace.yaml",
+        readFile: async () => JSON.stringify({ dependencies: { vue: "^3.5.0" }, devDependencies: { vite: "^5.0.0" } })
+      })
+    ).resolves.toMatchObject({
+      status: "warn",
+      summary: "项目依赖可能尚未安装。",
+      detail: expect.stringContaining("检测到工作区根目录：D:\\projects\\workspace")
     });
   });
 

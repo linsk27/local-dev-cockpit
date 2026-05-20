@@ -156,7 +156,7 @@ Dev Cockpit 的运行按钮不是简单调用脚本，它会先做一次轻量�
 
 如果 Node 项目出现 `Cannot find package 'xxx'`、`Cannot find module 'xxx'`，或者 `vite` / `next` / `ts-node` 这类脚本命令找不到，Dev Cockpit 会提示先执行当前包管理器的 install 命令，例如 `pnpm install` / `npm install`，再按需安装缺失依赖。相对路径模块缺失会被当成源码或构建产物问题，不会误导用户安装一个不存在的 npm 包。
 
-诊断页也会做启动前预检：Node 项目如果有 `package.json` 依赖但没有 `node_modules`，会提前提示先安装依赖；Python 项目如果有 `requirements.txt` / `pyproject.toml` 但没有 `.venv`、Conda、uv、Poetry 或 Pipenv 环境入口，会提示当前会回退系统 Python，避免用户点运行后才看到一长串缺包日志。Java 会提示缺少 Maven/Gradle wrapper 的可移植性风险；PHP 会识别 `composer.json` 但缺少 `vendor/autoload.php`；Ruby 会提示 `Gemfile` 缺少 `Gemfile.lock`；.NET 会提示缺少 `obj/project.assets.json` 时应先 `dotnet restore`。
+诊断页也会做启动前预检：Node 项目如果有 `package.json` 依赖，但当前目录和父级目录都没有 `node_modules`，会提前提示先安装依赖；monorepo 子项目会复用父级 `node_modules`，缺依赖时也会提示到工作区根目录执行 install。Python 项目如果有 `requirements.txt` / `pyproject.toml` 但没有 `.venv`、Conda、uv、Poetry 或 Pipenv 环境入口，会提示当前会回退系统 Python，避免用户点运行后才看到一长串缺包日志。Java 会提示缺少 Maven/Gradle wrapper 的可移植性风险；PHP 会识别 `composer.json` 但缺少 `vendor/autoload.php`；Ruby 会提示 `Gemfile` 缺少 `Gemfile.lock`；.NET 会提示缺少 `obj/project.assets.json` 时应先 `dotnet restore`。
 
 ## 性能策略
 
