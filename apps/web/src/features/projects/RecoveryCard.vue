@@ -184,12 +184,18 @@ function isStoppingPort(port: number): boolean {
 }
 
 async function stopPort(port: number): Promise<void> {
-  const stopped = await store.stopPort(port, props.project.id);
-  if (stopped) {
-    notifications.success(`已停止端口 ${port}`);
+  const result = await store.stopPort(port, props.project.id);
+  if (result?.stopped) {
+    notifications.success(portStopSuccessMessage(port, result.alreadyClosed, result.pids.length));
   } else {
     notifications.error(`停止端口失败：${store.error || port}`);
   }
+}
+
+function portStopSuccessMessage(port: number, alreadyClosed?: boolean, pidCount = 0): string {
+  if (alreadyClosed && pidCount > 0) return `端口 ${port} 已关闭，旧进程记录已清理`;
+  if (alreadyClosed) return `端口 ${port} 已经关闭`;
+  return `已停止端口 ${port}`;
 }
 
 async function copyProjectPath(): Promise<void> {

@@ -12,6 +12,7 @@ import {
   stopProcess,
   writeContext,
   type ContextResponse,
+  type StopPortResponse,
   type WriteContextResponse
 } from "../api";
 
@@ -152,9 +153,9 @@ export const useProjectsStore = defineStore("projects", {
         if (actionKey) delete this.commandActions[actionKey];
       }
     },
-    async stopPort(port: number, projectId?: string): Promise<boolean> {
+    async stopPort(port: number, projectId?: string): Promise<StopPortResponse | undefined> {
       const targetProjectId = projectId ?? this.selectedProject?.id;
-      if (!targetProjectId) return false;
+      if (!targetProjectId) return undefined;
       const actionKey = portActionKey(targetProjectId, port);
       this.portActions[actionKey] = "stopping";
       this.error = "";
@@ -163,12 +164,12 @@ export const useProjectsStore = defineStore("projects", {
         await this.refreshProject(targetProjectId);
         if (!result.stopped) {
           this.error = result.error || `未能停止端口 ${port}`;
-          return false;
+          return result;
         }
-        return true;
+        return result;
       } catch (error) {
         this.error = error instanceof Error ? error.message : String(error);
-        return false;
+        return undefined;
       } finally {
         delete this.portActions[actionKey];
       }

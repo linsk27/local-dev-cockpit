@@ -9,6 +9,7 @@ import {
   openProjectEditor,
   openProjectFolder,
   startCommand,
+  stopPort,
   writeContext
 } from "../api";
 import { useProjectsStore } from "./projects";
@@ -98,6 +99,35 @@ describe("projects store", () => {
     await expect(store.openProjectEditor(alpha.id)).resolves.toBe(true);
 
     expect(openProjectEditor).toHaveBeenCalledWith(alpha.id);
+  });
+
+  it("returns detailed port cleanup results and refreshes the project", async () => {
+    const alpha = project("alpha");
+    const refreshed = { ...alpha, ports: [] };
+    const store = useProjectsStore();
+    store.projects = [alpha];
+    vi.mocked(stopPort).mockResolvedValue({ stopped: true, port: 3000, pids: [4242], alreadyClosed: true });
+    vi.mocked(getProject).mockResolvedValue(refreshed);
+
+    const result = await store.stopPort(3000, alpha.id);
+
+    expect(stopPort).toHaveBeenCalledWith(alpha.id, 3000);
+    expect(result).toEqual({ stopped: true, port: 3000, pids: [4242], alreadyClosed: true });
+    expect(store.projects[0]?.ports).toEqual([]);
+    expect(store.error).toBe("");
+  });
+
+  it("keeps the server cleanup error when port cleanup fails", async () => {
+    const alpha = project("alpha");
+    const store = useProjectsStore();
+    store.projects = [alpha];
+    vi.mocked(stopPort).mockResolvedValue({ stopped: false, port: 3000, pids: [4242], error: "端口仍在监听" });
+    vi.mocked(getProject).mockResolvedValue(alpha);
+
+    const result = await store.stopPort(3000, alpha.id);
+
+    expect(result?.stopped).toBe(false);
+    expect(store.error).toBe("端口仍在监听");
   });
 
   it("can load context for a non-selected project without replacing the selected context", async () => {
