@@ -85,6 +85,48 @@ describe("summarizeFailedRun", () => {
     expect(summary).toContain("Run taskkill /PID 5796 /F to stop it.");
     expect(summary).toContain("exit code 1");
   });
+
+  it("turns PHP Composer autoload failures into install guidance", () => {
+    const summary = summarizeFailedRun(
+      [
+        "PHP Warning: require(D:\\projects\\laravel\\vendor\\autoload.php): Failed to open stream: No such file or directory\n",
+        "PHP Fatal error: Uncaught Error: Failed opening required 'D:\\projects\\laravel\\vendor\\autoload.php'\n"
+      ],
+      255,
+      command({ command: "php", args: ["artisan", "serve"], cwd: "D:\\projects\\laravel" })
+    );
+
+    expect(summary).toContain("PHP 依赖尚未安装或未同步");
+    expect(summary).toContain("composer install");
+    expect(summary).toContain("composer.json");
+  });
+
+  it("turns Ruby bundle failures into install guidance", () => {
+    const summary = summarizeFailedRun(
+      [
+        "Could not find gem 'rails (~> 7.1)' in locally installed gems.\n",
+        "Run `bundle install` to install missing gems.\n"
+      ],
+      7,
+      command({ command: "bundle", args: ["exec", "rails", "server"], cwd: "D:\\projects\\rails" })
+    );
+
+    expect(summary).toContain("Ruby 依赖尚未安装或未同步");
+    expect(summary).toContain("bundle install");
+    expect(summary).toContain("正确的 Ruby 环境");
+  });
+
+  it("turns .NET restore asset failures into restore guidance", () => {
+    const summary = summarizeFailedRun(
+      ["error NETSDK1004: Assets file 'D:\\projects\\api\\obj\\project.assets.json' not found. Run a NuGet package restore to generate this file.\n"],
+      1,
+      command({ command: "dotnet", args: ["run"], cwd: "D:\\projects\\api" })
+    );
+
+    expect(summary).toContain(".NET restore 产物缺失");
+    expect(summary).toContain("dotnet restore");
+    expect(summary).toContain("NuGet");
+  });
 });
 
 describe("resolveSpawnInvocation", () => {
