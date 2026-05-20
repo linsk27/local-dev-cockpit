@@ -1,7 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import type { Project } from "@local-dev-cockpit/core";
-import { getContext, getLogs, getProject, getProjects, openProjectEditor, openProjectFolder, startCommand, writeContext } from "../api";
+import {
+  getContext,
+  getLogs,
+  getProject,
+  getProjects,
+  openProjectEditor,
+  openProjectFolder,
+  startCommand,
+  writeContext
+} from "../api";
 import { useProjectsStore } from "./projects";
 
 vi.mock("../api", () => ({

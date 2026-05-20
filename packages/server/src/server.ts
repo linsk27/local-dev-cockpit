@@ -223,6 +223,14 @@ async function route(
       sendJson(res, 409, { error: blockReason });
       return;
     }
+    const environmentDiagnostic = await diagnoseCommandEnvironment(command);
+    if (environmentDiagnostic.status === "missing") {
+      sendJson(res, 409, {
+        error: `${environmentDiagnostic.summary} ${environmentDiagnostic.detail}`.trim(),
+        diagnostic: environmentDiagnostic
+      });
+      return;
+    }
     const run = await context.processManager.start(project.id, command);
     invalidateExternalPortOwnersCache();
     context.projectCache.invalidate();

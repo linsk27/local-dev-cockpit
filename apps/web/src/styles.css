@@ -1422,6 +1422,14 @@ h2 {
   opacity: 1;
 }
 
+.command-row.warning {
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+}
+
+.command-row.missing {
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+
 .command-row.running svg {
   color: var(--accent);
 }
@@ -1429,6 +1437,14 @@ h2 {
 .command-row.pending svg,
 .command-row.online svg {
   color: var(--accent);
+}
+
+.command-row.warning svg {
+  color: var(--warn);
+}
+
+.command-row.missing svg {
+  color: var(--danger);
 }
 
 .command-row:disabled {
@@ -1442,6 +1458,10 @@ h2 {
 
 .command-row.online:disabled:hover {
   background: color-mix(in srgb, var(--success) 9%, transparent);
+}
+
+.command-row.missing:disabled:hover {
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
 }
 
 .command-row strong,
