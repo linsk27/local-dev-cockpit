@@ -128,6 +128,10 @@
           {{ preferences.t("rootPath") }}
           <input v-model="rootPath" :placeholder="preferences.t('rootPlaceholder')" />
         </label>
+        <button class="text-button" type="button" :disabled="rootPicking" @click="pickRootFolder">
+          <FolderOpen :size="16" />
+          {{ rootPicking ? preferences.t("choosingRootFolder") : preferences.t("chooseRootFolder") }}
+        </button>
         <button class="primary-button" @click="submitRoot">
           <Plus :size="16" />
           {{ preferences.t("addRoot") }}
@@ -140,8 +144,8 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { Check, Code2, Download, DownloadCloud, FolderPlus, Palette, Plus, RefreshCw, Save, Trash2 } from "lucide-vue-next";
-import { addRoot, getConfig, getRoots, removeRoot, updateConfig, type RootEntry } from "../../api";
+import { Check, Code2, Download, DownloadCloud, FolderOpen, FolderPlus, Palette, Plus, RefreshCw, Save, Trash2 } from "lucide-vue-next";
+import { addRoot, chooseRootFolder, getConfig, getRoots, removeRoot, updateConfig, type RootEntry } from "../../api";
 import { useNotificationsStore } from "../../stores/notifications";
 import { accentOptions, localeOptions, themeOptions, usePreferencesStore } from "../../stores/preferences";
 import { useUpdatesStore } from "../../stores/updates";
@@ -151,6 +155,7 @@ const notifications = useNotificationsStore();
 const updates = useUpdatesStore();
 const editorCommand = ref("code");
 const rootPath = ref("");
+const rootPicking = ref(false);
 const message = ref("");
 const roots = ref<RootEntry[]>([]);
 const checkedManually = ref(false);
@@ -218,6 +223,23 @@ async function submitRoot() {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     notifications.error(preferences.t("rootActionFailedNotice", { message: errorMessage }));
+  }
+}
+
+async function pickRootFolder(): Promise<void> {
+  if (rootPicking.value) return;
+  rootPicking.value = true;
+  try {
+    const result = await chooseRootFolder(rootPath.value);
+    if (!result.canceled && result.path) {
+      rootPath.value = result.path;
+      notifications.success(preferences.t("rootFolderSelectedNotice"));
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    notifications.error(preferences.t("rootFolderPickerFailedNotice", { message: errorMessage }));
+  } finally {
+    rootPicking.value = false;
   }
 }
 

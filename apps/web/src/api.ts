@@ -93,6 +93,11 @@ export interface OpenFolderResponse {
   path: string;
 }
 
+export interface FolderPickerResponse {
+  canceled: boolean;
+  path?: string;
+}
+
 export interface OpenEditorResponse {
   opened: true;
   path: string;
@@ -241,6 +246,16 @@ export async function addRoot(path: string) {
   });
   await ensureOk(response, "Failed to add root");
   return response.json();
+}
+
+export async function chooseRootFolder(initialPath?: string): Promise<FolderPickerResponse> {
+  const response = await fetch("/api/dialogs/open-folder", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ initialPath: initialPath?.trim() ?? "" })
+  });
+  await ensureOk(response, "Failed to choose folder");
+  return response.json() as Promise<FolderPickerResponse>;
 }
 
 export async function getRoots(): Promise<RootEntry[]> {

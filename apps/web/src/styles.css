@@ -2292,7 +2292,8 @@ h2 {
   min-height: 74px;
 }
 
-.root-form .primary-button {
+.root-form .primary-button,
+.root-form .text-button {
   height: 38px;
   white-space: nowrap;
 }

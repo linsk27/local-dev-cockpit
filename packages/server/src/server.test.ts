@@ -10,6 +10,7 @@ import {
   commandStartBlockReason,
   commandLineReferencesProject,
   createEditorCommand,
+  createFolderPickerCommand,
   createOpenFolderCommand,
   externalListenerProbeCandidates,
   filterStaleLogPorts,
@@ -27,6 +28,7 @@ import {
   parseNetstatListeningPids,
   parseNpmLatest,
   parseStoppedChildrenOutput,
+  resolveFolderPickerInitialPath,
   selectUpdateAssets,
   stopPort,
   writeProjectContextFiles
@@ -614,6 +616,40 @@ describe("createOpenFolderCommand", () => {
       command: "xdg-open",
       args: ["/home/me/demo"]
     });
+  });
+});
+
+describe("folder picker commands", () => {
+  it("builds native folder picker commands without shell concatenation", () => {
+    const windows = createFolderPickerCommand("win32", "D:\\projects\\demo");
+    expect(windows.command).toBe("powershell.exe");
+    expect(windows.args).toContain("-STA");
+    expect(windows.args.at(-1)).toContain("FolderBrowserDialog");
+    expect(windows.cancelExitCodes).toContain(2);
+
+    expect(createFolderPickerCommand("darwin", "/Users/me/demo")).toMatchObject({
+      command: "osascript",
+      cancelExitCodes: [1]
+    });
+    expect(createFolderPickerCommand("linux", "/home/me/demo")).toMatchObject({
+      command: "zenity",
+      fallback: {
+        command: "kdialog"
+      }
+    });
+  });
+
+  it("uses a valid initial folder and falls back for missing paths", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-picker-"));
+    const file = path.join(dir, "file.txt");
+    await fs.writeFile(file, "ok", "utf8");
+    try {
+      await expect(resolveFolderPickerInitialPath(dir)).resolves.toBe(path.resolve(dir));
+      await expect(resolveFolderPickerInitialPath(file)).resolves.toBe(path.resolve(dir));
+      await expect(resolveFolderPickerInitialPath(path.join(dir, "missing"))).resolves.toBe(os.homedir());
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
   });
 });
 

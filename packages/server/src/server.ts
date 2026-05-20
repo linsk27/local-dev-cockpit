@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import http from "node:http";
 import https from "node:https";
 import { promises as fs } from "node:fs";
@@ -34,6 +34,7 @@ import {
 import { JsonStore, projectEnvironmentForPath, rootId } from "./store.js";
 
 const addRootSchema = z.object({ path: z.string().min(1) });
+const openFolderDialogSchema = z.object({ initialPath: z.string().max(500).optional().default("") });
 const updateConfigSchema = z.object({ editorCommand: z.string().min(1).max(260).optional() });
 const updateProjectEnvironmentSchema = z.object({ python: z.string().max(500).default("") });
 const PROJECT_SCAN_CACHE_TTL_MS = 20_000;
@@ -168,6 +169,12 @@ async function route(
 
   if (method === "GET" && url.pathname === "/api/config") {
     sendJson(res, 200, { config: await context.store.readConfig() });
+    return;
+  }
+
+  if (method === "POST" && url.pathname === "/api/dialogs/open-folder") {
+    const body = openFolderDialogSchema.parse(await readJson(req));
+    sendJson(res, 200, await chooseProjectRootFolder(body.initialPath));
     return;
   }
 
@@ -387,10 +394,140 @@ export async function openProjectFolder(folderPath: string): Promise<{ opened: t
   return { opened: true, path: folderPath };
 }
 
+export interface FolderPickerResult {
+  canceled: boolean;
+  path?: string;
+}
+
+export async function chooseProjectRootFolder(initialPath?: string): Promise<FolderPickerResult> {
+  const initialFolder = await resolveFolderPickerInitialPath(initialPath);
+  const command = createFolderPickerCommand(process.platform, initialFolder);
+  const result = await runNativeFolderPicker(command);
+  if (!result) return { canceled: true };
+
+  const resolved = path.resolve(result);
+  const stat = await fs.stat(resolved);
+  if (!stat.isDirectory()) {
+    throw new Error("Selected path is not a directory");
+  }
+  return { canceled: false, path: resolved };
+}
+
 export function createOpenFolderCommand(platform: NodeJS.Platform, folderPath: string): { command: string; args: string[] } {
   if (platform === "win32") return { command: "explorer.exe", args: [folderPath] };
   if (platform === "darwin") return { command: "open", args: [folderPath] };
   return { command: "xdg-open", args: [folderPath] };
+}
+
+export interface FolderPickerCommand {
+  command: string;
+  args: string[];
+  cancelExitCodes: number[];
+  fallback?: FolderPickerCommand;
+}
+
+export function createFolderPickerCommand(platform: NodeJS.Platform, initialPath: string): FolderPickerCommand {
+  if (platform === "win32") {
+    const script = [
+      "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8",
+      "Add-Type -AssemblyName System.Windows.Forms",
+      "$dialog = New-Object System.Windows.Forms.FolderBrowserDialog",
+      "$dialog.Description = 'Select project root'",
+      "$dialog.ShowNewFolderButton = $true",
+      `$initialPath = ${quotePowerShellString(initialPath)}`,
+      "if (Test-Path -LiteralPath $initialPath) { $dialog.SelectedPath = $initialPath }",
+      "$result = $dialog.ShowDialog()",
+      "if ($result -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $dialog.SelectedPath; exit 0 }",
+      "exit 2"
+    ].join("; ");
+    return {
+      command: "powershell.exe",
+      args: ["-NoProfile", "-STA", "-ExecutionPolicy", "Bypass", "-Command", script],
+      cancelExitCodes: [2]
+    };
+  }
+
+  if (platform === "darwin") {
+    const script = `POSIX path of (choose folder with prompt "Select project root" default location POSIX file "${escapeAppleScriptString(initialPath)}")`;
+    return {
+      command: "osascript",
+      args: ["-e", script],
+      cancelExitCodes: [1]
+    };
+  }
+
+  return {
+    command: "zenity",
+    args: ["--file-selection", "--directory", "--title=Select project root", `--filename=${initialPath}${path.sep}`],
+    cancelExitCodes: [1],
+    fallback: {
+      command: "kdialog",
+      args: ["--getexistingdirectory", initialPath, "--title", "Select project root"],
+      cancelExitCodes: [1]
+    }
+  };
+}
+
+export async function resolveFolderPickerInitialPath(initialPath?: string): Promise<string> {
+  const candidate = initialPath?.trim();
+  if (!candidate) return os.homedir();
+  const resolved = path.resolve(candidate);
+  try {
+    const stat = await fs.stat(resolved);
+    if (stat.isDirectory()) return resolved;
+    if (stat.isFile()) return path.dirname(resolved);
+  } catch {
+    // Fall back to the home directory when the typed value is incomplete or invalid.
+  }
+  return os.homedir();
+}
+
+async function runNativeFolderPicker(command: FolderPickerCommand): Promise<string | undefined> {
+  const result = await execFileCapture(command.command, command.args, 120_000);
+  if (result.errorCode === "ENOENT") {
+    if (command.fallback) return runNativeFolderPicker(command.fallback);
+    throw new Error(`Folder picker command not found: ${command.command}`);
+  }
+  if (result.exitCode === 0) return normalizeFolderPickerOutput(result.stdout);
+  if (command.cancelExitCodes.includes(result.exitCode)) return undefined;
+  if (command.fallback && result.exitCode !== 0 && /not found|not installed|cannot find/i.test(`${result.stderr}\n${result.stdout}`)) {
+    return runNativeFolderPicker(command.fallback);
+  }
+  throw new Error(result.stderr.trim() || result.stdout.trim() || `Folder picker failed with exit code ${result.exitCode}`);
+}
+
+function normalizeFolderPickerOutput(output: string): string | undefined {
+  const value = output
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean);
+  return value || undefined;
+}
+
+function execFileCapture(
+  command: string,
+  args: string[],
+  timeoutMs: number
+): Promise<{ exitCode: number; stdout: string; stderr: string; errorCode?: string }> {
+  return new Promise((resolve) => {
+    execFile(command, args, { encoding: "utf8", timeout: timeoutMs, windowsHide: false, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
+      const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
+      resolve({
+        exitCode: typeof code === "number" ? code : error ? 1 : 0,
+        stdout: String(stdout ?? ""),
+        stderr: String(stderr ?? ""),
+        errorCode: typeof code === "string" ? code : undefined
+      });
+    });
+  });
+}
+
+function quotePowerShellString(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
+function escapeAppleScriptString(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
 export async function openProjectInEditor(folderPath: string, editorCommand: string): Promise<{ opened: true; path: string; command: string }> {
