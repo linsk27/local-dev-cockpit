@@ -113,6 +113,9 @@ program
       }
       if (project.commands.length === 0) {
         process.stdout.write("No runnable command detected for this project.\n");
+        if (shouldInspectPythonEnvironment(project)) {
+          await printPythonEnvironmentCandidates(project.path);
+        }
         return;
       }
       process.stdout.write("\nCommand environments\n");
@@ -124,7 +127,7 @@ program
         process.stdout.write(`[${status}] ${diagnostic.label}: ${diagnostic.summary}\n`);
         process.stdout.write(`       ${diagnostic.detail}\n`);
       }
-      if (project.commands.some((command) => isPythonCommand(command.command))) {
+      if (shouldInspectPythonEnvironment(project)) {
         await printPythonEnvironmentCandidates(project.path);
       }
     }
@@ -221,4 +224,12 @@ async function printPythonEnvironmentCandidates(projectPath: string): Promise<vo
 function isPythonCommand(commandName: string): boolean {
   const normalized = path.basename(commandName).replace(/\.(exe|cmd|bat)$/i, "").toLowerCase();
   return normalized === "python" || normalized === "python3" || normalized === "py";
+}
+
+function shouldInspectPythonEnvironment(project: { kind: string; markers: string[]; commands: Array<{ command: string }> }): boolean {
+  if (project.kind === "python" || project.kind === "mixed") return true;
+  if (project.commands.some((command) => isPythonCommand(command.command))) return true;
+  return project.markers.some((marker) =>
+    ["requirements.txt", "requirements-dev.txt", "pyproject.toml", "environment.yml", "environment.yaml", "Pipfile", "poetry.lock"].includes(marker)
+  );
 }
