@@ -19,6 +19,11 @@ export interface AppConfig {
   roots: string[];
   ignoreNames: string[];
   editorCommand: string;
+  projectEnvironments: Record<string, ProjectEnvironmentSettings>;
+}
+
+export interface ProjectEnvironmentSettings {
+  python: string;
 }
 
 export interface PerformanceSnapshot {
@@ -186,6 +191,22 @@ export async function getEnvironmentDiagnostics(projectId: string): Promise<Comm
   const response = await fetch(`/api/projects/${projectId}/environment`);
   await ensureOk(response, "Failed to load environment diagnostics");
   return ((await response.json()) as { diagnostics: CommandEnvironmentDiagnostic[] }).diagnostics;
+}
+
+export async function getProjectSettings(projectId: string): Promise<ProjectEnvironmentSettings> {
+  const response = await fetch(`/api/projects/${projectId}/settings`);
+  await ensureOk(response, "Failed to load project settings");
+  return ((await response.json()) as { environment: ProjectEnvironmentSettings }).environment;
+}
+
+export async function updateProjectEnvironment(projectId: string, environment: ProjectEnvironmentSettings): Promise<ProjectEnvironmentSettings> {
+  const response = await fetch(`/api/projects/${projectId}/settings`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(environment)
+  });
+  await ensureOk(response, "Failed to update project settings");
+  return ((await response.json()) as { environment: ProjectEnvironmentSettings }).environment;
 }
 
 export async function writeContext(projectId: string): Promise<WriteContextResponse> {

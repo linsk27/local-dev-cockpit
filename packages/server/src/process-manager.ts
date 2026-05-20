@@ -44,6 +44,9 @@ interface CommandResolutionOptions {
   fileExists?: (filePath: string) => Promise<boolean>;
   readFile?: (filePath: string) => Promise<string>;
   env?: NodeJS.ProcessEnv;
+  projectEnvironment?: {
+    python?: string;
+  };
 }
 
 /**
@@ -75,7 +78,10 @@ export class ProcessManager {
 
     let child: ChildProcessWithoutNullStreams;
     try {
-      const invocation = await resolveSpawnInvocation(command);
+      const config = await this.store.readConfig();
+      const invocation = await resolveSpawnInvocation(command, {
+        projectEnvironment: config.projectEnvironments[path.resolve(command.cwd)]
+      });
       if (invocation.note) {
         logStream.write(`[dev-cockpit] ${invocation.note}\n`);
       }
@@ -452,6 +458,7 @@ async function diagnosePythonDependencyState(
   const fileExistsFn = options.fileExists ?? fileExists;
   const hasDependencyManifest = await hasPythonDependencyManifest(command.cwd, fileExistsFn);
   if (!hasDependencyManifest) return undefined;
+  if (await resolveConfiguredProjectPythonInvocation(command, normalizeExecutableName(command.command), platform, options)) return undefined;
   if (await findConfiguredPythonInterpreter(command.cwd, platform, options)) return undefined;
   if (await findLocalPythonInterpreter(command.cwd, platform, options.fileExists)) return undefined;
   if (await findDeclaredCondaEnvironment(command.cwd, options)) return undefined;
@@ -625,6 +632,9 @@ async function resolvePythonInvocation(
   platform: NodeJS.Platform,
   options: CommandResolutionOptions
 ): Promise<SpawnInvocation | undefined> {
+  const configuredProjectInvocation = await resolveConfiguredProjectPythonInvocation(command, lowerCommand, platform, options);
+  if (configuredProjectInvocation) return configuredProjectInvocation;
+
   const configuredInterpreter = await findConfiguredPythonInterpreter(command.cwd, platform, options);
   if (configuredInterpreter) {
     return {
@@ -737,6 +747,43 @@ async function findConfiguredPythonInterpreter(
     }
   }
   return undefined;
+}
+
+async function resolveConfiguredProjectPythonInvocation(
+  command: Command,
+  lowerCommand: string,
+  platform: NodeJS.Platform,
+  options: CommandResolutionOptions
+): Promise<SpawnInvocation | undefined> {
+  const rawValue = options.projectEnvironment?.python?.trim();
+  if (!rawValue) return undefined;
+  const condaMatch = rawValue.match(/^conda:(.+)$/i);
+  if (condaMatch) {
+    const envName = condaMatch[1]?.trim();
+    if (!envName) throw new Error("项目绑定的 Conda 环境名为空。");
+    if (!(await isCommandAvailable("conda", platform, options.commandExists))) {
+      throw new Error(`项目绑定了 Conda 环境 ${envName}，但本机找不到 conda。`);
+    }
+    const pythonCommand = lowerCommand === "py" ? "python" : command.command;
+    return {
+      ...createSpawnInvocation("conda", ["run", "-n", envName, pythonCommand, ...command.args], platform),
+      note: `已使用项目绑定的 Conda 环境：${envName}。`
+    };
+  }
+
+  const fileExistsFn = options.fileExists ?? fileExists;
+  const expanded = expandConfiguredPath(rawValue, command.cwd).trim();
+  if (!expanded) return undefined;
+  const candidate = path.isAbsolute(expanded) ? expanded : path.resolve(command.cwd, expanded);
+  for (const pythonPath of candidatePythonInterpreterPaths(candidate, platform)) {
+    if (await fileExistsFn(pythonPath)) {
+      return {
+        ...createSpawnInvocation(pythonPath, command.args, platform),
+        note: `已使用项目绑定的 Python 环境：${pythonPath}。`
+      };
+    }
+  }
+  throw new Error(`项目绑定的 Python 环境不存在：${rawValue}`);
 }
 
 async function resolveInheritedPythonInvocation(

@@ -91,7 +91,7 @@ flowchart LR
 
 当前规则：
 
-- Python 优先级：`.vscode/settings.json` 里显式选择的 `python.defaultInterpreterPath` / `python.pythonPath`，项目本地 `.venv` / `venv` / `.env` / `env` / `.conda` / `conda`，上一层工作区同名环境，`environment.yml` 的 `conda run -n <name>`，`uv.lock` / Poetry / Pipenv 的 `uv run`、`poetry run`、`pipenv run`，已激活终端继承的 `CONDA_PREFIX` / `VIRTUAL_ENV`，最后回退系统 `python` 或 Windows `py` launcher。
+- Python 优先级：Dev Cockpit 项目级手动绑定，`.vscode/settings.json` 里显式选择的 `python.defaultInterpreterPath` / `python.pythonPath`，项目本地 `.venv` / `venv` / `.env` / `env` / `.conda` / `conda`，上一层工作区同名环境，`environment.yml` 的 `conda run -n <name>`，`uv.lock` / Poetry / Pipenv 的 `uv run`、`poetry run`、`pipenv run`，已激活终端继承的 `CONDA_PREFIX` / `VIRTUAL_ENV`，最后回退系统 `python` 或 Windows `py` launcher。
 - Java 优先级：项目自带 `mvnw.cmd` / `mvnw`、`gradlew.bat` / `gradlew`，再回退系统 `mvn` / `gradle`。
 - PHP/Ruby/.NET 优先提供常见本地开发命令，但仍依赖用户机器已经安装对应运行时和依赖。
 - Node 优先级：`packageManager` 字段、lockfile、Corepack、必要时从 pnpm/yarn 回退到 npm。

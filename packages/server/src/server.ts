@@ -26,10 +26,11 @@ import { EventBus } from "./events.js";
 import { stripAnsiControlSequences } from "./log-decoder.js";
 import { resolveAppPaths } from "./paths.js";
 import { diagnoseCommandEnvironment, ProcessManager } from "./process-manager.js";
-import { JsonStore, rootId } from "./store.js";
+import { JsonStore, projectEnvironmentForPath, rootId } from "./store.js";
 
 const addRootSchema = z.object({ path: z.string().min(1) });
 const updateConfigSchema = z.object({ editorCommand: z.string().min(1).max(260).optional() });
+const updateProjectEnvironmentSchema = z.object({ python: z.string().max(500).default("") });
 const PROJECT_SCAN_CACHE_TTL_MS = 20_000;
 const EXTERNAL_PORT_OWNER_CACHE_TTL_MS = 5_000;
 const DEFAULT_APP_VERSION = "0.1.7";
@@ -223,7 +224,10 @@ async function route(
       sendJson(res, 409, { error: blockReason });
       return;
     }
-    const environmentDiagnostic = await diagnoseCommandEnvironment(command);
+    const config = await context.store.readConfig();
+    const environmentDiagnostic = await diagnoseCommandEnvironment(command, {
+      projectEnvironment: projectEnvironmentForPath(config, command.cwd)
+    });
     if (environmentDiagnostic.status === "missing") {
       sendJson(res, 409, {
         error: `${environmentDiagnostic.summary} ${environmentDiagnostic.detail}`.trim(),
@@ -299,9 +303,31 @@ async function route(
   const environmentMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/environment$/);
   if (method === "GET" && environmentMatch) {
     const project = await loadProject(environmentMatch[1] ?? "", context.store, context.processManager);
-    const diagnostics = await Promise.all(project.commands.map((command) => diagnoseCommandEnvironment(command)));
+    const config = await context.store.readConfig();
+    const diagnostics = await Promise.all(
+      project.commands.map((command) =>
+        diagnoseCommandEnvironment(command, { projectEnvironment: projectEnvironmentForPath(config, command.cwd) })
+      )
+    );
     sendJson(res, 200, { diagnostics });
     return;
+  }
+
+  const projectEnvironmentMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/settings$/);
+  if (projectEnvironmentMatch) {
+    const project = await loadProject(projectEnvironmentMatch[1] ?? "", context.store, context.processManager);
+    if (method === "GET") {
+      const config = await context.store.readConfig();
+      sendJson(res, 200, { environment: projectEnvironmentForPath(config, project.path) ?? { python: "" } });
+      return;
+    }
+    if (method === "PATCH") {
+      const body = updateProjectEnvironmentSchema.parse(await readJson(req));
+      const config = await context.store.updateProjectEnvironment(project.path, body.python);
+      context.projectCache.invalidate();
+      sendJson(res, 200, { environment: projectEnvironmentForPath(config, project.path) ?? { python: "" } });
+      return;
+    }
   }
 
   const contextWriteMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/context\/write$/);

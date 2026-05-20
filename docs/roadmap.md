@@ -8,7 +8,7 @@ Dev Cockpit is currently a 0.1 MVP. The goal is to make local project recovery o
 - Electron desktop shell with a Windows Setup installer and portable exe.
 - Project root management.
 - Node, Python, Java, PHP, Ruby, .NET, Go, Rust, Docker, and mixed project detection.
-- Python `.vscode` interpreter, `.venv`/`venv`, Conda, inherited terminal Conda/venv, uv, Poetry, and Pipenv environment resolution before command launch.
+- Python project-level binding, `.vscode` interpreter, `.venv`/`venv`, Conda, inherited terminal Conda/venv, uv, Poetry, and Pipenv environment resolution before command launch.
 - Java Maven/Gradle wrapper detection with Spring Boot run commands.
 - Git branch, dirty count, command inference, ports, logs, and AI context.
 - Managed process start/stop.

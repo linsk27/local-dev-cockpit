@@ -3,7 +3,14 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { ProcessRun } from "@local-dev-cockpit/core";
-import { JsonStore, rootId, sanitizeCommandInput, sanitizePathInput } from "./store.js";
+import {
+  JsonStore,
+  projectEnvironmentForPath,
+  rootId,
+  sanitizeCommandInput,
+  sanitizeEnvironmentInput,
+  sanitizePathInput
+} from "./store.js";
 
 describe("JsonStore roots", () => {
   it("starts without implicit roots so first-run onboarding can choose the workspace", async () => {
@@ -53,6 +60,10 @@ describe("JsonStore roots", () => {
     expect(sanitizeCommandInput("\u202Acode --reuse-window")).toBe("code --reuse-window");
   });
 
+  it("sanitizes copied environment bindings", () => {
+    expect(sanitizeEnvironmentInput('"\u202Aconda:api-env"')).toBe("conda:api-env");
+  });
+
   it("updates the configured editor command", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-store-"));
     const store = new JsonStore(
@@ -69,6 +80,26 @@ describe("JsonStore roots", () => {
 
     expect(config.editorCommand).toBe("cursor");
     await expect(store.updateEditorCommand("   ")).rejects.toThrow("Editor command is empty");
+  });
+
+  it("stores and clears project environment bindings by resolved project path", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-store-"));
+    const store = new JsonStore(
+      {
+        dataDir: tmp,
+        configPath: path.join(tmp, "config.json"),
+        statePath: path.join(tmp, "state.json"),
+        logsDir: path.join(tmp, "logs")
+      },
+      tmp
+    );
+    const projectPath = path.join(tmp, "api");
+
+    let config = await store.updateProjectEnvironment(projectPath, "conda:api-env");
+    expect(projectEnvironmentForPath(config, projectPath)).toEqual({ python: "conda:api-env" });
+
+    config = await store.updateProjectEnvironment(projectPath, "   ");
+    expect(projectEnvironmentForPath(config, projectPath)).toBeUndefined();
   });
 
   it("can clear a stale running state without a live process", async () => {

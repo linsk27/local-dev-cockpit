@@ -4,10 +4,15 @@ import { z } from "zod";
 import type { ErrorSummary, ProcessRun } from "@local-dev-cockpit/core";
 import type { AppPaths } from "./paths.js";
 
+const projectEnvironmentSchema = z.object({
+  python: z.string().default("")
+});
+
 const configSchema = z.object({
   roots: z.array(z.string()).default([]),
   ignoreNames: z.array(z.string()).default([]),
-  editorCommand: z.string().default("code")
+  editorCommand: z.string().default("code"),
+  projectEnvironments: z.record(projectEnvironmentSchema).default({})
 });
 
 const stateSchema = z.object({
@@ -29,7 +34,7 @@ export class JsonStore {
     await fs.mkdir(this.paths.dataDir, { recursive: true });
     await fs.mkdir(this.paths.logsDir, { recursive: true });
     if (!(await exists(this.paths.configPath))) {
-      await this.writeConfig({ roots: [], ignoreNames: [], editorCommand: "code" });
+      await this.writeConfig({ roots: [], ignoreNames: [], editorCommand: "code", projectEnvironments: {} });
     }
     if (!(await exists(this.paths.statePath))) {
       await this.writeState({ runs: {}, errors: {} });
@@ -39,7 +44,7 @@ export class JsonStore {
   async readConfig(): Promise<AppConfig> {
     await this.ensure();
     const parsed = configSchema.safeParse(JSON.parse(await fs.readFile(this.paths.configPath, "utf8")));
-    return parsed.success ? parsed.data : { roots: [], ignoreNames: [], editorCommand: "code" };
+    return parsed.success ? parsed.data : { roots: [], ignoreNames: [], editorCommand: "code", projectEnvironments: {} };
   }
 
   async writeConfig(config: AppConfig): Promise<void> {
@@ -54,6 +59,19 @@ export class JsonStore {
     const resolved = path.resolve(sanitized);
     if (!config.roots.includes(resolved)) {
       config.roots.push(resolved);
+    }
+    await this.writeConfig(config);
+    return config;
+  }
+
+  async updateProjectEnvironment(projectPath: string, python: string): Promise<AppConfig> {
+    const config = await this.readConfig();
+    const normalizedPath = path.resolve(sanitizePathInput(projectPath));
+    const sanitizedPython = sanitizeEnvironmentInput(python);
+    if (sanitizedPython) {
+      config.projectEnvironments[normalizedPath] = { python: sanitizedPython };
+    } else {
+      delete config.projectEnvironments[normalizedPath];
     }
     await this.writeConfig(config);
     return config;
@@ -146,6 +164,15 @@ export function sanitizeCommandInput(input: string): string {
     .normalize("NFKC")
     .replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g, "")
     .trim();
+}
+
+export function sanitizeEnvironmentInput(input: string): string {
+  return sanitizeCommandInput(input).replace(/^["'`]+|["'`]+$/g, "").trim();
+}
+
+export function projectEnvironmentForPath(config: AppConfig, projectPath: string): { python?: string } | undefined {
+  const resolved = path.resolve(projectPath);
+  return config.projectEnvironments[resolved];
 }
 
 async function exists(filePath: string): Promise<boolean> {

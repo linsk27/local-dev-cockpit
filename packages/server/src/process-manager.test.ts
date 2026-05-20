@@ -125,6 +125,35 @@ describe("resolveSpawnInvocation", () => {
     });
   });
 
+  it("uses a project-bound Python interpreter before editor settings and local envs", async () => {
+    const boundPython = "C:\\Users\\tester\\miniconda3\\envs\\bound-api\\python.exe";
+    await expect(
+      resolveSpawnInvocation(command({ command: "python", args: ["app.py"], cwd: "D:\\projects\\api" }), {
+        platform: "win32",
+        projectEnvironment: { python: boundPython },
+        fileExists: async (filePath) => filePath === boundPython,
+        commandExists: async () => false
+      })
+    ).resolves.toMatchObject({
+      command: boundPython,
+      args: ["app.py"]
+    });
+  });
+
+  it("runs Python commands through a project-bound Conda environment", async () => {
+    await expect(
+      resolveSpawnInvocation(command({ command: "python", args: ["app.py"], cwd: "D:\\projects\\api" }), {
+        platform: "win32",
+        projectEnvironment: { python: "conda:api-env" },
+        commandExists: async (name) => name === "conda"
+      })
+    ).resolves.toEqual({
+      command: "cmd.exe",
+      args: ["/d", "/s", "/c", "conda", "run", "-n", "api-env", "python", "app.py"],
+      note: "已使用项目绑定的 Conda 环境：api-env。"
+    });
+  });
+
   it("resolves workspace-relative Python interpreter settings", async () => {
     await expect(
       resolveSpawnInvocation(command({ command: "python", args: ["server.py"], cwd: "D:\\projects\\workspace\\backend" }), {
@@ -346,6 +375,21 @@ describe("diagnoseCommandEnvironment", () => {
     ).resolves.toMatchObject({
       status: "ready",
       resolvedCommand: "C:\\Users\\tester\\miniconda3\\envs\\api-env\\python.exe app.py"
+    });
+  });
+
+  it("does not warn when a project-bound Python environment is configured", async () => {
+    await expect(
+      diagnoseCommandEnvironment(command({ command: "python", args: ["app.py"], cwd: "D:\\projects\\api" }), {
+        platform: "win32",
+        projectEnvironment: { python: "D:\\envs\\api" },
+        fileExists: async (filePath) =>
+          filePath === "D:\\projects\\api\\requirements.txt" || filePath === "D:\\envs\\api\\Scripts\\python.exe",
+        commandExists: async () => false
+      })
+    ).resolves.toMatchObject({
+      status: "ready",
+      resolvedCommand: "D:\\envs\\api\\Scripts\\python.exe app.py"
     });
   });
 
