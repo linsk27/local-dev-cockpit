@@ -1477,16 +1477,23 @@ export async function stopPort(port: number): Promise<StopPortResult> {
 
   await new Promise((resolve) => setTimeout(resolve, 800));
   const stillOpen = await processAdapter.isPortOpen(port);
+  if (!stillOpen) {
+    return {
+      stopped: true,
+      port,
+      pids: killablePids,
+      alreadyClosed: failures.length > 0
+    };
+  }
+
   return {
-    stopped: failures.length === 0 && !stillOpen,
+    stopped: false,
     port,
     pids: killablePids,
     error:
       failures.length > 0
         ? failures.join("\n")
-        : stillOpen
-          ? [...actions, "端口仍在监听。父进程可能不可见或由系统代理托管，请关闭启动它的终端，或用管理员权限重新运行 Dev Cockpit。"].join("\n")
-          : undefined
+        : [...actions, "端口仍在监听。父进程可能不可见或由系统代理托管，请关闭启动它的终端，或用管理员权限重新运行 Dev Cockpit。"].join("\n")
   };
 }
 

@@ -3,7 +3,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Project } from "@local-dev-cockpit/core";
+import { NodeProcessAdapter, type Project } from "@local-dev-cockpit/core";
 import {
   assignExternalPortOwners,
   checkForUpdates,
@@ -160,6 +160,33 @@ describe("stopPort", () => {
       stopped: true,
       port,
       pids: [],
+      alreadyClosed: true
+    });
+  });
+
+  it("treats stale Windows PID rows as successful cleanup when the port is closed", async () => {
+    if (process.platform !== "win32") return;
+
+    vi.spyOn(NodeProcessAdapter.prototype, "execFile").mockImplementation(async (command, args) => {
+      if (command === "netstat.exe") {
+        expect(args).toEqual(["-ano"]);
+        return {
+          stdout: "TCP    127.0.0.1:54321        0.0.0.0:0              LISTENING       4242\n",
+          stderr: "",
+          exitCode: 0
+        };
+      }
+      if (command === "powershell.exe") {
+        return { stdout: "PID_NOT_FOUND\n", stderr: "", exitCode: 2 };
+      }
+      return { stdout: "", stderr: `unexpected command ${command}`, exitCode: 1 };
+    });
+    vi.spyOn(NodeProcessAdapter.prototype, "isPortOpen").mockResolvedValue(false);
+
+    await expect(stopPort(54321)).resolves.toMatchObject({
+      stopped: true,
+      port: 54321,
+      pids: [4242],
       alreadyClosed: true
     });
   });
