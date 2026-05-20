@@ -101,6 +101,35 @@ describe("scanRoot", () => {
     expect(declaredYarn?.commands.find((command) => command.id === "script-dev")?.command).toBe("yarn");
   });
 
+  it("keeps package script declared ports as structured command hints", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-script-ports-"));
+    const web = path.join(root, "web");
+    await fs.mkdir(web, { recursive: true });
+    await fs.writeFile(
+      path.join(web, "package.json"),
+      JSON.stringify({
+        name: "web",
+        scripts: {
+          dev: "vite --host 0.0.0.0 --port=5179",
+          start: "next dev -p 3001"
+        }
+      }),
+      "utf8"
+    );
+
+    const result = await scanRoot(root, { maxDepth: 2 });
+    const project = result.projects.find((item) => item.name === "web");
+
+    expect(project?.commands.find((command) => command.id === "script-dev")?.ports).toEqual([5179]);
+    expect(project?.commands.find((command) => command.id === "script-start")?.ports).toEqual([3001]);
+    expect(project?.ports).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ port: 5179, source: "detected" }),
+        expect.objectContaining({ port: 3001, source: "detected" })
+      ])
+    );
+  });
+
   it("hides dependency/cache packages that are not runnable projects", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-noise-"));
     const unityCachePackage = path.join(root, "UnityGame", "Library", "PackageCache", "com.unity.2d.animation@3.2.5");

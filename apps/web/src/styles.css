@@ -967,16 +967,16 @@ h2 {
 .project-overview-card {
   display: grid;
   align-content: start;
-  gap: 16px;
+  gap: 14px;
   min-width: 0;
-  padding: 16px;
+  padding: 18px 20px;
 }
 
 .project-overview-header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 16px;
+  align-items: start;
+  gap: 12px;
   min-width: 0;
 }
 
@@ -989,8 +989,13 @@ h2 {
 .project-title-copy h2 {
   margin: 0;
   color: var(--text-strong);
-  font-size: clamp(22px, 3vw, 30px);
-  line-height: 1.04;
+  font-size: clamp(20px, 2.2vw, 28px);
+  line-height: 1.12;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .project-title-copy .project-path {
@@ -1009,14 +1014,18 @@ h2 {
   align-items: center;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 6px;
   margin-top: 0;
 }
 
 .quick-action {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 34px;
   min-width: 0;
-  height: 32px;
-  padding: 0 10px;
+  height: 34px;
+  padding: 0;
   background: color-mix(in srgb, var(--surface-soft) 76%, transparent);
 }
 
@@ -1027,14 +1036,14 @@ h2 {
 
 .project-meta-strip {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
   gap: 8px;
   min-width: 0;
 }
 
 .runtime-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(240px, 0.75fr);
+  grid-template-columns: minmax(0, 1.35fr) minmax(220px, 0.65fr);
   gap: 12px;
   align-items: stretch;
   min-width: 0;
@@ -1337,7 +1346,7 @@ h2 {
 
 .diagnostics-list {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 10px;
   padding: 12px;
   border-top: 1px solid var(--border);
@@ -1348,6 +1357,7 @@ h2 {
   grid-template-columns: 8px minmax(0, 1fr);
   gap: 10px;
   min-width: 0;
+  min-height: 96px;
   padding: 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -1465,7 +1475,7 @@ h2 {
 .diagnostic-row strong {
   color: var(--text-strong);
   font-size: 13px;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .diagnostic-row p {
@@ -2662,9 +2672,9 @@ h2 {
   }
 
   .quick-actions {
-    align-items: stretch;
-    flex-direction: column;
-    justify-content: stretch;
+    align-items: center;
+    flex-direction: row;
+    justify-content: flex-start;
   }
 
   .context-actions .text-button {
@@ -2672,7 +2682,7 @@ h2 {
   }
 
   .quick-actions .text-button {
-    width: 100%;
+    width: 34px;
   }
 
   .detail-tab {

@@ -709,11 +709,17 @@ function commandWouldTouchPorts(command: Command, ports: PortStatus[]): boolean 
 }
 
 function commandDeclaredPorts(command: Command): number[] {
+  const ports = new Set<number>(command.ports ?? []);
   const text = `${command.command} ${command.args.join(" ")}`;
-  const ports = new Set<number>();
-  for (const match of text.matchAll(/(?:--port(?:=|\s+)|-p\s+|PORT=|:)(\d{2,5})/gi)) {
-    const port = Number(match[1]);
-    if (Number.isInteger(port) && port > 0 && port < 65536) ports.add(port);
+  const patterns = [
+    /(?:--(?:port|server\.port)(?:=|\s+)|-p\s+|(?:^|\s)[A-Z_]*PORT=)(\d{2,5})/gi,
+    /(?:https?:\/\/)?(?:localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0):(\d{2,5})/gi
+  ];
+  for (const pattern of patterns) {
+    for (const match of text.matchAll(pattern)) {
+      const port = Number(match[1]);
+      if (Number.isInteger(port) && port > 0 && port < 65536) ports.add(port);
+    }
   }
   return [...ports];
 }

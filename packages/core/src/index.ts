@@ -14,5 +14,5 @@ export type {
 } from "./types.js";
 export type { FileSystemAdapter, ProcessAdapter } from "./adapters.js";
 export { NodeFileSystemAdapter, NodeProcessAdapter } from "./node-adapters.js";
-export { analyzeProject, decodeProjectId, encodeProjectId, scanRoot } from "./scanner.js";
+export { analyzeProject, decodeProjectId, encodeProjectId, extractPortNumbersFromText, scanRoot } from "./scanner.js";
 export { createRecoveryCard, formatPortEndpoint, renderAgentsFile, renderProjectContext } from "./context.js";

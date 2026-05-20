@@ -37,6 +37,12 @@ export interface Command {
   label: string;
   command: string;
   args: string[];
+  /**
+   * Ports inferred from command metadata, such as package.json script text.
+   * These are hints for status and duplicate-start detection; they are not
+   * passed to the spawned process unless already present in args.
+   */
+  ports?: number[];
   cwd: string;
   source: CommandSource;
   kind: CommandKind;

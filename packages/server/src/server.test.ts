@@ -557,6 +557,25 @@ describe("commandStartBlockReason", () => {
 
     expect(commandStartBlockReason(target, target.commands[0]!)).toContain("残留端口");
   });
+
+  it("uses package script port hints when blocking duplicate starts", () => {
+    const target = project("web", "D:\\个人\\web");
+    target.commands = [
+      {
+        id: "script-dev",
+        label: "dev",
+        command: "pnpm",
+        args: ["run", "dev"],
+        ports: [5179],
+        cwd: target.path,
+        source: "package-script",
+        kind: "dev"
+      }
+    ];
+    target.ports = [{ port: 5179, host: "127.0.0.1", status: "open", source: "detected" }];
+
+    expect(commandStartBlockReason(target, target.commands[0]!)).toContain("服务已经在线");
+  });
 });
 
 describe("parseStoppedChildrenOutput", () => {

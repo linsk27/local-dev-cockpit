@@ -550,7 +550,8 @@ async function readPackageScripts(projectPath: string, packageManager: NonNullab
         buildPackageScriptArgs(packageManager, scriptName, scriptBody),
         projectPath,
         "package-script",
-        inferCommandKind(scriptName)
+        inferCommandKind(scriptName),
+        extractPortNumbersFromText(scriptBody)
       );
     });
   } catch {
@@ -582,9 +583,10 @@ function command(
   args: string[],
   cwd: string,
   source: Command["source"],
-  kind: Command["kind"]
+  kind: Command["kind"],
+  ports: number[] = []
 ): Command {
-  return { id, label, command: executable, args, cwd, source, kind };
+  return { id, label, command: executable, args, ports: ports.length > 0 ? ports : undefined, cwd, source, kind };
 }
 
 function inferCommandKind(name: string): Command["kind"] {
@@ -626,12 +628,8 @@ async function detectPorts(
 ): Promise<PortStatus[]> {
   const fromCommands = new Set<number>();
   for (const item of commands) {
-    const text = `${item.command} ${item.args.join(" ")}`;
-    for (const match of text.matchAll(/(?:--port\s+|PORT=|:)(\d{4,5})/gi)) {
-      const port = Number(match[1]);
-      if (Number.isInteger(port) && port > 0 && port < 65536) {
-        fromCommands.add(port);
-      }
+    for (const port of [...(item.ports ?? []), ...extractPortNumbersFromText(`${item.command} ${item.args.join(" ")}`)]) {
+      fromCommands.add(port);
     }
   }
 
@@ -644,6 +642,21 @@ async function detectPorts(
       source: fromCommands.has(port) ? "detected" : "common"
     }))
   );
+}
+
+export function extractPortNumbersFromText(text: string): number[] {
+  const ports = new Set<number>();
+  const patterns = [
+    /(?:--(?:port|server\.port)(?:=|\s+)|-p\s+|(?:^|\s)[A-Z_]*PORT=)(\d{2,5})/gi,
+    /(?:https?:\/\/)?(?:localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0):(\d{2,5})/gi
+  ];
+  for (const pattern of patterns) {
+    for (const match of text.matchAll(pattern)) {
+      const port = Number(match[1]);
+      if (Number.isInteger(port) && port > 0 && port < 65536) ports.add(port);
+    }
+  }
+  return [...ports];
 }
 
 function cachedPortProbe(

@@ -6,21 +6,17 @@
         <p class="project-path" :title="project.path">{{ project.path }}</p>
       </div>
       <div class="quick-actions" :aria-label="preferences.t('quickActions')">
-        <button class="text-button quick-action" type="button" :title="preferences.t('openFolder')" @click="openFolder">
+        <button class="text-button quick-action" type="button" :title="preferences.t('openFolder')" :aria-label="preferences.t('openFolder')" @click="openFolder">
           <FolderOpen :size="14" />
-          <span>{{ preferences.t("openFolder") }}</span>
         </button>
-        <button class="text-button quick-action" type="button" :title="preferences.t('openEditor')" @click="openEditor">
+        <button class="text-button quick-action" type="button" :title="preferences.t('openEditor')" :aria-label="preferences.t('openEditor')" @click="openEditor">
           <Code2 :size="14" />
-          <span>{{ preferences.t("openEditor") }}</span>
         </button>
-        <button class="text-button quick-action" type="button" :title="preferences.t('copyPath')" @click="copyProjectPath">
+        <button class="text-button quick-action" type="button" :title="preferences.t('copyPath')" :aria-label="preferences.t('copyPath')" @click="copyProjectPath">
           <Copy :size="14" />
-          <span>{{ preferences.t("copyPath") }}</span>
         </button>
-        <button class="text-button quick-action" type="button" :title="preferences.t('copyAiContext')" @click="copyProjectContext">
+        <button class="text-button quick-action" type="button" :title="preferences.t('copyAiContext')" :aria-label="preferences.t('copyAiContext')" @click="copyProjectContext">
           <Bot :size="14" />
-          <span>{{ preferences.t("copyAiContext") }}</span>
         </button>
       </div>
     </div>
