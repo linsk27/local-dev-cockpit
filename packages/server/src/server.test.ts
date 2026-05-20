@@ -19,6 +19,7 @@ import {
   isLocalHttpEndpointReachable,
   isObsoleteMissingToolFailure,
   logIndicatesExistingServer,
+  normalizeScannedPorts,
   parseExternalPortOwners,
   parseEditorCommand,
   parseLocalEndpointsFromLogs,
@@ -330,6 +331,48 @@ describe("findExternalProjectPorts", () => {
         source: "detected"
       }
     ]);
+  });
+});
+
+describe("normalizeScannedPorts", () => {
+  it("keeps unique scanned ports online only when HTTP is reachable", async () => {
+    const server = createServer((_request, response) => {
+      response.end("ok");
+    });
+    const port = await listenOnRandomPort(server);
+    const target = project("demo", "D:\\个人\\demo");
+    target.ports = [{ port, host: "127.0.0.1", status: "open", source: "detected" }];
+    try {
+      await expect(normalizeScannedPorts(target, [], new Map([[port, 1]]))).resolves.toEqual([
+        {
+          port,
+          host: "127.0.0.1",
+          url: `http://127.0.0.1:${port}`,
+          status: "open",
+          source: "detected"
+        }
+      ]);
+    } finally {
+      await closeServer(server);
+    }
+  });
+
+  it("marks unique scanned ports stale when TCP is open but HTTP is unreachable", async () => {
+    const target = project("demo", "D:\\个人\\demo");
+    target.ports = [{ port: 9, host: "127.0.0.1", status: "open", source: "detected" }];
+
+    await expect(normalizeScannedPorts(target, [], new Map([[9, 1]]))).resolves.toEqual([
+      { port: 9, host: "127.0.0.1", status: "unknown", source: "detected" }
+    ]);
+  });
+
+  it("keeps external-owner matched scanned ports without another HTTP probe", async () => {
+    const target = project("demo", "D:\\个人\\demo");
+    target.ports = [{ port: 9, host: "127.0.0.1", status: "open", source: "detected" }];
+
+    await expect(
+      normalizeScannedPorts(target, [{ port: 9, host: "127.0.0.1", status: "unknown", source: "detected" }], new Map([[9, 1]]))
+    ).resolves.toEqual([{ port: 9, host: "127.0.0.1", status: "open", source: "detected" }]);
   });
 });
 

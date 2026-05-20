@@ -861,7 +861,7 @@ async function enrichProject(
     : [];
   const externalPorts = await findExternalProjectPorts(project, enrichment.externalPortOwnersByProject.get(project.id) ?? [], logPorts);
   const processPorts = filterStaleLogPorts(project.id, managedRun, logPorts, externalPorts, enrichment.externalPortClaims);
-  const scannedPorts = normalizeScannedPorts(project, externalPorts, enrichment.detectedPortCounts);
+  const scannedPorts = await normalizeScannedPorts(project, externalPorts, enrichment.detectedPortCounts);
   const hydratedRun = hydrateLastRun(managedRun, processPorts);
   const obsoleteToolFailure = isObsoleteMissingToolFailure(project, hydratedRun, lastError);
   const currentRun = obsoleteToolFailure ? undefined : hydratedRun;
@@ -974,17 +974,38 @@ function countDetectedPortOwners(projects: Project[]): Map<number, number> {
 
 /**
  * Keeps detected ports visible only when they are defensible. A declared port is
- * trusted if the OS process command line references this project, or if this is
- * the only scanned project declaring that port. Otherwise it is treated like a
- * common probe and stays hidden from the dashboard's online status.
+ * trusted if the OS process command line references this project, or if the
+ * unique declared port responds to a lightweight HTTP probe. Otherwise it is
+ * marked stale instead of being shown as an online browser endpoint.
  */
-function normalizeScannedPorts(project: Project, externalPorts: PortStatus[], detectedPortCounts: Map<number, number>): PortStatus[] {
+export async function normalizeScannedPorts(
+  project: Project,
+  externalPorts: PortStatus[],
+  detectedPortCounts: Map<number, number>
+): Promise<PortStatus[]> {
   const externallyMatched = new Set(externalPorts.map((port) => port.port));
-  return project.ports.map((port) => {
+  return Promise.all(project.ports.map(async (port) => {
     if (port.source !== "detected" || port.status !== "open") return port;
-    if (externallyMatched.has(port.port) || (detectedPortCounts.get(port.port) ?? 0) <= 1) return port;
-    return { ...port, source: "common" };
-  });
+    if (externallyMatched.has(port.port)) return port;
+    if ((detectedPortCounts.get(port.port) ?? 0) > 1) return { ...port, source: "common" };
+    const reachable = await resolveReachableScannedPort(port);
+    if (reachable) return reachable;
+    return { ...port, status: "unknown" };
+  }));
+}
+
+async function resolveReachableScannedPort(port: PortStatus): Promise<PortStatus | undefined> {
+  for (const candidate of externalListenerProbeCandidates(port.port, port.host)) {
+    if (await isLocalHttpEndpointReachable(candidate, 700)) {
+      return {
+        ...port,
+        host: candidate.host,
+        url: candidate.url,
+        status: "open"
+      };
+    }
+  }
+  return undefined;
 }
 
 export function filterStaleLogPorts(
