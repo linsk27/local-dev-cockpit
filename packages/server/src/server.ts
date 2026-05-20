@@ -32,7 +32,7 @@ const addRootSchema = z.object({ path: z.string().min(1) });
 const updateConfigSchema = z.object({ editorCommand: z.string().min(1).max(260).optional() });
 const PROJECT_SCAN_CACHE_TTL_MS = 20_000;
 const EXTERNAL_PORT_OWNER_CACHE_TTL_MS = 5_000;
-const DEFAULT_APP_VERSION = "0.1.5";
+const DEFAULT_APP_VERSION = "0.1.6";
 const LATEST_RELEASE_URL = "https://api.github.com/repos/linsk27/local-dev-cockpit/releases/latest";
 const startedAt = Date.now();
 let cpuSample = { at: startedAt, usage: process.cpuUsage() };
@@ -394,9 +394,31 @@ export async function checkForUpdates(currentVersion: string): Promise<UpdateChe
       currentVersion,
       hasUpdate: false,
       checkedAt,
-      error: error instanceof Error ? error.message : String(error)
+      releaseUrl: "https://github.com/linsk27/local-dev-cockpit/releases/latest",
+      error: formatUpdateCheckError(error)
     };
   }
+}
+
+export function formatUpdateCheckError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  if (error instanceof Error && error.name === "AbortError") {
+    return "连接 GitHub Releases 超时。请检查网络或代理，或手动打开 GitHub Release 页面下载。";
+  }
+  if (/fetch failed|network|ENOTFOUND|ECONNRESET|ECONNREFUSED|ETIMEDOUT|certificate|self signed/i.test(message)) {
+    return "无法连接 GitHub Releases。请检查网络、代理或证书设置；也可以手动打开 GitHub Release 页面下载。";
+  }
+  const status = message.match(/GitHub releases request failed:\s*(\d+)/i)?.[1];
+  if (status === "403") {
+    return "GitHub API 暂时限流或拒绝访问。请稍后重试，或手动打开 GitHub Release 页面下载。";
+  }
+  if (status === "404") {
+    return "没有找到可用的 GitHub Release。请稍后重试或检查项目发布页。";
+  }
+  if (status) {
+    return `GitHub Releases 返回 ${status}。请稍后重试，或手动打开 GitHub Release 页面下载。`;
+  }
+  return message || "检查更新失败。请稍后重试，或手动打开 GitHub Release 页面下载。";
 }
 
 export function isNewerVersion(candidate: string, current: string): boolean {

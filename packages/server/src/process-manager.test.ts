@@ -106,6 +106,41 @@ describe("resolveSpawnInvocation", () => {
     });
   });
 
+  it("uses the Python interpreter configured by VS Code settings", async () => {
+    const settingsPath = "D:\\projects\\api\\.vscode\\settings.json";
+    const condaPython = "C:\\Users\\tester\\miniconda3\\envs\\api-env\\python.exe";
+    await expect(
+      resolveSpawnInvocation(command({ command: "python", args: ["app.py"], cwd: "D:\\projects\\api" }), {
+        platform: "win32",
+        fileExists: async (filePath) => filePath === settingsPath || filePath === condaPython,
+        readFile: async () => `{
+          // Cursor and VS Code both store the selected interpreter here.
+          "python.defaultInterpreterPath": "${condaPython.replace(/\\/g, "\\\\")}",
+        }`,
+        commandExists: async () => false
+      })
+    ).resolves.toMatchObject({
+      command: condaPython,
+      args: ["app.py"]
+    });
+  });
+
+  it("resolves workspace-relative Python interpreter settings", async () => {
+    await expect(
+      resolveSpawnInvocation(command({ command: "python", args: ["server.py"], cwd: "D:\\projects\\workspace\\backend" }), {
+        platform: "win32",
+        fileExists: async (filePath) =>
+          filePath === "D:\\projects\\workspace\\.vscode\\settings.json" ||
+          filePath === "D:\\projects\\workspace\\.conda\\Scripts\\python.exe",
+        readFile: async () => JSON.stringify({ "python.defaultInterpreterPath": "${workspaceFolder}\\.conda" }),
+        commandExists: async () => false
+      })
+    ).resolves.toMatchObject({
+      command: "D:\\projects\\workspace\\.conda\\Scripts\\python.exe",
+      args: ["server.py"]
+    });
+  });
+
   it("runs Python commands through a declared Conda environment when no local env exists", async () => {
     await expect(
       resolveSpawnInvocation(command({ command: "python", args: ["run.py"], cwd: "D:\\projects\\conda-api" }), {

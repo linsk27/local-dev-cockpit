@@ -13,6 +13,7 @@ import {
   externalListenerProbeCandidates,
   filterStaleLogPorts,
   findExternalProjectPorts,
+  formatUpdateCheckError,
   isNewerVersion,
   isLocalHttpEndpointReachable,
   isObsoleteMissingToolFailure,
@@ -46,6 +47,11 @@ describe("update checks", () => {
       installerAsset: { name: "Dev-Cockpit-Setup-0.1.4-win-x64.exe", size: 2, downloadUrl: "https://example.test/setup.exe" },
       portableAsset: { name: "Dev-Cockpit-0.1.4-win-x64.exe", size: 3, downloadUrl: "https://example.test/portable.exe" }
     });
+  });
+
+  it("returns user-facing update errors instead of raw fetch failures", () => {
+    expect(formatUpdateCheckError(new TypeError("fetch failed"))).toContain("无法连接 GitHub Releases");
+    expect(formatUpdateCheckError(new Error("GitHub releases request failed: 403"))).toContain("GitHub API");
   });
 });
 

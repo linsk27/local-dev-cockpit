@@ -132,7 +132,8 @@ Dev Cockpit 的运行按钮不是简单调用脚本，它会先做一次轻量�
 
 真实项目经常不是“系统 PATH 里有一个命令就能跑”。Dev Cockpit 启动命令前会尽量自动选择项目环境，减少别人下载后因为环境不同直接失败：
 
-- Python 命令会优先使用当前项目里的 `.venv`、`venv`、`.env`、`env`、`.conda` 或 `conda`。
+- Python 命令会优先使用 `.vscode/settings.json` 中选择的 `python.defaultInterpreterPath` / `python.pythonPath`，这能覆盖 VS Code/Cursor 里选中的全局 Conda 环境。
+- 然后使用当前项目里的 `.venv`、`venv`、`.env`、`env`、`.conda` 或 `conda`。
 - 如果项目拆成 `frontend` / `backend`，后端目录没有虚拟环境，也会检查上一层工作区里的虚拟环境。
 - 如果存在 `environment.yml` / `environment.yaml`，且本机能找到 Conda，会按里面的 `name:` 使用 `conda run -n <env> ...`。
 - 如果存在 `uv.lock`、`poetry.lock` / `[tool.poetry]` 或 `Pipfile`，且本机能找到对应工具，会分别通过 `uv run python ...`、`poetry run python ...`、`pipenv run python ...` 执行。
@@ -290,4 +291,4 @@ apps/desktop     Electron 桌面壳，复用同一套 server 和 Vue 面板
 
 ## 当前阶段
 
-当前是 `0.1.5` 可运行原型，重点验证方向：本地项目恢复、日志聚合、运行地址识别、AI 上下文生成、运行环境诊断、简洁面板体验、Windows 安装更新流程和 Dev Pilot 首屏品牌体验。下一步会继续减少操作步骤，补充更多真实项目扫描样本、进程异常恢复和配置编辑能力。
+当前是 `0.1.6` 可运行原型，重点验证方向：本地项目恢复、日志聚合、运行地址识别、AI 上下文生成、运行环境诊断、简洁面板体验、Windows 安装更新流程和 Dev Pilot 首屏品牌体验。下一步会继续减少操作步骤，补充更多真实项目扫描样本、进程异常恢复和配置编辑能力。

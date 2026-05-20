@@ -1,5 +1,6 @@
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createWriteStream, promises as fs } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import type { Command, ErrorSummary, ProcessRun } from "@local-dev-cockpit/core";
@@ -450,6 +451,7 @@ async function diagnosePythonDependencyState(
   const fileExistsFn = options.fileExists ?? fileExists;
   const hasDependencyManifest = await hasPythonDependencyManifest(command.cwd, fileExistsFn);
   if (!hasDependencyManifest) return undefined;
+  if (await findConfiguredPythonInterpreter(command.cwd, platform, options)) return undefined;
   if (await findLocalPythonInterpreter(command.cwd, platform, options.fileExists)) return undefined;
   if (await findDeclaredCondaEnvironment(command.cwd, options)) return undefined;
   if (await findPythonProjectRunner(command.cwd, platform, options)) return undefined;
@@ -621,6 +623,14 @@ async function resolvePythonInvocation(
   platform: NodeJS.Platform,
   options: CommandResolutionOptions
 ): Promise<SpawnInvocation | undefined> {
+  const configuredInterpreter = await findConfiguredPythonInterpreter(command.cwd, platform, options);
+  if (configuredInterpreter) {
+    return {
+      ...createSpawnInvocation(configuredInterpreter.path, command.args, platform),
+      note: `已使用编辑器配置的 Python 环境：${configuredInterpreter.label}。`
+    };
+  }
+
   const localInterpreter = await findLocalPythonInterpreter(command.cwd, platform, options.fileExists);
   if (localInterpreter) {
     return {
@@ -696,6 +706,34 @@ async function findLocalPythonInterpreter(
   return undefined;
 }
 
+async function findConfiguredPythonInterpreter(
+  projectPath: string,
+  platform: NodeJS.Platform,
+  options: CommandResolutionOptions
+): Promise<{ path: string; label: string } | undefined> {
+  const fileExistsFn = options.fileExists ?? fileExists;
+  const readFileFn = options.readFile ?? readTextFile;
+  for (const base of candidateEnvironmentBases(projectPath)) {
+    const settingsPath = path.join(base, ".vscode", "settings.json");
+    if (!(await fileExistsFn(settingsPath))) continue;
+    const settings = await readJsonObjectWithComments(settingsPath, readFileFn);
+    if (!settings) continue;
+    for (const key of ["python.defaultInterpreterPath", "python.pythonPath"]) {
+      const rawValue = settings[key];
+      if (typeof rawValue !== "string" || rawValue.trim().length === 0) continue;
+      const interpreterPath = await resolveConfiguredPythonPath(rawValue, base, platform, fileExistsFn);
+      if (interpreterPath) {
+        const settingsLabel = path.relative(projectPath, settingsPath);
+        return {
+          path: interpreterPath,
+          label: `${describeEnvironmentPath(projectPath, interpreterPath)} (${settingsLabel})`
+        };
+      }
+    }
+  }
+  return undefined;
+}
+
 async function findDeclaredCondaEnvironment(
   projectPath: string,
   options: CommandResolutionOptions
@@ -757,6 +795,57 @@ async function pyprojectUsesPoetry(pyprojectPath: string, readFileFn: (filePath:
   } catch {
     return false;
   }
+}
+
+async function readJsonObjectWithComments(
+  filePath: string,
+  readFileFn: (filePath: string) => Promise<string>
+): Promise<Record<string, unknown> | undefined> {
+  try {
+    const parsed = JSON.parse(stripJsonComments(await readFileFn(filePath)));
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function stripJsonComments(raw: string): string {
+  return raw
+    .replace(/^\uFEFF/, "")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/(^|[^:])\/\/.*$/gm, "$1")
+    .replace(/,\s*([}\]])/g, "$1");
+}
+
+async function resolveConfiguredPythonPath(
+  rawValue: string,
+  workspacePath: string,
+  platform: NodeJS.Platform,
+  fileExistsFn: (filePath: string) => Promise<boolean>
+): Promise<string | undefined> {
+  const expanded = expandConfiguredPath(rawValue, workspacePath).trim();
+  if (!expanded || !isPathLikeCommand(expanded)) return undefined;
+  const candidate = path.isAbsolute(expanded) ? expanded : path.resolve(workspacePath, expanded);
+  for (const pythonPath of candidatePythonInterpreterPaths(candidate, platform)) {
+    if (await fileExistsFn(pythonPath)) return pythonPath;
+  }
+  return undefined;
+}
+
+function candidatePythonInterpreterPaths(candidate: string, platform: NodeJS.Platform): string[] {
+  const names = platform === "win32" ? ["Scripts/python.exe", "python.exe"] : ["bin/python", "python"];
+  return [candidate, ...names.map((name) => path.join(candidate, name))];
+}
+
+function expandConfiguredPath(rawValue: string, workspacePath: string): string {
+  let value = rawValue.trim().replace(/^['"]|['"]$/g, "");
+  value = value.replace(/\$\{workspaceFolder(?::[^}]+)?\}|\$\{workspaceRoot\}/g, workspacePath);
+  value = value.replace(/\$\{env:([^}]+)\}/g, (_match, name: string) => process.env[name] ?? "");
+  value = value.replace(/%([^%]+)%/g, (_match, name: string) => process.env[name] ?? "");
+  if (value === "~" || value.startsWith("~/") || value.startsWith("~\\")) {
+    value = path.join(os.homedir(), value.slice(2));
+  }
+  return value;
 }
 
 function parseCondaEnvironmentName(raw: string): string | undefined {
