@@ -56,6 +56,24 @@ describe("scanRoot", () => {
     expect(project?.commands.find((command) => command.id === "script-build")?.args).toEqual(["run", "build"]);
   });
 
+  it("reads package.json files that include a UTF-8 BOM", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-bom-"));
+    const projectPath = path.join(root, "bom-vite");
+    await fs.mkdir(projectPath, { recursive: true });
+    await fs.writeFile(path.join(projectPath, "package.json"), `\uFEFF${JSON.stringify({ name: "bom-vite", scripts: { dev: "vite" } })}`, "utf8");
+
+    const result = await scanRoot(root, { maxDepth: 2 });
+    const project = result.projects.find((item) => item.name === "bom-vite");
+
+    expect(project?.commands.find((command) => command.id === "script-dev")?.args).toEqual([
+      "run",
+      "dev",
+      "--",
+      "--host",
+      "127.0.0.1"
+    ]);
+  });
+
   it("uses packageManager first and falls back to npm when package-lock and yarn.lock both exist", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-manager-"));
     const packageLockProject = path.join(root, "mixed-locks");

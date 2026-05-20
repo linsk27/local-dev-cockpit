@@ -282,7 +282,7 @@ async function detectPackageManager(projectPath: string, fs: FileSystemAdapter):
 async function readDeclaredPackageManager(projectPath: string, fs: FileSystemAdapter): Promise<Project["packageManager"]> {
   try {
     const raw = await fs.readFile(path.join(projectPath, "package.json"));
-    const parsed = JSON.parse(raw) as { packageManager?: string };
+    const parsed = parseJsonText<{ packageManager?: string }>(raw);
     const manager = parsed.packageManager?.split("@")[0]?.trim();
     return manager === "npm" || manager === "pnpm" || manager === "yarn" || manager === "bun" ? manager : undefined;
   } catch {
@@ -413,7 +413,7 @@ async function detectPhpCommands(projectPath: string, markers: string[], fs: Fil
 async function readComposerScripts(projectPath: string, fs: FileSystemAdapter): Promise<Command[]> {
   try {
     const raw = await fs.readFile(path.join(projectPath, "composer.json"));
-    const parsed = JSON.parse(raw) as { scripts?: Record<string, unknown> };
+    const parsed = parseJsonText<{ scripts?: Record<string, unknown> }>(raw);
     return Object.entries(parsed.scripts ?? {})
       .filter(([scriptName]) => /^(dev|serve|start|test|build)$/i.test(scriptName))
       .map(([scriptName]) =>
@@ -469,7 +469,7 @@ async function detectFastApiEntrypoint(
 async function readPackageScripts(projectPath: string, packageManager: NonNullable<Project["packageManager"]>, fs: FileSystemAdapter): Promise<Command[]> {
   try {
     const raw = await fs.readFile(path.join(projectPath, "package.json"));
-    const parsed = JSON.parse(raw) as { scripts?: Record<string, string> };
+    const parsed = parseJsonText<{ scripts?: Record<string, string> }>(raw);
     return Object.entries(parsed.scripts ?? {}).map(([scriptName, scriptBody]) => {
       return command(
         `script-${scriptName}`,
@@ -484,6 +484,10 @@ async function readPackageScripts(projectPath: string, packageManager: NonNullab
   } catch {
     return [];
   }
+}
+
+function parseJsonText<T>(raw: string): T {
+  return JSON.parse(raw.replace(/^\uFEFF/, "")) as T;
 }
 
 function buildPackageScriptArgs(packageManager: NonNullable<Project["packageManager"]>, scriptName: string, scriptBody: string): string[] {
