@@ -121,6 +121,49 @@ describe("resolveSpawnInvocation", () => {
     });
   });
 
+  it("runs Python commands through uv when uv.lock exists", async () => {
+    await expect(
+      resolveSpawnInvocation(command({ command: "python", args: ["app.py"], cwd: "D:\\projects\\uv-api" }), {
+        platform: "win32",
+        fileExists: async (filePath) => filePath === "D:\\projects\\uv-api\\uv.lock",
+        commandExists: async (name) => name === "uv.cmd"
+      })
+    ).resolves.toEqual({
+      command: "cmd.exe",
+      args: ["/d", "/s", "/c", "uv", "run", "python", "app.py"],
+      note: "已通过 uv 运行 Python 命令；来源：D:\\projects\\uv-api\\uv.lock。"
+    });
+  });
+
+  it("runs Python commands through Poetry when pyproject declares tool.poetry", async () => {
+    await expect(
+      resolveSpawnInvocation(command({ command: "python", args: ["main.py"], cwd: "D:\\projects\\poetry-api" }), {
+        platform: "win32",
+        fileExists: async (filePath) => filePath === "D:\\projects\\poetry-api\\pyproject.toml",
+        readFile: async () => "[tool.poetry]\nname = \"poetry-api\"\n",
+        commandExists: async (name) => name === "poetry.cmd"
+      })
+    ).resolves.toEqual({
+      command: "cmd.exe",
+      args: ["/d", "/s", "/c", "poetry", "run", "python", "main.py"],
+      note: "已通过 Poetry 运行 Python 命令；来源：D:\\projects\\poetry-api\\pyproject.toml。"
+    });
+  });
+
+  it("runs Python commands through a parent Pipenv workspace", async () => {
+    await expect(
+      resolveSpawnInvocation(command({ command: "python", args: ["app.py"], cwd: "D:\\projects\\workspace\\backend" }), {
+        platform: "win32",
+        fileExists: async (filePath) => filePath === "D:\\projects\\workspace\\Pipfile",
+        commandExists: async (name) => name === "pipenv.cmd"
+      })
+    ).resolves.toEqual({
+      command: "cmd.exe",
+      args: ["/d", "/s", "/c", "pipenv", "run", "python", "app.py"],
+      note: "已通过 Pipenv 运行 Python 命令；来源：D:\\projects\\workspace\\Pipfile。"
+    });
+  });
+
   it("returns an actionable Python error when no interpreter is available", async () => {
     await expect(
       resolveSpawnInvocation(command({ command: "python", args: ["app.py"], cwd: "D:\\projects\\api" }), {

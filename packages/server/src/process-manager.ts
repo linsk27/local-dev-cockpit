@@ -15,7 +15,7 @@ interface RunningProcess {
 }
 
 const WINDOWS_CMD_SHIMS = new Set(["npm", "npx", "pnpm", "yarn", "bun", "corepack"]);
-const WINDOWS_PATHEXT_SHIMS = new Set(["bundle", "composer", "conda", "dotnet", "gradle", "mvn", "php", "ruby"]);
+const WINDOWS_PATHEXT_SHIMS = new Set(["bundle", "composer", "conda", "dotnet", "gradle", "mvn", "php", "pipenv", "poetry", "ruby", "uv"]);
 const PACKAGE_MANAGER_COMMANDS = new Set(["npm", "npx", "pnpm", "yarn", "bun"]);
 const COREPACK_MANAGERS = new Set(["pnpm", "yarn"]);
 const PYTHON_COMMANDS = new Set(["python", "python3", "py"]);
@@ -452,6 +452,7 @@ async function diagnosePythonDependencyState(
   if (!hasDependencyManifest) return undefined;
   if (await findLocalPythonInterpreter(command.cwd, platform, options.fileExists)) return undefined;
   if (await findDeclaredCondaEnvironment(command.cwd, options)) return undefined;
+  if (await findPythonProjectRunner(command.cwd, platform, options)) return undefined;
 
   return {
     summary: "Python 项目依赖环境未固定。",
@@ -637,6 +638,15 @@ async function resolvePythonInvocation(
     };
   }
 
+  const projectRunner = await findPythonProjectRunner(command.cwd, platform, options);
+  if (projectRunner) {
+    const pythonCommand = lowerCommand === "py" ? "python" : command.command;
+    return {
+      ...createSpawnInvocation(projectRunner.command, [...projectRunner.argsPrefix, pythonCommand, ...command.args], platform),
+      note: `已通过 ${projectRunner.label} 运行 Python 命令；来源：${projectRunner.filePath}。`
+    };
+  }
+
   if (await isCommandAvailable(command.command, platform, options.commandExists)) return undefined;
   if (platform === "win32" && lowerCommand !== "py" && (await isCommandAvailable("py", platform, options.commandExists))) {
     return {
@@ -702,6 +712,51 @@ async function findDeclaredCondaEnvironment(
     }
   }
   return undefined;
+}
+
+async function findPythonProjectRunner(
+  projectPath: string,
+  platform: NodeJS.Platform,
+  options: CommandResolutionOptions
+): Promise<{ command: "uv" | "poetry" | "pipenv"; argsPrefix: string[]; label: string; filePath: string } | undefined> {
+  const fileExistsFn = options.fileExists ?? fileExists;
+  const readFileFn = options.readFile ?? readTextFile;
+
+  for (const base of candidateEnvironmentBases(projectPath)) {
+    const uvLockPath = path.join(base, "uv.lock");
+    if ((await fileExistsFn(uvLockPath)) && (await isCommandAvailable("uv", platform, options.commandExists))) {
+      return { command: "uv", argsPrefix: ["run"], label: "uv", filePath: uvLockPath };
+    }
+
+    const poetryLockPath = path.join(base, "poetry.lock");
+    if ((await fileExistsFn(poetryLockPath)) && (await isCommandAvailable("poetry", platform, options.commandExists))) {
+      return { command: "poetry", argsPrefix: ["run"], label: "Poetry", filePath: poetryLockPath };
+    }
+
+    const pyprojectPath = path.join(base, "pyproject.toml");
+    if (
+      (await fileExistsFn(pyprojectPath)) &&
+      (await pyprojectUsesPoetry(pyprojectPath, readFileFn)) &&
+      (await isCommandAvailable("poetry", platform, options.commandExists))
+    ) {
+      return { command: "poetry", argsPrefix: ["run"], label: "Poetry", filePath: pyprojectPath };
+    }
+
+    const pipfilePath = path.join(base, "Pipfile");
+    if ((await fileExistsFn(pipfilePath)) && (await isCommandAvailable("pipenv", platform, options.commandExists))) {
+      return { command: "pipenv", argsPrefix: ["run"], label: "Pipenv", filePath: pipfilePath };
+    }
+  }
+
+  return undefined;
+}
+
+async function pyprojectUsesPoetry(pyprojectPath: string, readFileFn: (filePath: string) => Promise<string>): Promise<boolean> {
+  try {
+    return /^\s*\[tool\.poetry\]\s*$/m.test(await readFileFn(pyprojectPath));
+  } catch {
+    return false;
+  }
 }
 
 function parseCondaEnvironmentName(raw: string): string | undefined {

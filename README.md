@@ -135,6 +135,7 @@ Dev Cockpit 的运行按钮不是简单调用脚本，它会先做一次轻量�
 - Python 命令会优先使用当前项目里的 `.venv`、`venv`、`.env`、`env`、`.conda` 或 `conda`。
 - 如果项目拆成 `frontend` / `backend`，后端目录没有虚拟环境，也会检查上一层工作区里的虚拟环境。
 - 如果存在 `environment.yml` / `environment.yaml`，且本机能找到 Conda，会按里面的 `name:` 使用 `conda run -n <env> ...`。
+- 如果存在 `uv.lock`、`poetry.lock` / `[tool.poetry]` 或 `Pipfile`，且本机能找到对应工具，会分别通过 `uv run python ...`、`poetry run python ...`、`pipenv run python ...` 执行。
 - 如果没有项目环境，会回退到系统 `python`；Windows 上找不到 `python` 时会尝试 `py` launcher。
 - Java 项目会优先使用项目自带的 `mvnw` / `gradlew` wrapper；没有 wrapper 时才使用系统 `mvn` / `gradle`。
 - Spring Boot 项目会识别 `spring-boot:run` / `bootRun`，普通 Maven/Gradle 项目仍提供 `test` 和 `build` 命令。
@@ -148,7 +149,7 @@ Dev Cockpit 的运行按钮不是简单调用脚本，它会先做一次轻量�
 
 如果 Node 项目出现 `Cannot find package 'xxx'`、`Cannot find module 'xxx'`，或者 `vite` / `next` / `ts-node` 这类脚本命令找不到，Dev Cockpit 会提示先执行当前包管理器的 install 命令，例如 `pnpm install` / `npm install`，再按需安装缺失依赖。相对路径模块缺失会被当成源码或构建产物问题，不会误导用户安装一个不存在的 npm 包。
 
-诊断页也会做启动前预检：Node 项目如果有 `package.json` 依赖但没有 `node_modules`，会提前提示先安装依赖；Python 项目如果有 `requirements.txt` / `pyproject.toml` 但没有项目虚拟环境，会提示当前会回退系统 Python，避免用户点运行后才看到一长串缺包日志。Java 会提示缺少 Maven/Gradle wrapper 的可移植性风险；PHP 会识别 `composer.json` 但缺少 `vendor/autoload.php`；Ruby 会提示 `Gemfile` 缺少 `Gemfile.lock`；.NET 会提示缺少 `obj/project.assets.json` 时应先 `dotnet restore`。
+诊断页也会做启动前预检：Node 项目如果有 `package.json` 依赖但没有 `node_modules`，会提前提示先安装依赖；Python 项目如果有 `requirements.txt` / `pyproject.toml` 但没有 `.venv`、Conda、uv、Poetry 或 Pipenv 环境入口，会提示当前会回退系统 Python，避免用户点运行后才看到一长串缺包日志。Java 会提示缺少 Maven/Gradle wrapper 的可移植性风险；PHP 会识别 `composer.json` 但缺少 `vendor/autoload.php`；Ruby 会提示 `Gemfile` 缺少 `Gemfile.lock`；.NET 会提示缺少 `obj/project.assets.json` 时应先 `dotnet restore`。
 
 ## 性能策略
 
