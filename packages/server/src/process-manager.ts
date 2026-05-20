@@ -590,14 +590,26 @@ async function diagnoseNodeDependencyState(
   const hasDependencies = await packageJsonHasDependencies(packageJsonPath, readFileFn);
   if (!hasDependencies) return undefined;
 
-  const nodeModulesPath = path.join(command.cwd, "node_modules");
-  if (await fileExistsFn(nodeModulesPath)) return undefined;
+  if (await hasNodeModulesInResolutionPath(command.cwd, fileExistsFn)) return undefined;
 
   const installCommand = packageInstallCommand(command);
   return {
     summary: "项目依赖可能尚未安装。",
     detail: `检测到 package.json 声明了依赖，但项目目录没有 node_modules。首次运行前建议执行：${installCommand}。`
   };
+}
+
+async function hasNodeModulesInResolutionPath(
+  projectPath: string,
+  fileExistsFn: (filePath: string) => Promise<boolean>
+): Promise<boolean> {
+  let current = path.resolve(projectPath);
+  while (true) {
+    if (await fileExistsFn(path.join(current, "node_modules"))) return true;
+    const parent = path.dirname(current);
+    if (parent === current) return false;
+    current = parent;
+  }
 }
 
 async function diagnosePythonDependencyState(

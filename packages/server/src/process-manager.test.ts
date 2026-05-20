@@ -342,6 +342,22 @@ describe("diagnoseCommandEnvironment", () => {
     });
   });
 
+  it("does not warn for workspace child apps when parent node_modules exists", async () => {
+    await expect(
+      diagnoseCommandEnvironment(command({ command: "pnpm", args: ["run", "dev"], cwd: "D:\\projects\\workspace\\apps\\web" }), {
+        platform: "win32",
+        commandExists: async (name) => name === "pnpm.cmd",
+        fileExists: async (filePath) =>
+          filePath === "D:\\projects\\workspace\\apps\\web\\package.json" ||
+          filePath === "D:\\projects\\workspace\\node_modules",
+        readFile: async () => JSON.stringify({ dependencies: { vue: "^3.5.0" }, devDependencies: { vite: "^5.0.0" } })
+      })
+    ).resolves.toMatchObject({
+      status: "ready",
+      resolvedCommand: expect.stringContaining("pnpm.cmd run dev")
+    });
+  });
+
   it("returns ready diagnostics with the resolved project Python environment", async () => {
     await expect(
       diagnoseCommandEnvironment(command({ command: "python", args: ["app.py"], cwd: "D:\\projects\\api" }), {
