@@ -13,7 +13,7 @@
           <p>{{ item.detail }}</p>
         </div>
       </article>
-      <div v-if="project.commands.length > 0" class="diagnostic-subheading">
+      <div v-if="project.commands.length > 0 || showPythonBinding" class="diagnostic-subheading">
         {{ environmentLabels.title }}
       </div>
       <form v-if="showPythonBinding" class="environment-binding" @submit.prevent="savePythonBinding">
@@ -54,7 +54,7 @@
           </button>
         </div>
       </form>
-      <article v-if="project.commands.length > 0 && environmentLoading" class="diagnostic-row normal">
+      <article v-if="environmentLoading" class="diagnostic-row normal">
         <span class="diagnostic-dot" />
         <div>
           <span>{{ environmentLabels.checking }}</span>
@@ -122,6 +122,7 @@ const showPythonBinding = computed(
   () =>
     props.project.kind === "python" ||
     props.project.kind === "mixed" ||
+    props.project.markers.some((marker) => pythonEnvironmentMarkers.has(marker)) ||
     props.project.commands.some((command) => ["python", "python3", "py"].includes(command.command.toLowerCase()))
 );
 const environmentLabels = computed(() =>
@@ -163,6 +164,15 @@ const environmentLabels = computed(() =>
         clear: "清除"
       }
 );
+const pythonEnvironmentMarkers = new Set([
+  "requirements.txt",
+  "requirements-dev.txt",
+  "pyproject.toml",
+  "environment.yml",
+  "environment.yaml",
+  "Pipfile",
+  "poetry.lock"
+]);
 
 watch(
   () => props.project.id,
@@ -171,14 +181,19 @@ watch(
     environmentError.value = "";
     pythonBinding.value = "";
     pythonCandidates.value = [];
-    if (!projectId || props.project.commands.length === 0) return;
+    if (!projectId) return;
+
+    const shouldLoadSettings = showPythonBinding.value;
+    const shouldLoadDiagnostics = props.project.commands.length > 0;
+    if (!shouldLoadSettings && !shouldLoadDiagnostics) return;
+
     environmentLoading.value = true;
-    settingsLoading.value = true;
+    settingsLoading.value = shouldLoadSettings;
     try {
       const [settings, diagnostics, candidates] = await Promise.all([
-        showPythonBinding.value ? getProjectSettings(projectId) : Promise.resolve({ python: "" }),
-        getEnvironmentDiagnostics(projectId),
-        showPythonBinding.value ? getPythonEnvironmentCandidates(projectId) : Promise.resolve([])
+        shouldLoadSettings ? getProjectSettings(projectId) : Promise.resolve({ python: "" }),
+        shouldLoadDiagnostics ? getEnvironmentDiagnostics(projectId) : Promise.resolve([]),
+        shouldLoadSettings ? getPythonEnvironmentCandidates(projectId) : Promise.resolve([])
       ]);
       pythonBinding.value = settings.python;
       environmentDiagnostics.value = diagnostics;
@@ -216,7 +231,8 @@ async function savePythonBinding(): Promise<void> {
   try {
     const settings = await updateProjectEnvironment(props.project.id, { python: pythonBinding.value.trim() });
     pythonBinding.value = settings.python;
-    environmentDiagnostics.value = await getEnvironmentDiagnostics(props.project.id);
+    environmentDiagnostics.value =
+      props.project.commands.length > 0 ? await getEnvironmentDiagnostics(props.project.id) : [];
     await projectStore.refreshProject(props.project.id);
     notifications.success(preferences.locale === "en-US" ? "Python environment saved." : "Python 环境已保存。");
   } catch (error) {
