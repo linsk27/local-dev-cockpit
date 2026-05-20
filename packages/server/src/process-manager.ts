@@ -38,6 +38,14 @@ export interface CommandEnvironmentDiagnostic {
   resolvedCommand?: string;
 }
 
+export interface PythonEnvironmentCandidate {
+  id: string;
+  label: string;
+  value: string;
+  source: "manual" | "vscode" | "local" | "conda-file" | "terminal";
+  detail: string;
+}
+
 interface CommandResolutionOptions {
   platform?: NodeJS.Platform;
   commandExists?: (command: string, platform: NodeJS.Platform) => Promise<boolean>;
@@ -413,6 +421,108 @@ export async function diagnoseCommandEnvironment(
   }
 }
 
+export async function discoverPythonEnvironmentCandidates(
+  projectPath: string,
+  options: CommandResolutionOptions = {}
+): Promise<PythonEnvironmentCandidate[]> {
+  const platform = options.platform ?? process.platform;
+  const candidates: PythonEnvironmentCandidate[] = [];
+  const configured = await findConfiguredPythonInterpreter(projectPath, platform, options);
+  if (configured) {
+    candidates.push({
+      id: `vscode:${configured.path}`,
+      label: ".vscode",
+      value: configured.path,
+      source: "vscode",
+      detail: configured.label
+    });
+  }
+
+  for (const local of await findLocalPythonInterpreters(projectPath, platform, options.fileExists)) {
+    candidates.push({
+      id: `local:${local.path}`,
+      label: local.label.includes("..") ? "父级虚拟环境" : "项目虚拟环境",
+      value: local.path,
+      source: "local",
+      detail: local.label
+    });
+  }
+
+  const condaEnvironment = await findDeclaredCondaEnvironment(projectPath, options);
+  if (condaEnvironment) {
+    candidates.push({
+      id: `conda-file:${condaEnvironment.name}`,
+      label: "environment.yml",
+      value: `conda:${condaEnvironment.name}`,
+      source: "conda-file",
+      detail: condaEnvironment.filePath
+    });
+  }
+
+  const env = options.env ?? process.env;
+  const inherited = env.VIRTUAL_ENV || env.CONDA_PREFIX;
+  if (inherited) {
+    for (const pythonPath of candidatePythonInterpreterPaths(inherited, platform)) {
+      if (await (options.fileExists ?? fileExists)(pythonPath)) {
+        candidates.push({
+          id: `terminal:${pythonPath}`,
+          label: env.CONDA_PREFIX ? "当前终端 Conda" : "当前终端虚拟环境",
+          value: pythonPath,
+          source: "terminal",
+          detail: pythonPath
+        });
+        break;
+      }
+    }
+  }
+
+  const condaName = env.CONDA_DEFAULT_ENV?.trim();
+  if (condaName && condaName.toLowerCase() !== "base") {
+    candidates.push({
+      id: `terminal-conda:${condaName}`,
+      label: "当前终端 Conda",
+      value: `conda:${condaName}`,
+      source: "terminal",
+      detail: condaName
+    });
+  }
+
+  return uniquePythonCandidates(candidates);
+}
+
+export async function validatePythonEnvironmentBinding(
+  projectPath: string,
+  rawValue: string,
+  options: CommandResolutionOptions = {}
+): Promise<void> {
+  const value = rawValue.trim();
+  if (!value) return;
+  const platform = options.platform ?? process.platform;
+  const condaMatch = value.match(/^conda:(.+)$/i);
+  if (condaMatch) {
+    const envName = condaMatch[1]?.trim();
+    if (!envName) throw new Error("Conda 环境名为空。请填写 conda:环境名。");
+    if (!/^[\w.\-]+$/.test(envName)) {
+      throw new Error("Conda 环境名包含异常字符。请填写类似 conda:api-env 的格式。");
+    }
+    if (!(await isCommandAvailable("conda", platform, options.commandExists))) {
+      throw new Error(`本机找不到 conda，无法使用 ${value}。`);
+    }
+    return;
+  }
+
+  const expanded = expandConfiguredPath(value, projectPath).trim();
+  if (!expanded || !isPathLikeCommand(expanded)) {
+    throw new Error("Python 环境请填写 conda:环境名、python.exe 路径或虚拟环境目录。");
+  }
+  const candidate = path.isAbsolute(expanded) ? expanded : path.resolve(projectPath, expanded);
+  const fileExistsFn = options.fileExists ?? fileExists;
+  for (const pythonPath of candidatePythonInterpreterPaths(candidate, platform)) {
+    if (await fileExistsFn(pythonPath)) return;
+  }
+  throw new Error(`找不到可用的 Python 解释器：${value}`);
+}
+
 async function diagnoseProjectDependencyState(
   command: Command,
   options: CommandResolutionOptions
@@ -700,6 +810,14 @@ async function findLocalPythonInterpreter(
   platform: NodeJS.Platform,
   fileExistsOverride?: (filePath: string) => Promise<boolean>
 ): Promise<{ path: string; label: string } | undefined> {
+  return (await findLocalPythonInterpreters(projectPath, platform, fileExistsOverride))[0];
+}
+
+async function findLocalPythonInterpreters(
+  projectPath: string,
+  platform: NodeJS.Platform,
+  fileExistsOverride?: (filePath: string) => Promise<boolean>
+): Promise<Array<{ path: string; label: string }>> {
   const fileExistsFn = fileExistsOverride ?? fileExists;
   const bases = candidateEnvironmentBases(projectPath);
   const envNames = [".venv", "venv", ".env", "env", ".conda", "conda"];
@@ -707,18 +825,20 @@ async function findLocalPythonInterpreter(
     platform === "win32"
       ? ["Scripts/python.exe", "python.exe"]
       : ["bin/python", "python"];
+  const interpreters: Array<{ path: string; label: string }> = [];
 
   for (const base of bases) {
     for (const envName of envNames) {
       for (const relativeInterpreter of relativeInterpreters) {
         const interpreterPath = path.join(base, envName, relativeInterpreter);
         if (await fileExistsFn(interpreterPath)) {
-          return { path: interpreterPath, label: describeEnvironmentPath(projectPath, interpreterPath) };
+          interpreters.push({ path: interpreterPath, label: describeEnvironmentPath(projectPath, interpreterPath) });
+          break;
         }
       }
     }
   }
-  return undefined;
+  return interpreters;
 }
 
 async function findConfiguredPythonInterpreter(
@@ -919,7 +1039,13 @@ async function resolveConfiguredPythonPath(
 
 function candidatePythonInterpreterPaths(candidate: string, platform: NodeJS.Platform): string[] {
   const names = platform === "win32" ? ["Scripts/python.exe", "python.exe"] : ["bin/python", "python"];
-  return [candidate, ...names.map((name) => path.join(candidate, name))];
+  const basename = path.basename(candidate).toLowerCase();
+  const candidateLooksExecutable =
+    basename === "python" ||
+    basename === "python.exe" ||
+    basename === "python3" ||
+    /^python\d+(\.\d+)?(\.exe)?$/.test(basename);
+  return candidateLooksExecutable ? [candidate] : names.map((name) => path.join(candidate, name));
 }
 
 function expandConfiguredPath(rawValue: string, workspacePath: string): string {
@@ -938,6 +1064,18 @@ function parseCondaEnvironmentName(raw: string): string | undefined {
   const name = match?.[1]?.trim().replace(/^['"]|['"]$/g, "");
   if (!name || name.toLowerCase() === "base") return undefined;
   return name;
+}
+
+function uniquePythonCandidates(candidates: PythonEnvironmentCandidate[]): PythonEnvironmentCandidate[] {
+  const seen = new Set<string>();
+  const unique: PythonEnvironmentCandidate[] = [];
+  for (const candidate of candidates) {
+    const key = candidate.value.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(candidate);
+  }
+  return unique;
 }
 
 function candidateEnvironmentBases(projectPath: string): string[] {

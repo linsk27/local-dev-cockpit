@@ -25,7 +25,12 @@ import {
 import { EventBus } from "./events.js";
 import { stripAnsiControlSequences } from "./log-decoder.js";
 import { resolveAppPaths } from "./paths.js";
-import { diagnoseCommandEnvironment, ProcessManager } from "./process-manager.js";
+import {
+  diagnoseCommandEnvironment,
+  discoverPythonEnvironmentCandidates,
+  ProcessManager,
+  validatePythonEnvironmentBinding
+} from "./process-manager.js";
 import { JsonStore, projectEnvironmentForPath, rootId } from "./store.js";
 
 const addRootSchema = z.object({ path: z.string().min(1) });
@@ -313,6 +318,14 @@ async function route(
     return;
   }
 
+  const environmentCandidatesMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/environment\/candidates$/);
+  if (method === "GET" && environmentCandidatesMatch) {
+    const project = await loadProject(environmentCandidatesMatch[1] ?? "", context.store, context.processManager);
+    const candidates = await discoverPythonEnvironmentCandidates(project.path);
+    sendJson(res, 200, { candidates });
+    return;
+  }
+
   const projectEnvironmentMatch = url.pathname.match(/^\/api\/projects\/([^/]+)\/settings$/);
   if (projectEnvironmentMatch) {
     const project = await loadProject(projectEnvironmentMatch[1] ?? "", context.store, context.processManager);
@@ -323,6 +336,12 @@ async function route(
     }
     if (method === "PATCH") {
       const body = updateProjectEnvironmentSchema.parse(await readJson(req));
+      try {
+        await validatePythonEnvironmentBinding(project.path, body.python);
+      } catch (error) {
+        sendJson(res, 400, { error: error instanceof Error ? error.message : String(error) });
+        return;
+      }
       const config = await context.store.updateProjectEnvironment(project.path, body.python);
       context.projectCache.invalidate();
       sendJson(res, 200, { environment: projectEnvironmentForPath(config, project.path) ?? { python: "" } });

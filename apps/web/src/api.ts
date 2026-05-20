@@ -106,6 +106,14 @@ export interface CommandEnvironmentDiagnostic {
   resolvedCommand?: string;
 }
 
+export interface PythonEnvironmentCandidate {
+  id: string;
+  label: string;
+  value: string;
+  source: "manual" | "vscode" | "local" | "conda-file" | "terminal";
+  detail: string;
+}
+
 export async function getProjects(options: { force?: boolean; rootId?: string } = {}): Promise<Project[]> {
   const params = new URLSearchParams();
   if (options.force) params.set("force", "1");
@@ -191,6 +199,12 @@ export async function getEnvironmentDiagnostics(projectId: string): Promise<Comm
   const response = await fetch(`/api/projects/${projectId}/environment`);
   await ensureOk(response, "Failed to load environment diagnostics");
   return ((await response.json()) as { diagnostics: CommandEnvironmentDiagnostic[] }).diagnostics;
+}
+
+export async function getPythonEnvironmentCandidates(projectId: string): Promise<PythonEnvironmentCandidate[]> {
+  const response = await fetch(`/api/projects/${projectId}/environment/candidates`);
+  await ensureOk(response, "Failed to load Python environment candidates");
+  return ((await response.json()) as { candidates: PythonEnvironmentCandidate[] }).candidates;
 }
 
 export async function getProjectSettings(projectId: string): Promise<ProjectEnvironmentSettings> {

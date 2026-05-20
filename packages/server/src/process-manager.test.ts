@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { Command } from "@local-dev-cockpit/core";
-import { diagnoseCommandEnvironment, resolveSpawnInvocation, summarizeFailedRun, toNpmRunArgs } from "./process-manager.js";
+import {
+  diagnoseCommandEnvironment,
+  discoverPythonEnvironmentCandidates,
+  resolveSpawnInvocation,
+  summarizeFailedRun,
+  toNpmRunArgs,
+  validatePythonEnvironmentBinding
+} from "./process-manager.js";
 
 describe("summarizeFailedRun", () => {
   it("turns Python missing dependency tracebacks into install guidance", () => {
@@ -459,6 +466,75 @@ describe("diagnoseCommandEnvironment", () => {
       status: "missing",
       detail: expect.stringContaining("mvn 未安装或不在 PATH 中")
     });
+  });
+});
+
+describe("discoverPythonEnvironmentCandidates", () => {
+  it("lists local, editor, conda-file, and inherited Python environment candidates", async () => {
+    const projectPath = "D:\\projects\\workspace\\backend";
+    const settingsPath = "D:\\projects\\workspace\\.vscode\\settings.json";
+    const vscodePython = "D:\\tools\\python\\python.exe";
+    const localPython = "D:\\projects\\workspace\\backend\\.venv\\Scripts\\python.exe";
+    const parentPython = "D:\\projects\\workspace\\.venv\\Scripts\\python.exe";
+    const terminalPython = "C:\\Users\\tester\\miniconda3\\envs\\terminal-api\\python.exe";
+
+    const candidates = await discoverPythonEnvironmentCandidates(projectPath, {
+      platform: "win32",
+      env: { CONDA_PREFIX: "C:\\Users\\tester\\miniconda3\\envs\\terminal-api", CONDA_DEFAULT_ENV: "terminal-api" },
+      fileExists: async (filePath) =>
+        [settingsPath, vscodePython, localPython, parentPython, terminalPython, "D:\\projects\\workspace\\environment.yml"].includes(filePath),
+      readFile: async (filePath) =>
+        filePath === settingsPath ? JSON.stringify({ "python.defaultInterpreterPath": vscodePython }) : "name: workspace-api\n"
+    });
+
+    expect(candidates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: ".vscode", value: vscodePython, source: "vscode" }),
+        expect.objectContaining({ value: localPython, source: "local" }),
+        expect.objectContaining({ value: parentPython, source: "local" }),
+        expect.objectContaining({ label: "environment.yml", value: "conda:workspace-api", source: "conda-file" }),
+        expect.objectContaining({ value: terminalPython, source: "terminal" })
+      ])
+    );
+  });
+});
+
+describe("validatePythonEnvironmentBinding", () => {
+  it("accepts existing Python interpreter paths and conda bindings", async () => {
+    await expect(
+      validatePythonEnvironmentBinding("D:\\projects\\api", "D:\\envs\\api", {
+        platform: "win32",
+        fileExists: async (filePath) => filePath === "D:\\envs\\api\\Scripts\\python.exe"
+      })
+    ).resolves.toBeUndefined();
+
+    await expect(
+      validatePythonEnvironmentBinding("D:\\projects\\api", "conda:api-env", {
+        platform: "win32",
+        commandExists: async (name) => name === "conda"
+      })
+    ).resolves.toBeUndefined();
+  });
+
+  it("does not treat an environment directory itself as a Python executable", async () => {
+    await expect(
+      validatePythonEnvironmentBinding("D:\\projects\\api", "D:\\envs\\broken", {
+        platform: "win32",
+        fileExists: async (filePath) => filePath === "D:\\envs\\broken"
+      })
+    ).rejects.toThrow("找不到可用的 Python 解释器");
+  });
+
+  it("rejects malformed bindings before saving them", async () => {
+    await expect(validatePythonEnvironmentBinding("D:\\projects\\api", "api-env", { platform: "win32" })).rejects.toThrow(
+      "Python 环境请填写"
+    );
+    await expect(
+      validatePythonEnvironmentBinding("D:\\projects\\api", "conda:", {
+        platform: "win32",
+        commandExists: async () => true
+      })
+    ).rejects.toThrow("Python 环境请填写");
   });
 });
 

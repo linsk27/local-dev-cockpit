@@ -40,6 +40,19 @@
           <RotateCcw :size="14" />
           <span>{{ environmentLabels.clear }}</span>
         </button>
+        <div v-if="pythonCandidates.length > 0" class="environment-candidates">
+          <span>{{ environmentLabels.detectedCandidates }}</span>
+          <button
+            v-for="candidate in pythonCandidates"
+            :key="candidate.id"
+            class="candidate-pill"
+            type="button"
+            :title="candidate.detail"
+            @click="applyPythonCandidate(candidate)"
+          >
+            {{ candidate.label }}
+          </button>
+        </div>
       </form>
       <article v-if="project.commands.length > 0 && environmentLoading" class="diagnostic-row normal">
         <span class="diagnostic-dot" />
@@ -82,9 +95,11 @@ import { Activity, RotateCcw, Save } from "lucide-vue-next";
 import type { Project } from "@local-dev-cockpit/core";
 import {
   getEnvironmentDiagnostics,
+  getPythonEnvironmentCandidates,
   getProjectSettings,
   updateProjectEnvironment,
-  type CommandEnvironmentDiagnostic
+  type CommandEnvironmentDiagnostic,
+  type PythonEnvironmentCandidate
 } from "../../api";
 import { useNotificationsStore } from "../../stores/notifications";
 import { usePreferencesStore } from "../../stores/preferences";
@@ -100,6 +115,7 @@ const environmentDiagnostics = ref<CommandEnvironmentDiagnostic[]>([]);
 const environmentLoading = ref(false);
 const environmentError = ref("");
 const pythonBinding = ref("");
+const pythonCandidates = ref<PythonEnvironmentCandidate[]>([]);
 const settingsLoading = ref(false);
 const savingSettings = ref(false);
 const showPythonBinding = computed(
@@ -123,6 +139,7 @@ const environmentLabels = computed(() =>
         pythonBindingPlaceholder: "conda:env-name or C:\\path\\to\\python.exe",
         pythonBindingHelp:
           "Configure only when auto detection cannot find the right environment, or the desktop app cannot inherit your terminal Conda/venv. Leave empty when .venv, environment.yml, or editor settings already work.",
+        detectedCandidates: "Detected",
         save: "Save",
         saving: "Saving",
         clear: "Clear"
@@ -140,6 +157,7 @@ const environmentLabels = computed(() =>
         pythonBindingPlaceholder: "conda:环境名 或 C:\\路径\\python.exe",
         pythonBindingHelp:
           "仅在自动识别不到、桌面版无法继承终端 Conda/venv，或终端能跑但面板缺包时配置；已有 .venv、environment.yml 或编辑器设置时可留空。",
+        detectedCandidates: "已检测到",
         save: "保存",
         saving: "保存中",
         clear: "清除"
@@ -152,16 +170,19 @@ watch(
     environmentDiagnostics.value = [];
     environmentError.value = "";
     pythonBinding.value = "";
+    pythonCandidates.value = [];
     if (!projectId || props.project.commands.length === 0) return;
     environmentLoading.value = true;
     settingsLoading.value = true;
     try {
-      const [settings, diagnostics] = await Promise.all([
+      const [settings, diagnostics, candidates] = await Promise.all([
         showPythonBinding.value ? getProjectSettings(projectId) : Promise.resolve({ python: "" }),
-        getEnvironmentDiagnostics(projectId)
+        getEnvironmentDiagnostics(projectId),
+        showPythonBinding.value ? getPythonEnvironmentCandidates(projectId) : Promise.resolve([])
       ]);
       pythonBinding.value = settings.python;
       environmentDiagnostics.value = diagnostics;
+      pythonCandidates.value = candidates;
     } catch (error) {
       environmentError.value = error instanceof Error ? error.message : String(error);
     } finally {
@@ -182,6 +203,10 @@ function environmentStatusLabel(status: CommandEnvironmentDiagnostic["status"]):
   if (status === "ready") return environmentLabels.value.ready;
   if (status === "missing") return environmentLabels.value.missing;
   return environmentLabels.value.warn;
+}
+
+function applyPythonCandidate(candidate: PythonEnvironmentCandidate): void {
+  pythonBinding.value = candidate.value;
 }
 
 async function savePythonBinding(): Promise<void> {

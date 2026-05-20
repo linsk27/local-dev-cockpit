@@ -96,7 +96,7 @@ flowchart LR
 - PHP/Ruby/.NET 优先提供常见本地开发命令，但仍依赖用户机器已经安装对应运行时和依赖。
 - Node 优先级：`packageManager` 字段、lockfile、Corepack、必要时从 pnpm/yarn 回退到 npm。
 
-环境解析只选择已有工具，不自动安装依赖，不自动修改用户项目。
+环境解析只选择已有工具，不自动安装依赖，不自动修改用户项目。项目级 Python 绑定保存在 Dev Cockpit 配置里，保存前只做轻量校验：路径绑定必须能解析到存在的 Python 解释器，`conda:<name>` 绑定必须格式正确且本机能找到 conda；不会主动枚举或创建 Conda 环境，避免启动期变慢。
 
 ## 刷新和性能策略
 
