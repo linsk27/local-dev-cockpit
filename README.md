@@ -69,6 +69,7 @@ Dev Cockpit 只做一件事：本地项目现场恢复。它不接云端账号�
 - 自动扫描 Git 项目和常见技术栈项目。
 - 识别 Node、Python、Java、PHP、Ruby、.NET、Go、Rust、Docker 和混合项目。
 - 从 `package.json`、Flask/FastAPI/Django、Maven/Gradle/Spring Boot、Laravel/Composer、Rails/Rack、.NET、Go、Cargo、Docker Compose 推断常用命令。
+- 遇到 `pnpm-workspace.yaml`、`turbo.json`、`nx.json`、`lerna.json`、`rush.json` 这类 monorepo 根目录时，会继续向 `apps`、`packages`、`services`、`frontend`、`backend` 等子目录扫描，不会只停在根目录。
 - Node 项目会优先读取 `packageManager` 字段；没有声明时按 lockfile 推断，混有 `package-lock.json` 和 `yarn.lock` 时默认选择更常见且更容易可用的 npm，减少 `yarn.cmd` 缺失这类误启动。
 - 显示 Git 分支、未提交文件数、最近提交、端口状态和最近失败。
 - 端口展示会保留 `localhost` / `127.0.0.1` / `::1` 这类 host，避免多个本地项目同时使用 `3000` 时看不清真实来源。
@@ -209,6 +210,8 @@ npx local-dev-cockpit context D:\个人\my-project
 npx local-dev-cockpit context D:\个人\my-project --write
 ```
 
+`doctor <项目路径>` 对 Python 项目会额外列出检测到的环境候选，例如 `.venv`、父级工作区虚拟环境、`.vscode/settings.json`、`environment.yml` 和本机 Conda 环境。终端用户可以用它确认 Dev Cockpit 实际会选哪个解释器；桌面版用户可以把候选里的 `conda:环境名` 或 `python.exe` 路径填到项目详情的“运行环境”区域。
+
 ## 页面结构
 
 - 项目列表：项目名、路径、技术栈、Git 分支、dirty 文件数、端口、运行状态和可点击运行地址。
@@ -296,4 +299,4 @@ apps/desktop     Electron 桌面壳，复用同一套 server 和 Vue 面板
 
 ## 当前阶段
 
-当前是 `0.1.9` 可运行原型，重点验证方向：本地项目恢复、日志聚合、运行地址识别、AI 上下文生成、运行环境诊断、终端 Conda/venv 继承、按需 Conda 环境候选、更新检查兜底、简洁面板体验、Windows 安装更新流程和 Dev Pilot 首屏品牌体验。下一步会继续减少操作步骤，补充更多真实项目扫描样本、进程异常恢复和配置编辑能力。
+当前是 `0.1.10` 可运行原型，重点验证方向：本地项目恢复、日志聚合、运行地址识别、AI 上下文生成、运行环境诊断、终端 Conda/venv 继承、按需 Conda 环境候选、monorepo 子项目发现、更新检查兜底、简洁面板体验、Windows 安装更新流程和 Dev Pilot 首屏品牌体验。下一步会继续减少操作步骤，补充更多真实项目扫描样本、进程异常恢复和配置编辑能力。

@@ -13,9 +13,15 @@ import {
   renderProjectContext,
   scanRoot
 } from "@local-dev-cockpit/core";
-import { diagnoseCommandEnvironment, JsonStore, resolveAppPaths, startDevCockpitServer } from "@local-dev-cockpit/server";
+import {
+  diagnoseCommandEnvironment,
+  discoverPythonEnvironmentCandidates,
+  JsonStore,
+  resolveAppPaths,
+  startDevCockpitServer
+} from "@local-dev-cockpit/server";
 
-const CLI_VERSION = "0.1.9";
+const CLI_VERSION = "0.1.10";
 
 const program = new Command()
   .name("local-dev-cockpit")
@@ -109,6 +115,9 @@ program
         process.stdout.write(`[${status}] ${diagnostic.label}: ${diagnostic.summary}\n`);
         process.stdout.write(`       ${diagnostic.detail}\n`);
       }
+      if (project.commands.some((command) => isPythonCommand(command.command))) {
+        await printPythonEnvironmentCandidates(project.path);
+      }
     }
   });
 
@@ -177,4 +186,30 @@ async function checkBinary(name: string, args: readonly string[], required: bool
     ok: result.exitCode === 0,
     version: result.exitCode === 0 ? result.stdout.trim().split(/\r?\n/)[0] || result.stderr.trim().split(/\r?\n/)[0] : undefined
   };
+}
+
+async function printPythonEnvironmentCandidates(projectPath: string): Promise<void> {
+  try {
+    const candidates = await discoverPythonEnvironmentCandidates(projectPath);
+    if (candidates.length === 0) {
+      process.stdout.write("\nPython environment candidates\n");
+      process.stdout.write("- none detected. Create .venv, add environment.yml, or bind conda:<env-name> in the dashboard.\n");
+      return;
+    }
+    process.stdout.write("\nPython environment candidates\n");
+    for (const candidate of candidates) {
+      process.stdout.write(`- ${candidate.label}: ${candidate.value}\n`);
+      if (candidate.detail && candidate.detail !== candidate.value) {
+        process.stdout.write(`  ${candidate.detail}\n`);
+      }
+    }
+  } catch (error) {
+    process.stdout.write("\nPython environment candidates\n");
+    process.stdout.write(`- unable to inspect candidates: ${error instanceof Error ? error.message : String(error)}\n`);
+  }
+}
+
+function isPythonCommand(commandName: string): boolean {
+  const normalized = path.basename(commandName).replace(/\.(exe|cmd|bat)$/i, "").toLowerCase();
+  return normalized === "python" || normalized === "python3" || normalized === "py";
 }

@@ -28,6 +28,7 @@ const DEFAULT_IGNORE_NAMES = new Set([
 ]);
 
 const CHILD_PROJECT_DIRECTORY_HINTS = new Set(["frontend", "front", "backend", "api", "server", "client", "web", "apps", "packages", "services"]);
+const NODE_WORKSPACE_MARKERS = new Set(["pnpm-workspace.yaml", "turbo.json", "nx.json", "lerna.json", "rush.json"]);
 
 const COMMON_PORTS_BY_KIND: Record<ProjectKind, number[]> = {
   node: [3000, 5173, 4173, 8080],
@@ -131,6 +132,11 @@ function hasProjectMarker(entries: Array<{ name: string; isDirectory: boolean; i
   const names = new Set(entries.filter((entry) => entry.isFile).map((entry) => entry.name));
   return [
     "package.json",
+    "pnpm-workspace.yaml",
+    "turbo.json",
+    "nx.json",
+    "lerna.json",
+    "rush.json",
     "requirements.txt",
     "pyproject.toml",
     "go.mod",
@@ -152,8 +158,9 @@ function shouldDescendIntoMarkedDirectory(entries: Array<{ name: string; isDirec
   const fileNames = new Set(entries.filter((entry) => entry.isFile).map((entry) => entry.name));
   const directoryNames = new Set(entries.filter((entry) => entry.isDirectory).map((entry) => entry.name.toLowerCase()));
   const hasContainerMarker = ["docker-compose.yml", "compose.yml", "Dockerfile"].some((marker) => fileNames.has(marker));
-  if (!hasContainerMarker) return false;
-  return [...CHILD_PROJECT_DIRECTORY_HINTS].some((name) => directoryNames.has(name));
+  const hasWorkspaceMarker = [...NODE_WORKSPACE_MARKERS].some((marker) => fileNames.has(marker));
+  const hasChildProjectHint = [...CHILD_PROJECT_DIRECTORY_HINTS].some((name) => directoryNames.has(name));
+  return hasChildProjectHint && (hasContainerMarker || hasWorkspaceMarker);
 }
 
 function shouldKeepScannedProject(project: Project, reason: "marker" | "git-root"): boolean {
@@ -198,6 +205,11 @@ export function decodeProjectId(id: string): string {
 async function detectMarkers(projectPath: string, fs: FileSystemAdapter): Promise<string[]> {
   const candidates = [
     "package.json",
+    "pnpm-workspace.yaml",
+    "turbo.json",
+    "nx.json",
+    "lerna.json",
+    "rush.json",
     "requirements.txt",
     "pyproject.toml",
     "manage.py",
@@ -249,7 +261,7 @@ async function detectMarkers(projectPath: string, fs: FileSystemAdapter): Promis
 
 function resolveProjectKind(markers: string[]): ProjectKind {
   const kinds = new Set<ProjectKind>();
-  if (markers.includes("package.json")) kinds.add("node");
+  if (markers.includes("package.json") || markers.some((marker) => NODE_WORKSPACE_MARKERS.has(marker))) kinds.add("node");
   if (markers.some((marker) => ["requirements.txt", "pyproject.toml", "manage.py", "run.py", "app.py", "main.py", "app/main.py"].includes(marker))) {
     kinds.add("python");
   }

@@ -177,6 +177,43 @@ describe("scanRoot", () => {
     ]);
   });
 
+  it("continues scanning inside Node workspace roots and detects child apps", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-node-workspace-"));
+    const repo = path.join(root, "product-suite");
+    const web = path.join(repo, "apps", "web");
+    const api = path.join(repo, "packages", "api");
+    await fs.mkdir(web, { recursive: true });
+    await fs.mkdir(api, { recursive: true });
+    await fs.writeFile(path.join(repo, "package.json"), JSON.stringify({ name: "product-suite", private: true, workspaces: ["apps/*", "packages/*"] }), "utf8");
+    await fs.writeFile(path.join(repo, "pnpm-workspace.yaml"), "packages:\n  - apps/*\n  - packages/*\n", "utf8");
+    await fs.writeFile(path.join(repo, "turbo.json"), JSON.stringify({ tasks: { dev: { cache: false } } }), "utf8");
+    await fs.writeFile(path.join(web, "package.json"), JSON.stringify({ name: "web", scripts: { dev: "vite" } }), "utf8");
+    await fs.writeFile(path.join(api, "pyproject.toml"), "[project]\nname='api'\n", "utf8");
+    await fs.writeFile(path.join(api, "main.py"), "from fastapi import FastAPI\napp = FastAPI()\n", "utf8");
+
+    const result = await scanRoot(root, { maxDepth: 4 });
+    const names = result.projects.map((project) => project.name);
+    const workspace = result.projects.find((project) => project.name === "product-suite");
+    const webProject = result.projects.find((project) => project.path === web);
+    const apiProject = result.projects.find((project) => project.path === api);
+
+    expect(names).toContain("product-suite");
+    expect(names).toContain("web");
+    expect(names).toContain("api");
+    expect(workspace?.kind).toBe("node");
+    expect(workspace?.markers).toEqual(expect.arrayContaining(["pnpm-workspace.yaml", "turbo.json"]));
+    expect(webProject?.commands.find((command) => command.id === "script-dev")?.args).toEqual(["run", "dev", "--", "--host", "127.0.0.1"]);
+    expect(apiProject?.commands.find((command) => command.id === "python-fastapi-main")?.args).toEqual([
+      "-m",
+      "uvicorn",
+      "main:app",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "8000"
+    ]);
+  });
+
   it("detects run.py as a Python backend entrypoint", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-python-run-"));
     const backend = path.join(root, "api");
