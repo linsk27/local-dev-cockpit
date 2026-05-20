@@ -117,7 +117,7 @@ function commandTitle(commandId: string): string {
   if (commandAction(commandId) === "starting") return preferences.t("starting");
   if (commandAction(commandId) === "stopping") return preferences.t("stopping");
   if (isAlreadyOnlineCommand(commandId)) return label("服务已经在线，已避免重复启动。需要重启时请先停止当前端口。", "Service is already online. Stop the current endpoint before restarting.");
-  if (isBlockedByStalePort(commandId)) return label("检测到残留端口，已阻止启动。请先在恢复卡片里清理端口。", "A stale port is blocking this command. Clean it from the recovery card first.");
+  if (isBlockedByStalePort(commandId)) return label("检测到残留端口，已阻止启动。请先在概况页清理端口。", "A stale port is blocking this command. Clean it from the overview first.");
   return isRunningCommand(commandId) ? preferences.t("stopCommand") : preferences.t("runCommand");
 }
 

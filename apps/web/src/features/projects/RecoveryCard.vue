@@ -1,35 +1,42 @@
 <template>
   <section class="recovery surface">
-    <div class="recovery-copy">
-      <p class="eyebrow">{{ preferences.t("recoveryCard") }}</p>
-      <h2>{{ project.name }}</h2>
-      <div class="project-path-row">
-        <p class="project-path" :title="project.path">{{ project.path }}</p>
-      </div>
-      <p>{{ summary }}</p>
-      <div class="quick-actions" :aria-label="preferences.t('quickActions')">
-        <button class="text-button quick-action" type="button" :title="preferences.t('openFolder')" @click="openFolder">
-          <FolderOpen :size="14" />
-          <span>{{ preferences.t("openFolder") }}</span>
-        </button>
-        <button class="text-button quick-action" type="button" :title="preferences.t('openEditor')" @click="openEditor">
-          <Code2 :size="14" />
-          <span>{{ preferences.t("openEditor") }}</span>
-        </button>
-        <button class="text-button quick-action" type="button" :title="preferences.t('copyPath')" @click="copyProjectPath">
-          <Copy :size="14" />
-          <span>{{ preferences.t("copyPath") }}</span>
-        </button>
-        <button class="text-button quick-action" type="button" :title="preferences.t('copyAiContext')" @click="copyProjectContext">
-          <Bot :size="14" />
-          <span>{{ preferences.t("copyAiContext") }}</span>
-        </button>
-      </div>
-      <div class="port-overview">
-        <div class="port-group">
-          <span>{{ preferences.t("statusReason") }}</span>
-          <strong>{{ statusReason }}</strong>
+    <div class="recovery-main">
+      <div class="project-title-row">
+        <div class="project-title-copy">
+          <h2>{{ project.name }}</h2>
+          <p class="project-path" :title="project.path">{{ project.path }}</p>
         </div>
+        <div class="quick-actions" :aria-label="preferences.t('quickActions')">
+          <button class="text-button quick-action" type="button" :title="preferences.t('openFolder')" @click="openFolder">
+            <FolderOpen :size="14" />
+            <span>{{ preferences.t("openFolder") }}</span>
+          </button>
+          <button class="text-button quick-action" type="button" :title="preferences.t('openEditor')" @click="openEditor">
+            <Code2 :size="14" />
+            <span>{{ preferences.t("openEditor") }}</span>
+          </button>
+          <button class="text-button quick-action" type="button" :title="preferences.t('copyPath')" @click="copyProjectPath">
+            <Copy :size="14" />
+            <span>{{ preferences.t("copyPath") }}</span>
+          </button>
+          <button class="text-button quick-action" type="button" :title="preferences.t('copyAiContext')" @click="copyProjectContext">
+            <Bot :size="14" />
+            <span>{{ preferences.t("copyAiContext") }}</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="project-status-card" :class="statusTone">
+        <span class="project-status-icon">
+          <Activity :size="15" />
+        </span>
+        <div>
+          <strong>{{ sourceLabel }}</strong>
+          <p>{{ summary }}</p>
+        </div>
+      </div>
+
+      <div class="port-overview">
         <div class="port-group">
           <span>{{ preferences.t("runningEndpoints") }}</span>
           <template v-if="runningPorts.length > 0">
@@ -115,7 +122,7 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
-import { Bot, Code2, Copy, FolderOpen, Loader2, Square } from "lucide-vue-next";
+import { Activity, Bot, Code2, Copy, FolderOpen, Loader2, Square } from "lucide-vue-next";
 import type { Project } from "@local-dev-cockpit/core";
 import { useNotificationsStore } from "../../stores/notifications";
 import { usePreferencesStore } from "../../stores/preferences";
@@ -125,7 +132,9 @@ import {
   formatPortEndpoint,
   formatPortUrl,
   projectHasAlreadyRunningConflict,
-  projectStatusReason,
+  projectHasFailed,
+  projectHasStalePorts,
+  projectRuntimeMode,
   runtimeSourceLabel,
   staleProjectPorts,
   visibleProjectPorts
@@ -142,12 +151,18 @@ const ports = computed(() => {
 });
 
 const runningPorts = computed(() => visibleProjectPorts(props.project));
-const statusReason = computed(() => projectStatusReason(props.project, preferences.locale));
 const sourceLabel = computed(() => runtimeSourceLabel(props.project, preferences.locale));
 const stalePorts = computed(() => (runningPorts.value.length === 0 ? staleProjectPorts(props.project) : []));
 const detectedPorts = computed(() => {
   const displayed = new Set(runningPorts.value.map((port) => `${port.host ?? ""}:${port.port}`));
   return detectedProjectPorts(props.project).filter((port) => !displayed.has(`${port.host ?? ""}:${port.port}`));
+});
+const statusTone = computed(() => {
+  const mode = projectRuntimeMode(props.project);
+  if (mode === "managed-running" || mode === "detected-online") return "good";
+  if (mode === "stale") return "warn";
+  if (projectHasFailed(props.project) || projectHasStalePorts(props.project)) return "danger";
+  return "idle";
 });
 const summary = computed(() => {
   if (projectHasAlreadyRunningConflict(props.project)) return "服务已在检测到的端口运行；上次启动命令因为端口占用退出。";

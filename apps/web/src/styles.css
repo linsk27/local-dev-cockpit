@@ -966,27 +966,42 @@ h2 {
 
 .recovery {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
-  align-items: start;
+  grid-template-columns: minmax(0, 1.6fr) minmax(260px, 0.9fr);
+  align-items: stretch;
+  gap: 16px;
+  min-width: 0;
+  padding: 18px;
+}
+
+.recovery-main {
+  display: grid;
+  align-content: start;
   gap: 14px;
   min-width: 0;
-  padding: 20px;
 }
 
-.recovery-copy > p {
-  max-width: 760px;
-  color: var(--muted-strong);
-  line-height: 1.55;
-}
-
-.project-path-row {
-  width: min(760px, 100%);
+.project-title-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
   min-width: 0;
-  margin: -2px 0 10px;
 }
 
-.recovery-copy .project-path {
-  flex: 1 1 auto;
+.project-title-copy {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.project-title-copy h2 {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: clamp(22px, 3vw, 30px);
+  line-height: 1.04;
+}
+
+.project-title-copy .project-path {
   min-width: 0;
   margin: 0;
   overflow: hidden;
@@ -1001,14 +1016,15 @@ h2 {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
+  justify-content: flex-start;
   gap: 8px;
-  margin-top: 14px;
+  margin-top: 0;
 }
 
 .quick-action {
   min-width: 0;
-  height: 34px;
-  padding: 0 11px;
+  height: 32px;
+  padding: 0 10px;
   background: color-mix(in srgb, var(--surface-soft) 76%, transparent);
 }
 
@@ -1017,10 +1033,91 @@ h2 {
   color: var(--text);
 }
 
+.project-status-card {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--surface-soft) 74%, transparent), transparent 72%),
+    color-mix(in srgb, var(--panel-solid) 74%, transparent);
+}
+
+.project-status-card.good {
+  border-color: color-mix(in srgb, var(--success) 28%, var(--border));
+  background:
+    radial-gradient(circle at 16px 18px, color-mix(in srgb, var(--success) 12%, transparent), transparent 120px),
+    color-mix(in srgb, var(--panel-solid) 78%, transparent);
+}
+
+.project-status-card.warn {
+  border-color: color-mix(in srgb, var(--warn) 34%, var(--border));
+  background:
+    radial-gradient(circle at 16px 18px, color-mix(in srgb, var(--warn) 12%, transparent), transparent 120px),
+    color-mix(in srgb, var(--panel-solid) 78%, transparent);
+}
+
+.project-status-card.danger {
+  border-color: color-mix(in srgb, var(--danger) 28%, var(--border));
+  background:
+    radial-gradient(circle at 16px 18px, color-mix(in srgb, var(--danger) 10%, transparent), transparent 120px),
+    color-mix(in srgb, var(--panel-solid) 78%, transparent);
+}
+
+.project-status-card strong,
+.project-status-card p {
+  min-width: 0;
+}
+
+.project-status-card strong {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--text-strong);
+  font-size: 14px;
+}
+
+.project-status-card p {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.project-status-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-soft);
+  color: var(--accent);
+}
+
+.project-status-card.good .project-status-icon {
+  border-color: color-mix(in srgb, var(--success) 34%, var(--border));
+  color: var(--success);
+}
+
+.project-status-card.warn .project-status-icon {
+  border-color: color-mix(in srgb, var(--warn) 42%, var(--border));
+  color: var(--warn);
+}
+
+.project-status-card.danger .project-status-icon {
+  border-color: color-mix(in srgb, var(--danger) 36%, var(--border));
+  color: var(--danger);
+}
+
 .port-overview {
   display: grid;
-  gap: 8px;
-  margin-top: 14px;
+  gap: 9px;
+  min-width: 0;
+  padding-top: 2px;
 }
 
 .port-group {
@@ -1032,7 +1129,7 @@ h2 {
 }
 
 .port-group > span:first-child {
-  min-width: 64px;
+  min-width: 72px;
   color: var(--muted);
 }
 
@@ -1106,16 +1203,23 @@ h2 {
 
 .recovery-facts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  align-content: stretch;
+  min-width: 0;
 }
 
 .fact {
+  display: grid;
+  align-content: space-between;
   min-width: 0;
-  padding: 12px;
+  min-height: 76px;
+  padding: 13px;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-soft);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-soft) 82%, transparent), transparent 120%),
+    color-mix(in srgb, var(--panel-solid) 68%, transparent);
 }
 
 .fact strong {
@@ -1124,6 +1228,9 @@ h2 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--text-strong);
+  font-size: 18px;
+  line-height: 1.1;
 }
 
 .detail-grid {
@@ -1217,12 +1324,14 @@ h2 {
   display: grid;
   align-content: start;
   min-height: 0;
+  overflow: hidden;
 }
 
 .diagnostics-list {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 0;
+  gap: 10px;
+  padding: 12px;
   border-top: 1px solid var(--border);
 }
 
@@ -1231,24 +1340,19 @@ h2 {
   grid-template-columns: 8px minmax(0, 1fr);
   gap: 10px;
   min-width: 0;
-  padding: 13px 14px;
-  border-right: 1px solid var(--border);
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
   background: color-mix(in srgb, var(--surface-soft) 52%, transparent);
-}
-
-.diagnostic-row:last-child {
-  border-right: 0;
 }
 
 .diagnostic-subheading {
   grid-column: 1 / -1;
-  padding: 12px 14px 8px;
+  padding: 2px 2px 0;
   color: var(--muted);
   font-size: 11px;
   font-weight: 760;
   letter-spacing: 0;
-  border-top: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface) 74%, transparent);
 }
 
 .environment-binding {
@@ -1257,8 +1361,9 @@ h2 {
   grid-template-columns: minmax(220px, 1fr) auto auto;
   gap: 10px;
   align-items: end;
-  padding: 10px 14px 12px;
-  border-top: 1px solid var(--border);
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
   background: color-mix(in srgb, var(--surface-soft) 46%, transparent);
 }
 
@@ -2437,10 +2542,6 @@ h2 {
     align-items: stretch;
   }
 
-  .diagnostic-row:nth-child(2n) {
-    border-right: 0;
-  }
-
   .search-box,
   .root-filter {
     width: min(360px, 42vw);
@@ -2517,6 +2618,7 @@ h2 {
   .quick-actions {
     align-items: stretch;
     flex-direction: column;
+    justify-content: stretch;
   }
 
   .context-actions .text-button {
@@ -2525,6 +2627,10 @@ h2 {
 
   .quick-actions .text-button {
     width: 100%;
+  }
+
+  .project-title-row {
+    grid-template-columns: 1fr;
   }
 
   .detail-tab {
