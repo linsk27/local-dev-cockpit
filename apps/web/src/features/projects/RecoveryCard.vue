@@ -5,20 +5,21 @@
         <h2>{{ project.name }}</h2>
         <p class="project-path" :title="project.path">{{ project.path }}</p>
       </div>
-      <div class="quick-actions" :aria-label="preferences.t('quickActions')">
-        <button class="text-button quick-action" type="button" :title="preferences.t('openFolder')" :aria-label="preferences.t('openFolder')" @click="openFolder">
-          <FolderOpen :size="14" />
-        </button>
-        <button class="text-button quick-action" type="button" :title="preferences.t('openEditor')" :aria-label="preferences.t('openEditor')" @click="openEditor">
-          <Code2 :size="14" />
-        </button>
-        <button class="text-button quick-action" type="button" :title="preferences.t('copyPath')" :aria-label="preferences.t('copyPath')" @click="copyProjectPath">
-          <Copy :size="14" />
-        </button>
-        <button class="text-button quick-action" type="button" :title="preferences.t('copyAiContext')" :aria-label="preferences.t('copyAiContext')" @click="copyProjectContext">
-          <Bot :size="14" />
-        </button>
-      </div>
+    </div>
+
+    <div class="quick-actions" :aria-label="preferences.t('quickActions')">
+      <button class="text-button quick-action" type="button" :title="preferences.t('openFolder')" :aria-label="preferences.t('openFolder')" @click="openFolder">
+        <FolderOpen :size="14" />
+      </button>
+      <button class="text-button quick-action" type="button" :title="preferences.t('openEditor')" :aria-label="preferences.t('openEditor')" @click="openEditor">
+        <Code2 :size="14" />
+      </button>
+      <button class="text-button quick-action" type="button" :title="preferences.t('copyPath')" :aria-label="preferences.t('copyPath')" @click="copyProjectPath">
+        <Copy :size="14" />
+      </button>
+      <button class="text-button quick-action" type="button" :title="preferences.t('copyAiContext')" :aria-label="preferences.t('copyAiContext')" @click="copyProjectContext">
+        <Bot :size="14" />
+      </button>
     </div>
 
     <div class="project-meta-strip">

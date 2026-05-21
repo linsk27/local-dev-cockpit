@@ -967,16 +967,13 @@ h2 {
 .project-overview-card {
   display: grid;
   align-content: start;
-  gap: 14px;
+  gap: 12px;
   min-width: 0;
   padding: 18px 20px;
 }
 
 .project-overview-header {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 12px;
+  display: block;
   min-width: 0;
 }
 
@@ -989,13 +986,14 @@ h2 {
 .project-title-copy h2 {
   margin: 0;
   color: var(--text-strong);
-  font-size: clamp(20px, 2.2vw, 28px);
-  line-height: 1.12;
+  font-size: clamp(20px, 1.8vw, 26px);
+  line-height: 1.16;
   overflow: hidden;
   overflow-wrap: anywhere;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  max-width: 100%;
 }
 
 .project-title-copy .project-path {
@@ -1013,18 +1011,18 @@ h2 {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 6px;
-  margin-top: 0;
+  min-width: 0;
 }
 
 .quick-action {
   display: inline-grid;
   place-items: center;
   flex: 0 0 auto;
-  width: 34px;
+  width: 32px;
   min-width: 0;
-  height: 34px;
+  height: 32px;
   padding: 0;
   background: color-mix(in srgb, var(--surface-soft) 76%, transparent);
 }
