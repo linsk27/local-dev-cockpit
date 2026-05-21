@@ -28,6 +28,36 @@ describe("summarizeFailedRun", () => {
     expect(summary).toContain("conda:环境名");
   });
 
+  it("uses Conda-specific install guidance for Python missing dependencies", () => {
+    const summary = summarizeFailedRun(
+      [
+        "[dev-cockpit] 已使用项目绑定的 Conda 环境：api-env。\n",
+        "Traceback (most recent call last):\n",
+        "    import portalocker\n",
+        "ModuleNotFoundError: No module named 'portalocker'\n"
+      ],
+      1,
+      command({ command: "python", args: ["app.py"] })
+    );
+
+    expect(summary).toContain("conda run -n api-env python -m pip install portalocker");
+  });
+
+  it("uses the resolved virtualenv interpreter in Python install guidance", () => {
+    const summary = summarizeFailedRun(
+      [
+        "[dev-cockpit] 已使用项目 Python 环境：.venv\\Scripts\\python.exe。\n",
+        "Traceback (most recent call last):\n",
+        "    import cv2\n",
+        "ModuleNotFoundError: No module named 'cv2'\n"
+      ],
+      1,
+      command({ command: "python", args: ["app.py"], cwd: "D:\\projects\\api" })
+    );
+
+    expect(summary).toContain("D:\\projects\\api\\.venv\\Scripts\\python.exe -m pip install opencv-python");
+  });
+
   it("turns Node missing packages into package-manager install guidance", () => {
     const summary = summarizeFailedRun(
       [
