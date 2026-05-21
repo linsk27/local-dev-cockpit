@@ -21,17 +21,20 @@
       <button class="project-row-select" @click="$emit('select', project.id)">
         <div class="project-row-main">
           <span class="status-dot" :class="statusClass(project)" />
-          <div>
-            <strong>{{ project.name }}</strong>
-            <span>{{ project.kind }} · {{ project.git.branch }}</span>
+          <div class="project-row-copy">
+            <div class="project-row-titleline">
+              <strong>{{ project.name }}</strong>
+              <span class="project-state" :class="{ online: projectIsOnline(project), failed: projectHasFailed(project), stale: projectHasStalePorts(project) }">
+                {{ statusLabel(project) }}
+              </span>
+            </div>
             <span class="project-row-path" :title="project.path">{{ formatDisplayPath(project.path) }}</span>
+            <div class="project-row-tags">
+              <span>{{ project.kind }}</span>
+              <span>{{ project.git.branch }}</span>
+              <span>{{ project.git.dirtyCount }} {{ preferences.t("dirty") }}</span>
+            </div>
           </div>
-        </div>
-        <div class="project-row-meta">
-          <span class="project-state" :class="{ online: projectIsOnline(project), failed: projectHasFailed(project), stale: projectHasStalePorts(project) }">
-            {{ statusLabel(project) }}
-          </span>
-          <span>{{ project.git.dirtyCount }} {{ preferences.t("dirty") }}</span>
         </div>
       </button>
       <a
@@ -46,7 +49,7 @@
         <ExternalLink :size="13" />
         <em v-if="hasPortConflict(project)">{{ preferences.t("portConflict") }}</em>
       </a>
-      <span v-else class="project-port">
+      <span v-else-if="hasPortInformation(project)" class="project-port" :class="{ 'project-port-stale': projectHasStalePorts(project) }">
         <span>{{ openPorts(project) }}</span>
       </span>
     </article>
@@ -123,6 +126,10 @@ function openPorts(project: Project): string {
 
 function primaryPort(project: Project) {
   return visibleProjectPorts(project)[0];
+}
+
+function hasPortInformation(project: Project): boolean {
+  return project.lastRun?.status === "running" || staleProjectPorts(project).length > 0;
 }
 
 const openPortCounts = computed(() => countOpenPortsByNumber(props.projects));

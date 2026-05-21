@@ -758,8 +758,9 @@ h2 {
 }
 
 .project-row {
+  position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(92px, auto);
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   width: 100%;
   min-width: 0;
@@ -768,6 +769,9 @@ h2 {
   background: transparent;
   color: inherit;
   text-align: left;
+  transition:
+    background 140ms ease,
+    box-shadow 140ms ease;
 }
 
 .project-row:hover,
@@ -775,11 +779,20 @@ h2 {
   background: var(--surface-hover);
 }
 
+.project-row.active::before {
+  position: absolute;
+  inset: 10px auto 10px 0;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--accent);
+  content: "";
+}
+
 .project-row-select {
   display: grid;
   min-width: 0;
-  gap: 10px;
-  padding: 13px 14px;
+  gap: 8px;
+  padding: 12px 12px 12px 14px;
   border: 0;
   background: transparent;
   color: inherit;
@@ -789,17 +802,43 @@ h2 {
 .project-row-main {
   display: grid;
   grid-template-columns: 10px minmax(0, 1fr);
-  gap: 11px;
-  align-items: center;
+  gap: 10px;
+  align-items: start;
   min-width: 0;
 }
 
+.project-row-copy,
+.project-row-titleline,
 .project-row-main strong,
-.project-row-main span {
+.project-row-main span,
+.project-row-tags {
+  min-width: 0;
+}
+
+.project-row-copy {
+  display: grid;
+  gap: 5px;
+}
+
+.project-row-titleline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.project-row-main strong,
+.project-row-main span,
+.project-row-tags span {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.project-row-main strong {
+  color: var(--text-strong);
+  font-size: 14px;
+  line-height: 1.15;
 }
 
 .project-row-main .project-row-path {
@@ -807,17 +846,23 @@ h2 {
   font-size: 12px;
 }
 
-.project-row-meta {
-  display: grid;
-  grid-template-columns: auto minmax(0, auto);
+.project-row-tags {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  min-width: 0;
-  padding-left: 21px;
+  gap: 5px;
 }
 
-.project-row-meta > span {
-  min-width: 0;
+.project-row-tags span {
+  max-width: 120px;
+  min-height: 20px;
+  padding: 2px 7px;
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-soft) 64%, transparent);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.25;
 }
 
 .project-port {
@@ -826,18 +871,27 @@ h2 {
   justify-content: flex-end;
   gap: 6px;
   min-width: 0;
-  max-width: 210px;
-  padding: 0 14px 0 6px;
-  color: var(--muted);
+  max-width: 170px;
+  min-height: 26px;
+  margin-right: 12px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-soft) 70%, transparent);
+  color: var(--muted-strong);
+  font-size: 12px;
   text-align: right;
 }
 
 .project-port-link {
-  color: var(--muted-strong);
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-soft));
+  color: var(--text);
   text-decoration: none;
 }
 
 .project-port-link:hover {
+  border-color: var(--accent-border);
   color: var(--accent);
 }
 
@@ -858,23 +912,49 @@ h2 {
 }
 
 .project-port.port-conflict {
+  border-color: var(--danger-border);
+  background: var(--danger-bg);
   color: var(--danger);
 }
 
+.project-port-stale {
+  border-color: color-mix(in srgb, var(--warn) 42%, var(--border));
+  color: var(--warn);
+}
+
 .project-state {
+  flex: 0 0 auto;
+  max-width: 82px;
+  padding: 2px 7px;
+  border: 1px solid color-mix(in srgb, var(--muted) 22%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-soft) 72%, transparent);
+  color: var(--muted-strong);
+  font-size: 11px;
   font-weight: 680;
+  line-height: 1.25;
 }
 
 .project-state.online {
+  border-color: color-mix(in srgb, var(--success) 34%, transparent);
+  background: color-mix(in srgb, var(--success) 9%, transparent);
   color: var(--success);
 }
 
 .project-state.failed {
+  border-color: color-mix(in srgb, var(--danger) 34%, transparent);
+  background: color-mix(in srgb, var(--danger) 9%, transparent);
   color: var(--danger);
 }
 
 .project-state.stale {
+  border-color: color-mix(in srgb, var(--warn) 38%, transparent);
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
   color: var(--warn);
+}
+
+.project-row .status-dot {
+  margin-top: 5px;
 }
 
 .project-row-skeleton {
