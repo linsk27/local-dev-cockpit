@@ -1,0 +1,84 @@
+.project-detail {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  padding-right: 2px;
+}
+
+.project-overview-card {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+  overflow: hidden;
+  padding: 14px;
+}
+
+.project-overview-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.project-title-copy {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.project-title-copy h2 {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: clamp(18px, 1.25vw, 21px);
+  line-height: 1.16;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  max-width: 100%;
+}
+
+.project-title-copy .project-path {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.quick-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.quick-action {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 32px;
+  min-width: 0;
+  height: 32px;
+  padding: 0;
+  background: color-mix(in srgb, var(--surface-soft) 76%, transparent);
+}
+
+.quick-action:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}

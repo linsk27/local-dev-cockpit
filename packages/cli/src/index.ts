@@ -24,7 +24,7 @@ import {
 import { noCommandGuidance, shouldInspectPythonEnvironment } from "./doctor-guidance.js";
 import { formatScanProject } from "./scan-output.js";
 
-const CLI_VERSION = "0.1.12";
+const CLI_VERSION = "0.1.13";
 
 const program = new Command()
   .name("local-dev-cockpit")

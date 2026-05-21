@@ -82,6 +82,23 @@ describe("JsonStore roots", () => {
     await expect(store.updateEditorCommand("   ")).rejects.toThrow("Editor command is empty");
   });
 
+  it("falls back to defaults when config or state JSON is damaged", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-store-"));
+    const paths = {
+      dataDir: tmp,
+      configPath: path.join(tmp, "config.json"),
+      statePath: path.join(tmp, "state.json"),
+      logsDir: path.join(tmp, "logs")
+    };
+    const store = new JsonStore(paths, tmp);
+    await store.ensure();
+    await fs.writeFile(paths.configPath, "{not-json", "utf8");
+    await fs.writeFile(paths.statePath, "{not-json", "utf8");
+
+    await expect(store.readConfig()).resolves.toMatchObject({ roots: [], editorCommand: "code" });
+    await expect(store.readState()).resolves.toEqual({ runs: {}, errors: {} });
+  });
+
   it("stores and clears project environment bindings by resolved project path", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-store-"));
     const store = new JsonStore(

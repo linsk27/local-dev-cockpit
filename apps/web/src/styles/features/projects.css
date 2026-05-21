@@ -1,0 +1,8 @@
+@import "./projects/list.css";
+@import "./projects/detail.css";
+@import "./projects/overview.css";
+@import "./projects/diagnostics.css";
+@import "./projects/commands.css";
+@import "./projects/logs.css";
+@import "./projects/context.css";
+@import "./projects/onboarding.css";

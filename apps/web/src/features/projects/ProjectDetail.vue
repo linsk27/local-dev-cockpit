@@ -1,5 +1,5 @@
 <template>
-  <section class="project-detail">
+  <section ref="detailRef" class="project-detail">
     <div class="detail-tabs" role="tablist" aria-label="Project detail panels">
       <button
         v-for="tabItem in detailTabs"
@@ -41,6 +41,7 @@
 import { computed, ref, watch, type Component } from "vue";
 import type { Project } from "@local-dev-cockpit/core";
 import { Activity, Bot, ChevronDown, Info, ScrollText, Terminal } from "lucide-vue-next";
+import { animateSubtleEntrance, useGsapScope } from "../../shared/animation/useGsap";
 import CommandPanel from "./CommandPanel.vue";
 import ContextPanel from "./ContextPanel.vue";
 import ProjectDiagnostics from "./ProjectDiagnostics.vue";
@@ -64,11 +65,12 @@ const detailTabs: DetailTabItem[] = [
   { id: "context", labelKey: "aiContext", icon: Bot }
 ];
 const preferences = usePreferencesStore();
+const detailRef = ref<HTMLElement | null>(null);
 const activeTab = ref<DetailTab>("overview");
 const diagnosticsOpen = ref(false);
 const shouldOpenDiagnostics = computed(() => projectHasFailed(props.project) || projectHasStalePorts(props.project));
 const diagnosticsSummary = computed(() =>
-  preferences.locale === "en-US" ? "Environment, ports, and last failure details" : "环境、端口和失败原因"
+  preferences.locale === "en-US" ? "Environment, ports, failures" : "环境 / 端口 / 失败"
 );
 
 watch(
@@ -82,6 +84,22 @@ watch(
 watch(shouldOpenDiagnostics, (shouldOpen) => {
   if (shouldOpen) diagnosticsOpen.value = true;
 });
+
+const detailAnimation = useGsapScope(detailRef, (element, gsap) => {
+  animateSubtleEntrance(gsap, element.querySelectorAll(".detail-tab-panel > *"), {
+    y: 12,
+    duration: 0.26,
+    stagger: 0.025
+  });
+});
+
+watch(
+  () => `${props.project.id}:${activeTab.value}`,
+  () => {
+    void detailAnimation.run();
+  },
+  { flush: "post" }
+);
 
 function onDiagnosticsToggle(event: Event): void {
   diagnosticsOpen.value = (event.currentTarget as HTMLDetailsElement).open;

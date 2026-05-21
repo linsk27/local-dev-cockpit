@@ -102,6 +102,20 @@ conda:环境名
 C:\path\to\python.exe
 ```
 
+什么时候需要手动配置：
+
+- 项目依赖安装在全局 Conda 环境里，而项目目录没有 `.venv`、`.conda` 或 `environment.yml`。
+- 你用桌面版双击启动 Dev Cockpit，但项目平时是在另一个终端里 `conda activate` 后运行。
+- 面板启动时报 `ModuleNotFoundError`，但你确认在某个 Conda/venv 终端里可以正常运行。
+- 同一个仓库里有多个 Python 后端，需要为某个子目录固定不同解释器。
+
+快速判断：
+
+- 项目目录有 `.venv` / `venv`：通常不用配置，Dev Cockpit 会自动选。
+- 项目有 `environment.yml`：通常选择诊断区里的 `environment.yml` 候选。
+- 只有终端里 `conda activate xxx` 后能跑：在诊断区绑定 `conda:xxx`。
+- 只知道解释器路径：填写 `C:\path\to\python.exe`。
+
 Dev Cockpit 不会自动安装依赖。出现 `ModuleNotFoundError` 时，它会提示你当前环境缺哪个模块，以及应该在哪个环境里安装。
 
 ## CLI
@@ -196,7 +210,6 @@ pnpm --filter @local-dev-cockpit/desktop dist:win
 
 ## 当前阶段
 
-当前版本是 `0.1.12`。重点是把“本地项目恢复”这个核心流程做稳定：扫描、识别命令、诊断环境、运行/停止命令、查看日志、识别端口、交给 AI。
+当前版本是 `0.1.13`。重点是把“本地项目恢复”这个核心流程做稳定：扫描、识别命令、诊断环境、运行/停止命令、查看日志、识别端口、交给 AI。
 
 后续不会急着堆新模块。下一步会优先收集真实用户试用问题，再决定是否扩展到更大的模块。
-

@@ -1,0 +1,14 @@
+.log-panel pre {
+  height: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 14px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  color: var(--code);
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}

@@ -4,7 +4,7 @@ import { defineStore } from "pinia";
 const STORAGE_KEY = "dev-cockpit:preferences";
 
 export type Locale = "zh-CN" | "en-US";
-export type ThemeMode = "system" | "dark" | "light";
+export type ThemeMode = "system" | "dark" | "light" | "cream";
 export type AccentColor = "violet" | "cyan" | "emerald" | "amber" | "rose";
 
 export interface PreferenceOption<T extends string> {
@@ -29,7 +29,11 @@ export const messages = {
     collapseSidebar: "收起侧栏",
     expandSidebar: "展开侧栏",
     resourceMonitor: "资源占用",
+    resourceWorkspace: "工作台占用",
     resourceWaiting: "等待扫描",
+    resourceStale: "数据稍旧",
+    resourceUnavailable: "暂不可用",
+    resourceUpdated: "更新 {age}",
     resourceLow: "占用低",
     resourceMedium: "占用中",
     resourceHigh: "占用高",
@@ -89,6 +93,12 @@ export const messages = {
     selectRootOption: "选择根目录",
     projectSearchEmptyTitle: "没有匹配的项目",
     projectSearchEmptyDescription: "换一个项目名、路径、分支名或端口再试。",
+    projectFilterAll: "全部",
+    projectFilterOnline: "在线",
+    projectFilterStandard: "标准可运行",
+    projectFilterTry: "可尝试运行",
+    projectFilterAttention: "需处理",
+    projectFilterUnidentified: "未识别",
     projectOnline: "在线",
     projectRunning: "运行中",
     projectManagedRunning: "托管运行",
@@ -199,6 +209,7 @@ export const messages = {
     themeSystem: "跟随系统",
     themeDark: "深色",
     themeLight: "浅色",
+    themeCream: "奶油",
     localeZh: "中文",
     localeEn: "English",
     accentViolet: "紫色",
@@ -217,7 +228,11 @@ export const messages = {
     collapseSidebar: "Collapse sidebar",
     expandSidebar: "Expand sidebar",
     resourceMonitor: "Resource use",
+    resourceWorkspace: "Workspace use",
     resourceWaiting: "Waiting for scan",
+    resourceStale: "Data is stale",
+    resourceUnavailable: "Unavailable",
+    resourceUpdated: "Updated {age}",
     resourceLow: "Low use",
     resourceMedium: "Medium use",
     resourceHigh: "High use",
@@ -277,6 +292,12 @@ export const messages = {
     selectRootOption: "Select root",
     projectSearchEmptyTitle: "No matching projects",
     projectSearchEmptyDescription: "Try another project name, path, branch, or port.",
+    projectFilterAll: "All",
+    projectFilterOnline: "Online",
+    projectFilterStandard: "Standard runnable",
+    projectFilterTry: "Try runnable",
+    projectFilterAttention: "Needs attention",
+    projectFilterUnidentified: "Unidentified",
     projectOnline: "Online",
     projectRunning: "Running",
     projectManagedRunning: "Managed",
@@ -387,6 +408,7 @@ export const messages = {
     themeSystem: "System",
     themeDark: "Dark",
     themeLight: "Light",
+    themeCream: "Cream",
     localeZh: "中文",
     localeEn: "English",
     accentViolet: "Violet",
@@ -407,7 +429,8 @@ export const localeOptions: PreferenceOption<Locale>[] = [
 export const themeOptions: PreferenceOption<ThemeMode>[] = [
   { value: "system", labelKey: "themeSystem" },
   { value: "dark", labelKey: "themeDark" },
-  { value: "light", labelKey: "themeLight" }
+  { value: "light", labelKey: "themeLight" },
+  { value: "cream", labelKey: "themeCream" }
 ];
 
 export const accentOptions: PreferenceOption<AccentColor>[] = [
@@ -427,7 +450,7 @@ export const usePreferencesStore = defineStore("preferences", () => {
   const locale = ref<Locale>("zh-CN");
   const themeMode = ref<ThemeMode>("dark");
   const accentColor = ref<AccentColor>("violet");
-  const resolvedTheme = computed<"dark" | "light">(() => {
+  const resolvedTheme = computed<"dark" | "light" | "cream">(() => {
     if (themeMode.value !== "system") return themeMode.value;
     return prefersLightTheme() ? "light" : "dark";
   });
@@ -435,7 +458,7 @@ export const usePreferencesStore = defineStore("preferences", () => {
   function init(): void {
     const saved = readPreferences();
     locale.value = saved.locale ?? "zh-CN";
-    themeMode.value = saved.themeMode ?? "dark";
+    themeMode.value = isThemeMode(saved.themeMode) ? saved.themeMode : "dark";
     accentColor.value = saved.accentColor ?? "violet";
     applyPreferences();
 
@@ -503,4 +526,8 @@ function writePreferences(preferences: Required<PersistedPreferences>): void {
 
 function prefersLightTheme(): boolean {
   return window.matchMedia?.("(prefers-color-scheme: light)").matches ?? false;
+}
+
+function isThemeMode(value: unknown): value is ThemeMode {
+  return value === "system" || value === "dark" || value === "light" || value === "cream";
 }

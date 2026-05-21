@@ -1,6 +1,6 @@
 {
   "name": "@local-dev-cockpit/web",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@local-dev-cockpit/core": "workspace:*",
-    "animejs": "^4.4.1",
+    "gsap": "^3.15.0",
     "lucide-vue-next": "^0.468.0",
     "pinia": "^2.3.1",
     "vue": "^3.5.25",

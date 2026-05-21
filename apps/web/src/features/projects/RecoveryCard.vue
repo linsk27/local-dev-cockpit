@@ -95,19 +95,19 @@
     </div>
 
     <div class="project-meta-strip">
-      <div class="fact">
+      <div class="fact fact-compact">
         <span>{{ preferences.t("stack") }}</span>
         <strong>{{ project.kind }}</strong>
       </div>
-      <div class="fact">
+      <div class="fact fact-branch" :title="`${preferences.t('branch')} ${project.git.branch}`">
         <span>{{ preferences.t("branch") }}</span>
         <strong>{{ project.git.branch }}</strong>
       </div>
-      <div class="fact">
+      <div class="fact fact-compact">
         <span>{{ preferences.t("dirty") }}</span>
         <strong>{{ project.git.dirtyCount }}</strong>
       </div>
-      <div class="fact">
+      <div class="fact fact-ports" :title="`${preferences.t('ports')} ${ports}`">
         <span>{{ preferences.t("ports") }}</span>
         <strong>{{ ports }}</strong>
       </div>
@@ -128,6 +128,7 @@ import {
   formatPortUrl,
   projectHasAlreadyRunningConflict,
   projectFailureActionHint,
+  projectFailureHeadline,
   projectHasFailed,
   projectHasStalePorts,
   projectRuntimeMode,
@@ -169,11 +170,11 @@ const summary = computed(() => {
   if (props.project.lastRun?.status === "running") return preferences.t("commandRunning");
   if (runningPorts.value.length > 0) return "服务已在检测到的端口运行，可以直接打开运行地址。";
   if (stalePorts.value.length > 0) return "检测到开发进程占用端口，但 HTTP 无法访问。请先清理端口再重新运行。";
-  if (props.project.lastError) return props.project.lastError.message;
+  if (props.project.lastError) return projectFailureHeadline(props.project, preferences.locale);
   if (props.project.lastRun?.status === "failed") return "命令运行失败，请查看日志。";
   if (props.project.commands.length > 0) {
-    const manager = props.project.packageManager ? `${props.project.packageManager}，` : "";
-    return `${manager}已识别 ${props.project.commands.length} 个命令，当前无服务。`;
+    const manager = props.project.packageManager ? `${props.project.packageManager} 项目，` : "";
+    return `${manager}已识别 ${props.project.commands.length} 个命令，当前没有运行中的服务。`;
   }
   return preferences.t("noCommandsSummary");
 });

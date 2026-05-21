@@ -1,6 +1,6 @@
 {
   "name": "@local-dev-cockpit/desktop",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "private": true,
   "description": "Electron desktop shell for Dev Cockpit.",
   "main": "dist/main.cjs",
@@ -12,11 +12,13 @@
     "appId": "dev.local-dev-cockpit.app",
     "productName": "Dev Cockpit",
     "asar": true,
+    "compression": "maximum",
     "directories": {
       "output": "release"
     },
     "files": [
       "dist/**/*",
+      "!dist/**/*.map",
       "package.json"
     ],
     "win": {

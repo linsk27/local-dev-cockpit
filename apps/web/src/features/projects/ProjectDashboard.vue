@@ -1,5 +1,5 @@
 <template>
-  <section class="workspace">
+  <section ref="workspaceRef" class="workspace">
     <WelcomePilotModal
       v-if="showWelcomeModal"
       v-model:root-path="rootPath"
@@ -101,10 +101,13 @@
     <div v-else class="dashboard-grid">
       <ProjectList
         :projects="visibleProjects"
-        :total-count="scopedProjects.length"
+        :total-count="searchedProjects.length"
         :selected-id="activeProject?.id"
         :loading="store.loading"
         :loading-label="loadingLabel"
+        :filters="projectFilterOptions"
+        :active-filter="projectFilter"
+        @filter="projectFilter = $event"
         @select="store.select"
       />
       <ProjectDetail v-if="activeProject" :project="activeProject" />
@@ -112,7 +115,7 @@
         <RefreshCw :size="34" class="spin-icon" />
         <h2>{{ preferences.t("loadingProjects") }}</h2>
       </section>
-      <section v-else-if="searchQuery" class="empty-state">
+      <section v-else-if="searchQuery || projectFilter !== 'all'" class="empty-state">
         <FolderSearch :size="34" />
         <h2>{{ preferences.t("projectSearchEmptyTitle") }}</h2>
         <p>{{ preferences.t("projectSearchEmptyDescription") }}</p>
@@ -146,16 +149,26 @@ import { useNotificationsStore } from "../../stores/notifications";
 import { usePerformanceStore } from "../../stores/performance";
 import { useProjectsStore } from "../../stores/projects";
 import { usePreferencesStore } from "../../stores/preferences";
+import { animateSubtleEntrance, useGsapScope } from "../../shared/animation/useGsap";
 import ProjectDetail from "./ProjectDetail.vue";
 import ProjectList from "./ProjectList.vue";
 import WelcomePilotModal from "./WelcomePilotModal.vue";
-import { formatDisplayPath, projectMatchesQuery, sortProjectsForDashboard } from "./project-view";
+import {
+  buildProjectListFilters,
+  formatDisplayPath,
+  projectMatchesListFilter,
+  projectMatchesQuery,
+  sortProjectsForDashboard,
+  type ProjectListFilter
+} from "./project-view";
 
 const store = useProjectsStore();
 const preferences = usePreferencesStore();
 const notifications = useNotificationsStore();
 const performance = usePerformanceStore();
+const workspaceRef = ref<HTMLElement | null>(null);
 const searchQuery = ref("");
+const projectFilter = ref<ProjectListFilter>("all");
 const selectedRootId = ref("");
 const roots = ref<RootEntry[]>([]);
 const rootMenuOpen = ref(false);
@@ -175,7 +188,11 @@ const selectedRootLabel = computed(() => rootOptions.value.find((option) => opti
 
 const scopedProjects = computed(() => store.projects);
 
-const visibleProjects = computed(() => sortProjectsForDashboard(scopedProjects.value).filter((project) => projectMatchesQuery(project, searchQuery.value)));
+const searchedProjects = computed(() => sortProjectsForDashboard(scopedProjects.value).filter((project) => projectMatchesQuery(project, searchQuery.value)));
+
+const projectFilterOptions = computed(() => buildProjectListFilters(searchedProjects.value));
+
+const visibleProjects = computed(() => searchedProjects.value.filter((project) => projectMatchesListFilter(project, projectFilter.value)));
 
 const hasRunningProject = computed(() => store.projects.some((project) => project.lastRun?.status === "running"));
 const hasRuntimeWatch = computed(() => hasRunningProject.value || Object.keys(store.runtimeWatches).length > 0);
@@ -189,6 +206,16 @@ const activeProject = computed(() => {
 
 const loadingLabel = computed(() => `当前目录：${selectedRootLabel.value}`);
 
+const workspaceAnimation = useGsapScope(workspaceRef, (element, gsap) => {
+  animateSubtleEntrance(
+    gsap,
+    element.querySelectorAll(
+      ".compact-workspace-header, .onboarding-panel, .project-list, .project-detail, .empty-state"
+    ),
+    { duration: 0.3, stagger: 0.04 }
+  );
+});
+
 watch(
   () => activeProject.value?.id,
   (projectId) => {
@@ -201,6 +228,14 @@ watch(
   () => {
     ensureSelectedRoot();
   }
+);
+
+watch(
+  () => `${roots.value.length}:${visibleProjects.value.length}:${Boolean(activeProject.value)}`,
+  () => {
+    void workspaceAnimation.run();
+  },
+  { flush: "post" }
 );
 
 let runtimeRefreshTimer: number | undefined;
@@ -318,6 +353,7 @@ function readWelcomeDismissed(): boolean {
 
 function selectRoot(rootId: string): void {
   selectedRootId.value = rootId;
+  projectFilter.value = "all";
   performance.setRoot(rootId);
   rootMenuOpen.value = false;
   store.projects = [];

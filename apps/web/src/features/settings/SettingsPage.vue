@@ -1,5 +1,5 @@
 <template>
-  <section class="workspace settings-page">
+  <section ref="settingsRef" class="workspace settings-page">
     <section class="surface settings-panel">
       <div class="surface-heading">
         <span>{{ preferences.t("appearanceTitle") }}</span>
@@ -146,6 +146,7 @@
 import { computed, onMounted, ref } from "vue";
 import { Check, Code2, Download, DownloadCloud, FolderOpen, FolderPlus, Palette, Plus, RefreshCw, Save, Trash2 } from "lucide-vue-next";
 import { RootFolderPickerUnavailableError, addRoot, chooseRootFolder, getConfig, getRoots, removeRoot, updateConfig, type RootEntry } from "../../api";
+import { animateSubtleEntrance, useGsapScope } from "../../shared/animation/useGsap";
 import { useNotificationsStore } from "../../stores/notifications";
 import { accentOptions, localeOptions, themeOptions, usePreferencesStore } from "../../stores/preferences";
 import { useUpdatesStore } from "../../stores/updates";
@@ -158,6 +159,7 @@ const rootPath = ref("");
 const rootPicking = ref(false);
 const message = ref("");
 const roots = ref<RootEntry[]>([]);
+const settingsRef = ref<HTMLElement | null>(null);
 const checkedManually = ref(false);
 const updateHeadline = computed(() => {
   if (updates.result?.hasUpdate && updates.result.latestVersion) {
@@ -173,6 +175,14 @@ const updateMessage = computed(() => updates.result?.warning ?? updates.error);
 onMounted(() => {
   void loadRoots();
   void loadConfig();
+});
+
+useGsapScope(settingsRef, (element, gsap) => {
+  animateSubtleEntrance(gsap, element.querySelectorAll(".settings-panel"), {
+    y: 12,
+    duration: 0.28,
+    stagger: 0.045
+  });
 });
 
 async function checkForUpdates(): Promise<void> {

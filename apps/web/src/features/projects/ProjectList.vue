@@ -1,8 +1,22 @@
 <template>
-  <section class="project-list surface">
+  <section ref="listRef" class="project-list surface">
     <div class="surface-heading">
       <span>{{ preferences.t("projectsHeading") }}</span>
       <strong>{{ countLabel }}</strong>
+    </div>
+    <div class="project-filter-row" role="list" aria-label="Project filters">
+      <button
+        v-for="filter in filters"
+        :key="filter.id"
+        class="project-filter-chip"
+        :class="{ active: filter.id === activeFilter }"
+        type="button"
+        role="listitem"
+        @click="$emit('filter', filter.id)"
+      >
+        <span>{{ preferences.t(filterLabelKeys[filter.id]) }}</span>
+        <strong>{{ filter.count }}</strong>
+      </button>
     </div>
     <div v-if="loading" class="project-list-loading">
       <Loader2 :size="17" class="spin-icon" />
@@ -67,10 +81,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import { ExternalLink, Loader2 } from "lucide-vue-next";
 import type { Project } from "@local-dev-cockpit/core";
-import { usePreferencesStore } from "../../stores/preferences";
+import { animateSubtleEntrance, useGsapScope } from "../../shared/animation/useGsap";
+import { usePreferencesStore, type MessageKey } from "../../stores/preferences";
 import {
   countOpenPortsByNumber,
   formatDisplayPath,
@@ -85,8 +100,10 @@ import {
   staleProjectPorts,
   visibleProjectPorts
 } from "./project-view";
+import type { ProjectListFilter, ProjectListFilterSummary } from "./project-view";
 
 const preferences = usePreferencesStore();
+const listRef = ref<HTMLElement | null>(null);
 
 const props = defineProps<{
   projects: Project[];
@@ -94,11 +111,23 @@ const props = defineProps<{
   selectedId?: string;
   loading?: boolean;
   loadingLabel?: string;
+  filters: ProjectListFilterSummary[];
+  activeFilter: ProjectListFilter;
 }>();
 
 defineEmits<{
   select: [projectId: string];
+  filter: [filter: ProjectListFilter];
 }>();
+
+const filterLabelKeys: Record<ProjectListFilter, MessageKey> = {
+  all: "projectFilterAll",
+  online: "projectFilterOnline",
+  "standard-runnable": "projectFilterStandard",
+  "try-runnable": "projectFilterTry",
+  "needs-attention": "projectFilterAttention",
+  unidentified: "projectFilterUnidentified"
+};
 
 function statusClass(project: Project): string {
   const mode = projectRuntimeMode(project);
@@ -137,6 +166,22 @@ const openPortCounts = computed(() => countOpenPortsByNumber(props.projects));
 const countLabel = computed(() => {
   return props.projects.length === props.totalCount ? String(props.projects.length) : `${props.projects.length}/${props.totalCount}`;
 });
+
+const listAnimation = useGsapScope(listRef, (element, gsap) => {
+  animateSubtleEntrance(gsap, element.querySelectorAll(".project-row, .project-row-skeleton"), {
+    y: 8,
+    duration: 0.24,
+    stagger: 0.018
+  });
+});
+
+watch(
+  () => props.projects.map((project) => project.id).join("|"),
+  () => {
+    void listAnimation.run();
+  },
+  { flush: "post" }
+);
 
 function hasPortConflict(project: Project): boolean {
   return hasProjectPortConflict(project, openPortCounts.value);

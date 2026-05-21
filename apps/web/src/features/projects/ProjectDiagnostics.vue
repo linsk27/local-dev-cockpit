@@ -9,51 +9,60 @@
         <span class="diagnostic-dot" />
         <div>
           <span>{{ item.label }}</span>
-          <strong>{{ item.value }}</strong>
-          <p>{{ item.detail }}</p>
+          <strong :title="item.value">{{ item.value }}</strong>
+          <p :title="item.detail">{{ item.detail }}</p>
         </div>
       </article>
       <div v-if="project.commands.length > 0 || showPythonBinding" class="diagnostic-subheading">
         {{ environmentLabels.title }}
       </div>
-      <form v-if="showPythonBinding" class="environment-binding" @submit.prevent="savePythonBinding">
-        <label>
-          <span>{{ environmentLabels.pythonBinding }}</span>
-          <input
-            v-model="pythonBinding"
-            :disabled="settingsLoading || savingSettings"
-            :placeholder="environmentLabels.pythonBindingPlaceholder"
-          />
-          <small>{{ environmentLabels.pythonBindingHelp }}</small>
-        </label>
-        <button class="text-button" type="submit" :disabled="settingsLoading || savingSettings">
-          <Save :size="14" />
-          <span>{{ savingSettings ? environmentLabels.saving : environmentLabels.save }}</span>
-        </button>
-        <button
-          v-if="pythonBinding.trim()"
-          class="text-button"
-          type="button"
-          :disabled="settingsLoading || savingSettings"
-          @click="clearPythonBinding"
-        >
-          <RotateCcw :size="14" />
-          <span>{{ environmentLabels.clear }}</span>
-        </button>
-        <div v-if="pythonCandidates.length > 0" class="environment-candidates">
-          <span>{{ environmentLabels.detectedCandidates }}</span>
+      <section v-if="showPythonBinding" class="python-environment-card">
+        <div class="environment-binding-copy">
+          <strong>{{ pythonEnvironmentTitle }}</strong>
+          <span>{{ pythonEnvironmentHelp }}</span>
+        </div>
+        <div v-if="pythonCandidates.length > 0" class="environment-candidates" :aria-label="environmentLabels.detectedCandidates">
           <button
             v-for="candidate in pythonCandidates"
             :key="candidate.id"
             class="candidate-pill"
+            :class="{ active: pythonBinding.trim() === candidate.value }"
             type="button"
-            :title="candidate.detail"
+            :title="candidateTitle(candidate)"
             @click="applyPythonCandidate(candidate)"
           >
-            {{ candidate.label }}
+            <span>{{ candidateSourceLabel(candidate.source) }}</span>
+            <strong>{{ candidateName(candidate) }}</strong>
           </button>
         </div>
-      </form>
+        <p v-else class="environment-empty-hint">{{ environmentLabels.noCandidates }}</p>
+        <form class="environment-binding" @submit.prevent="savePythonBinding">
+          <label>
+            <span>{{ environmentLabels.pythonBinding }}</span>
+            <input
+              v-model="pythonBinding"
+              :disabled="settingsLoading || savingSettings"
+              :placeholder="environmentLabels.pythonBindingPlaceholder"
+              :title="pythonBinding"
+            />
+            <small>{{ environmentLabels.pythonBindingHelp }}</small>
+          </label>
+          <button class="text-button" type="submit" :disabled="settingsLoading || savingSettings">
+            <Save :size="14" />
+            <span>{{ savingSettings ? environmentLabels.saving : environmentLabels.save }}</span>
+          </button>
+          <button
+            v-if="pythonBinding.trim()"
+            class="text-button"
+            type="button"
+            :disabled="settingsLoading || savingSettings"
+            @click="clearPythonBinding"
+          >
+            <RotateCcw :size="14" />
+            <span>{{ environmentLabels.clear }}</span>
+          </button>
+        </form>
+      </section>
       <article v-if="environmentLoading" class="diagnostic-row normal">
         <span class="diagnostic-dot" />
         <div>
@@ -67,7 +76,7 @@
         <div>
           <span>{{ environmentLabels.title }}</span>
           <strong>{{ environmentLabels.unavailable }}</strong>
-          <p>{{ environmentError }}</p>
+          <p :title="environmentError">{{ environmentError }}</p>
         </div>
       </article>
       <template v-else>
@@ -80,8 +89,8 @@
           <span class="diagnostic-dot" />
           <div>
             <span>{{ item.label }}</span>
-            <strong>{{ environmentStatusLabel(item.status) }}</strong>
-            <p>{{ item.summary }} {{ item.detail }}</p>
+            <strong :title="item.resolvedCommand || item.summary">{{ environmentStatusLabel(item.status) }}</strong>
+            <p :title="environmentDiagnosticText(item)">{{ environmentDiagnosticText(item) }}</p>
           </div>
         </article>
       </template>
@@ -140,8 +149,10 @@ const environmentLabels = computed(() =>
         missing: "Missing",
         pythonBinding: "Python environment",
         pythonBindingPlaceholder: "conda:env-name or C:\\path\\to\\python.exe",
-        pythonBindingHelp:
-          "Configure only when auto detection cannot find the right environment, or the desktop app cannot inherit your terminal Conda/venv. Leave empty when .venv, environment.yml, or editor settings already work.",
+        pythonBindingHelp: "Use this only when the detected options are wrong or missing.",
+        chooseDetected: "Choose a detected environment first. If none is correct, paste a conda binding or python.exe path.",
+        bindNeeded: "The last failure looks like a Python environment mismatch. Bind the environment that works in your terminal or editor.",
+        noCandidates: "No Python environment candidates were found. Paste conda:env-name or a python.exe path manually.",
         detectedCandidates: "Detected",
         save: "Save",
         saving: "Saving",
@@ -158,13 +169,24 @@ const environmentLabels = computed(() =>
         missing: "缺失",
         pythonBinding: "Python 环境",
         pythonBindingPlaceholder: "conda:环境名 或 C:\\路径\\python.exe",
-        pythonBindingHelp:
-          "仅在自动识别不到、桌面版无法继承终端 Conda/venv，或终端能跑但面板缺包时配置；已有 .venv、environment.yml 或编辑器设置时可留空。",
+        pythonBindingHelp: "仅在自动候选不正确或缺失时手动填写。",
+        chooseDetected: "先选择检测到的环境；如果都不对，再填写 conda:环境名 或 python.exe 路径。",
+        bindNeeded: "最近失败像是 Python 环境不一致。请选择终端或编辑器里能跑通的环境。",
+        noCandidates: "没有检测到 Python 环境候选。可以手动填写 conda:环境名 或 python.exe 路径。",
         detectedCandidates: "已检测到",
         save: "保存",
         saving: "保存中",
         clear: "清除"
       }
+);
+const pythonEnvironmentNeedsBinding = computed(() =>
+  /缺少 Python 依赖|ModuleNotFoundError|Python 环境|Conda 环境|conda:环境名/i.test(props.project.lastError?.message ?? "")
+);
+const pythonEnvironmentTitle = computed(() =>
+  preferences.locale === "en-US" ? "Python startup environment" : "Python 启动环境"
+);
+const pythonEnvironmentHelp = computed(() =>
+  pythonEnvironmentNeedsBinding.value ? environmentLabels.value.bindNeeded : environmentLabels.value.chooseDetected
 );
 const pythonEnvironmentMarkers = new Set([
   "requirements.txt",
@@ -222,8 +244,57 @@ function environmentStatusLabel(status: CommandEnvironmentDiagnostic["status"]):
   return environmentLabels.value.warn;
 }
 
+function environmentDiagnosticText(item: CommandEnvironmentDiagnostic): string {
+  return `${item.summary} ${item.detail}`.trim();
+}
+
 function applyPythonCandidate(candidate: PythonEnvironmentCandidate): void {
   pythonBinding.value = candidate.value;
+}
+
+function candidateSourceLabel(source: PythonEnvironmentCandidate["source"]): string {
+  const isEnglish = preferences.locale === "en-US";
+  const labels: Record<PythonEnvironmentCandidate["source"], string> = isEnglish
+    ? {
+        manual: "Manual",
+        vscode: "VS Code",
+        local: "Project env",
+        "conda-file": "environment.yml",
+        "conda-list": "Conda",
+        terminal: "Terminal"
+      }
+    : {
+        manual: "手动",
+        vscode: "VS Code",
+        local: "项目环境",
+        "conda-file": "environment.yml",
+        "conda-list": "Conda",
+        terminal: "当前终端"
+      };
+  return labels[source];
+}
+
+function candidateName(candidate: PythonEnvironmentCandidate): string {
+  if (candidate.value.toLowerCase().startsWith("conda:")) return candidate.value.slice("conda:".length);
+  if (candidate.source === "vscode") return ".vscode";
+  if (candidate.source === "conda-file") return candidate.value.replace(/^conda:/i, "");
+  const envName = environmentNameFromPath(candidate.value) || environmentNameFromPath(candidate.detail);
+  return envName || candidate.label;
+}
+
+function candidateTitle(candidate: PythonEnvironmentCandidate): string {
+  return `${candidate.label}\n${candidate.value}\n${candidate.detail}`.trim();
+}
+
+function environmentNameFromPath(value: string): string {
+  const parts = value.replace(/\\/g, "/").split("/").filter(Boolean);
+  const pythonIndex = parts.findIndex((part) => /^python(?:\.exe)?$/i.test(part));
+  if (pythonIndex > 0) {
+    const parent = parts[pythonIndex - 1]?.toLowerCase();
+    if ((parent === "scripts" || parent === "bin") && pythonIndex > 1) return parts[pythonIndex - 2] ?? "";
+    return parts[pythonIndex - 1] ?? "";
+  }
+  return parts.at(-1) ?? "";
 }
 
 async function savePythonBinding(): Promise<void> {

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { Project } from "@local-dev-cockpit/core";
 import {
+  buildProjectListFilters,
+  classifyProjectForList,
   commandBlockedByStalePort,
   commandWouldReuseOpenPort,
   formatDisplayPath,
@@ -12,6 +14,7 @@ import {
   projectStatusReason,
   projectDiagnostics,
   projectFailureActionHint,
+  projectFailureHeadline,
   projectRuntimeMode,
   projectMatchesQuery,
   noCommandGuidance,
@@ -43,6 +46,67 @@ describe("project dashboard view helpers", () => {
     expect(projectMatchesQuery(target, "feat/search")).toBe(true);
     expect(projectMatchesQuery(target, "127.0.0.1:3000")).toBe(true);
     expect(projectMatchesQuery(target, "missing")).toBe(false);
+  });
+
+  it("classifies projects for list filters by runnable confidence", () => {
+    expect(
+      classifyProjectForList(
+        project({
+          ports: [{ port: 5173, host: "localhost", status: "open", source: "detected" }]
+        })
+      )
+    ).toBe("online");
+
+    expect(classifyProjectForList(project())).toBe("standard-runnable");
+    expect(
+      classifyProjectForList(
+        project({
+          kind: "unknown",
+          commands: [
+            {
+              id: "custom",
+              label: "custom",
+              command: "run-local",
+              args: [],
+              cwd: "D:\\personal\\project",
+              source: "user",
+              kind: "custom"
+            }
+          ],
+          markers: []
+        })
+      )
+    ).toBe("try-runnable");
+    expect(classifyProjectForList(project({ commands: [], markers: [] }))).toBe("unidentified");
+    expect(
+      classifyProjectForList(
+        project({
+          lastRun: {
+            id: "run-1",
+            projectId: "project",
+            commandId: "script-dev",
+            status: "failed",
+            startedAt: new Date().toISOString(),
+            logPath: "run.log"
+          }
+        })
+      )
+    ).toBe("needs-attention");
+  });
+
+  it("builds project list filter counts", () => {
+    const summaries = buildProjectListFilters([
+      project({ name: "standard" }),
+      project({ name: "online", ports: [{ port: 3000, status: "open", source: "detected" }] }),
+      project({ name: "unknown", kind: "unknown", commands: [], markers: [] })
+    ]);
+
+    expect(Object.fromEntries(summaries.map((item) => [item.id, item.count]))).toMatchObject({
+      all: 3,
+      online: 1,
+      "standard-runnable": 1,
+      unidentified: 1
+    });
   });
 
   it("filters projects by root path boundary", () => {
@@ -157,16 +221,17 @@ describe("project dashboard view helpers", () => {
   });
 
   it("returns concise action hints for common failures", () => {
+    const pythonMissingProject = project({
+      lastError: {
+        commandId: "script-dev",
+        message: "缺少 Python 依赖：portalocker。请在该项目当前 Python 环境中安装：conda run -n api-env python -m pip install portalocker。",
+        occurredAt: new Date().toISOString()
+      }
+    });
+
+    expect(projectFailureHeadline(pythonMissingProject)).toBe("缺少 Python 依赖：portalocker");
     expect(
-      projectFailureActionHint(
-        project({
-          lastError: {
-            commandId: "script-dev",
-            message: "缺少 Python 依赖：portalocker。请在该项目当前 Python 环境中安装：conda run -n api-env python -m pip install portalocker。",
-            occurredAt: new Date().toISOString()
-          }
-        })
-      )
+      projectFailureActionHint(pythonMissingProject)
     ).toContain("Python 环境");
 
     expect(
@@ -331,7 +396,8 @@ describe("project dashboard view helpers", () => {
 
     const diagnostics = projectDiagnostics(target);
 
-    expect(diagnostics.map((item) => item.id)).toEqual(["command", "package-manager", "ports", "failure", "next"]);
+    expect(diagnostics.map((item) => item.id)).toEqual(["environment", "ports", "failure", "next"]);
+    expect(diagnostics.find((item) => item.id === "environment")?.detail).toContain("python -m uvicorn");
     expect(diagnostics.find((item) => item.id === "ports")?.value).toBe("系统检测");
     expect(diagnostics.find((item) => item.id === "next")?.detail).toContain("127.0.0.1:8000");
   });

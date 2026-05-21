@@ -1,5 +1,5 @@
 <template>
-  <div class="app-shell" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
+  <div ref="shellRef" class="app-shell" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-main">
@@ -38,15 +38,7 @@
         </RouterLink>
       </nav>
       <div class="sidebar-bottom">
-        <div class="sidebar-performance" :class="[`level-${performance.level}`, { loading: performance.loading }]" :title="performanceTitle">
-          <span class="performance-icon" aria-hidden="true">
-            <Activity :size="16" />
-          </span>
-          <span class="performance-copy">
-            <strong>{{ performanceHeadline }}</strong>
-            <span>{{ performanceDetail }}</span>
-          </span>
-        </div>
+        <ResourceUsagePanel />
         <div class="sidebar-footer">
           <span>{{ preferences.t("localOnly") }}</span>
           <span>{{ preferences.t("noCloudSync") }}</span>
@@ -62,17 +54,18 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { Activity, Download, LayoutDashboard, PanelLeftClose, PanelLeftOpen, Settings } from "lucide-vue-next";
-import { formatMetricDuration, usePerformanceStore } from "./stores/performance";
+import { Download, LayoutDashboard, PanelLeftClose, PanelLeftOpen, Settings } from "lucide-vue-next";
 import { usePreferencesStore } from "./stores/preferences";
 import { useUpdatesStore } from "./stores/updates";
+import { animateSubtleEntrance, useGsapScope } from "./shared/animation/useGsap";
 import DevPilotMark from "./shared/ui/DevPilotMark.vue";
+import ResourceUsagePanel from "./shared/ui/ResourceUsagePanel.vue";
 import ToastStack from "./shared/ui/ToastStack.vue";
 
 const SIDEBAR_KEY = "dev-cockpit:sidebar-collapsed";
 const preferences = usePreferencesStore();
-const performance = usePerformanceStore();
 const updates = useUpdatesStore();
+const shellRef = ref<HTMLElement | null>(null);
 const sidebarCollapsed = ref(readSidebarCollapsed());
 const toggleTitle = computed(() =>
   sidebarCollapsed.value ? preferences.t("expandSidebar") : preferences.t("collapseSidebar")
@@ -82,30 +75,6 @@ const updateTitle = computed(() =>
     ? preferences.t("updateAvailableTitle", { version: updates.result.latestVersion })
     : preferences.t("updateAvailable")
 );
-const performanceHeadline = computed(() => {
-  if (!performance.snapshot) return preferences.t("resourceMonitor");
-  if (performance.level === "high") return preferences.t("resourceHigh");
-  if (performance.level === "medium") return preferences.t("resourceMedium");
-  return preferences.t("resourceLow");
-});
-const performanceDetail = computed(() => {
-  if (!performance.snapshot) return preferences.t("resourceWaiting");
-  return [
-    preferences.t("performanceMemory", { memory: performance.snapshot.process.rssMb }),
-    preferences.t("performanceScan", { duration: formatMetricDuration(performance.snapshot.scan.lastScanDurationMs) })
-  ].join(" · ");
-});
-const performanceTitle = computed(() => {
-  if (!performance.snapshot) return preferences.t("resourceWaiting");
-  const { process, scan } = performance.snapshot;
-  return [
-    preferences.t("performanceTooltip"),
-    preferences.t("performanceCpu", { cpu: process.cpuPercent }),
-    preferences.t("performanceMemory", { memory: process.rssMb }),
-    preferences.t("performanceScan", { duration: formatMetricDuration(scan.lastScanDurationMs) }),
-    preferences.t("performanceCache", { hits: scan.cacheHits, misses: scan.cacheMisses })
-  ].join("\n");
-});
 
 function toggleSidebar(): void {
   sidebarCollapsed.value = !sidebarCollapsed.value;
@@ -120,6 +89,15 @@ function openUpdate(): void {
 function readSidebarCollapsed(): boolean {
   return localStorage.getItem(SIDEBAR_KEY) === "true";
 }
+
+useGsapScope(shellRef, (element, gsap) => {
+  animateSubtleEntrance(gsap, element.querySelectorAll(".brand, .nav-link, .resource-usage, .main-surface"), {
+    x: -8,
+    y: 0,
+    duration: 0.34,
+    stagger: 0.045
+  });
+});
 
 onMounted(() => {
   void updates.check({ silent: true });

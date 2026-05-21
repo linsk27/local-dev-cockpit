@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PerformanceSnapshot } from "../api";
-import { formatMetricDuration, getResourceLevel } from "./performance";
+import { formatMetricAge, formatMetricDuration, getResourceLevel } from "./performance";
 
 describe("performance metrics", () => {
   it("keeps small overhead in the low bucket", () => {
@@ -14,7 +14,14 @@ describe("performance metrics", () => {
 
   it("formats scan duration for compact sidebar display", () => {
     expect(formatMetricDuration(240)).toBe("240ms");
-    expect(formatMetricDuration(1450)).toBe("1.4秒");
+    expect(formatMetricDuration(1450)).toBe("1.4s");
+  });
+
+  it("formats metric freshness for the resource popover", () => {
+    expect(formatMetricAge(1_000, 3_000)).toBe("just now");
+    expect(formatMetricAge(1_000, 13_000)).toBe("12s ago");
+    expect(formatMetricAge(1_000, 121_000)).toBe("2m ago");
+    expect(formatMetricAge(1_000, 13_000, "zh-CN")).toBe("12秒前");
   });
 });
 

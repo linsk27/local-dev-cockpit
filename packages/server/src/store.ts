@@ -15,9 +15,29 @@ const configSchema = z.object({
   projectEnvironments: z.record(projectEnvironmentSchema).default({})
 });
 
-const stateSchema = z.object({
-  runs: z.record(z.string(), z.any()).default({}),
-  errors: z.record(z.string(), z.any()).default({})
+const STATE_VERSION = 1;
+
+const processRunSchema = z.object({
+  id: z.string(),
+  projectId: z.string(),
+  commandId: z.string(),
+  status: z.enum(["running", "exited", "failed", "stopped"]),
+  startedAt: z.string(),
+  exitedAt: z.string().optional(),
+  exitCode: z.number().int().optional(),
+  logPath: z.string()
+});
+
+const errorSummarySchema = z.object({
+  message: z.string(),
+  commandId: z.string().optional(),
+  occurredAt: z.string()
+});
+
+const stateFileSchema = z.object({
+  version: z.number().int().default(STATE_VERSION),
+  runs: z.record(z.string(), z.unknown()).default({}),
+  errors: z.record(z.string(), z.unknown()).default({})
 });
 
 export type AppConfig = z.infer<typeof configSchema>;
@@ -43,13 +63,16 @@ export class JsonStore {
 
   async readConfig(): Promise<AppConfig> {
     await this.ensure();
-    const parsed = configSchema.safeParse(JSON.parse(await fs.readFile(this.paths.configPath, "utf8")));
-    return parsed.success ? parsed.data : { roots: [], ignoreNames: [], editorCommand: "code", projectEnvironments: {} };
+    try {
+      const parsed = configSchema.safeParse(JSON.parse(await fs.readFile(this.paths.configPath, "utf8")));
+      return parsed.success ? parsed.data : defaultConfig();
+    } catch {
+      return defaultConfig();
+    }
   }
 
   async writeConfig(config: AppConfig): Promise<void> {
-    await fs.mkdir(path.dirname(this.paths.configPath), { recursive: true });
-    await fs.writeFile(this.paths.configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+    await writeJsonAtomic(this.paths.configPath, config);
   }
 
   async addRoot(root: string): Promise<AppConfig> {
@@ -95,8 +118,16 @@ export class JsonStore {
 
   async readState(): Promise<AppState> {
     await this.ensure();
-    const parsed = stateSchema.safeParse(JSON.parse(await fs.readFile(this.paths.statePath, "utf8")));
-    return parsed.success ? (parsed.data as AppState) : { runs: {}, errors: {} };
+    try {
+      const parsed = stateFileSchema.safeParse(JSON.parse(await fs.readFile(this.paths.statePath, "utf8")));
+      if (!parsed.success) return defaultState();
+      return {
+        runs: parseRecord(parsed.data.runs, processRunSchema),
+        errors: parseRecord(parsed.data.errors, errorSummarySchema)
+      };
+    } catch {
+      return defaultState();
+    }
   }
 
   async recordRun(run: ProcessRun): Promise<void> {
@@ -135,9 +166,32 @@ export class JsonStore {
   }
 
   private async writeState(state: AppState): Promise<void> {
-    await fs.mkdir(path.dirname(this.paths.statePath), { recursive: true });
-    await fs.writeFile(this.paths.statePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+    await writeJsonAtomic(this.paths.statePath, { version: STATE_VERSION, ...state });
   }
+}
+
+function defaultConfig(): AppConfig {
+  return { roots: [], ignoreNames: [], editorCommand: "code", projectEnvironments: {} };
+}
+
+function defaultState(): AppState {
+  return { runs: {}, errors: {} };
+}
+
+async function writeJsonAtomic(filePath: string, data: unknown): Promise<void> {
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  await fs.writeFile(tempPath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+  await fs.rename(tempPath, filePath);
+}
+
+function parseRecord<T>(raw: Record<string, unknown>, schema: z.ZodType<T>): Record<string, T> {
+  const parsed: Record<string, T> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    const result = schema.safeParse(value);
+    if (result.success) parsed[key] = result.data;
+  }
+  return parsed;
 }
 
 export function rootId(root: string): string {
