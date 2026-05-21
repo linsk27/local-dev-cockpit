@@ -234,6 +234,9 @@ function findFailureLine(lines: string[]): number {
 }
 
 function summarizeKnownFailure(rawLog: string, exitCode: number | null, command?: Command): string | undefined {
+  const portConflict = summarizePortConflictFailure(rawLog, exitCode);
+  if (portConflict) return portConflict;
+
   const pythonMissingModule = rawLog.match(/ModuleNotFoundError:\s*No module named ['"]([^'"]+)['"]/i);
   if (pythonMissingModule?.[1]) {
     const moduleName = pythonMissingModule[1];
@@ -302,6 +305,89 @@ function summarizeKnownFailure(rawLog: string, exitCode: number | null, command?
   }
 
   return undefined;
+}
+
+function summarizePortConflictFailure(rawLog: string, exitCode: number | null): string | undefined {
+  const nextDuplicate = /Another next dev server is already running/i.test(rawLog);
+  const conflictText = nextDuplicate ? rawLog.split(/Another next dev server is already running/i).at(-1) ?? rawLog : rawLog;
+  const port = extractPort(conflictText) ?? extractPort(rawLog);
+  const url = nextDuplicate
+    ? extractLocalUrl(conflictText, "last") ?? (port ? `http://localhost:${port}` : extractLocalUrl(rawLog, "last"))
+    : extractLocalUrl(conflictText);
+  const pid = extractPid(conflictText) ?? extractPid(rawLog);
+  const killCommand = extractKillCommand(conflictText) ?? extractKillCommand(rawLog);
+  const hasGenericConflict =
+    /EADDRINUSE|address already in use|winerror 10048|通常每个套接字地址|only one usage|Port \d+ is in use/i.test(rawLog);
+
+  if (!nextDuplicate && !hasGenericConflict) return undefined;
+
+  if (nextDuplicate) {
+    return [
+      `检测到已有 Next.js dev server 正在运行：${url ?? formatEndpoint(undefined, port)}。`,
+      pid ? `占用进程 PID：${pid}。` : "未从日志中识别到 PID。",
+      "这通常不是项目启动失败，而是重复启动。请直接打开已有地址；如果需要重启，请先在概况页停止对应端口，或关闭占用进程。",
+      killCommand ? `可运行：${killCommand}。` : port ? `Windows 可先运行：netstat -ano | findstr :${port}。` : "",
+      `(exit code ${exitCode ?? "unknown"})`
+    ]
+      .filter(Boolean)
+      .join(" ");
+  }
+
+  return [
+    `端口已被占用：${url ?? formatEndpoint(extractHost(rawLog), port)}。`,
+    pid ? `占用进程 PID：${pid}。` : "日志未提供占用进程 PID。",
+    "请先确认该地址是否已经可访问；如果要重新启动，请在概况页停止/清理该端口，或关闭占用该端口的外部进程。",
+    killCommand ? `可运行：${killCommand}。` : port ? `Windows 可先运行：netstat -ano | findstr :${port}。` : "",
+    `(exit code ${exitCode ?? "unknown"})`
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function extractLocalUrl(rawLog: string, position: "first" | "last" = "first"): string | undefined {
+  const matches = [...rawLog.matchAll(/Local:\s*(https?:\/\/[^\s]+)/gi)].map((match) => match[1]?.trim()).filter(Boolean) as string[];
+  if (matches.length === 0) return undefined;
+  return position === "last" ? matches[matches.length - 1] : matches[0];
+}
+
+function extractPort(rawLog: string): number | undefined {
+  const patterns = [
+    /address\s+\(['"]?[^'"),]+['"]?,\s*(\d{2,5})\)/i,
+    /EADDRINUSE[^:\n]*(?::|port\s+)(\d{2,5})/i,
+    /Port\s+(\d{2,5})\s+is in use/i,
+    /localhost:(\d{2,5})/i,
+    /127\.0\.0\.1:(\d{2,5})/i,
+    /:(\d{2,5})\b/
+  ];
+  for (const pattern of patterns) {
+    const port = Number(rawLog.match(pattern)?.[1]);
+    if (Number.isInteger(port) && port > 0 && port < 65536) return port;
+  }
+  return undefined;
+}
+
+function extractHost(rawLog: string): string | undefined {
+  return (
+    rawLog.match(/address\s+\(['"]?([^'"),]+)['"]?,\s*\d{2,5}\)/i)?.[1]?.trim() ??
+    rawLog.match(/address already in use\s+([^:\s]+):\d{2,5}/i)?.[1]?.trim()
+  );
+}
+
+function extractPid(rawLog: string): number | undefined {
+  const pid = Number((rawLog.match(/PID:\s*(\d+)/i) ?? rawLog.match(/process\s+(\d+)/i))?.[1]);
+  return Number.isInteger(pid) && pid > 0 ? pid : undefined;
+}
+
+function extractKillCommand(rawLog: string): string | undefined {
+  return rawLog
+    .match(/Run\s+([^.\r\n]*taskkill[^.\r\n]*)/i)?.[1]
+    ?.replace(/\s+to\s+stop\s+it$/i, "")
+    .trim();
+}
+
+function formatEndpoint(host: string | undefined, port: number | undefined): string {
+  if (!port) return "未知端口";
+  return `${host || "localhost"}:${port}`;
 }
 
 function parseNodeMissingPackage(rawLog: string): { name: string; kind: "dependency" | "local-module" } | undefined {

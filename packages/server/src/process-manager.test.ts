@@ -111,9 +111,39 @@ describe("summarizeFailedRun", () => {
       1
     );
 
-    expect(summary).toContain("Another next dev server is already running.");
-    expect(summary).toContain("Run taskkill /PID 5796 /F to stop it.");
+    expect(summary).toContain("已有 Next.js dev server");
+    expect(summary).toContain("http://localhost:3000");
+    expect(summary).toContain("PID：5796");
+    expect(summary).toContain("taskkill /PID 5796 /F");
     expect(summary).toContain("exit code 1");
+  });
+
+  it("turns Uvicorn Windows port conflicts into port cleanup guidance", () => {
+    const summary = summarizeFailedRun(
+      [
+        "INFO:     Started server process [38488]\n",
+        "ERROR:    [Errno 10048] error while attempting to bind on address ('127.0.0.1', 8000): [winerror 10048] 通常每个套接字地址(协议/网络地址/端口)只允许使用一次。\n",
+        "INFO:     Application shutdown complete.\n"
+      ],
+      1,
+      command({ command: "python", args: ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8000"] })
+    );
+
+    expect(summary).toContain("端口已被占用：127.0.0.1:8000");
+    expect(summary).toContain("停止/清理该端口");
+    expect(summary).toContain("netstat -ano | findstr :8000");
+  });
+
+  it("turns Node EADDRINUSE failures into port cleanup guidance", () => {
+    const summary = summarizeFailedRun(
+      ["Error: listen EADDRINUSE: address already in use 127.0.0.1:5173\n"],
+      1,
+      command({ command: "npm", args: ["run", "dev"] })
+    );
+
+    expect(summary).toContain("端口已被占用");
+    expect(summary).toContain("127.0.0.1:5173");
+    expect(summary).toContain("netstat -ano | findstr :5173");
   });
 
   it("turns PHP Composer autoload failures into install guidance", () => {
