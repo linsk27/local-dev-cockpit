@@ -52,7 +52,8 @@
         </span>
         <div>
           <strong>{{ sourceLabel }}</strong>
-          <p>{{ summary }}</p>
+          <p class="status-summary" :title="summary">{{ summary }}</p>
+          <p v-if="failureActionHint" class="failure-action-hint">{{ failureActionHint }}</p>
         </div>
       </div>
 
@@ -130,6 +131,7 @@ import {
   formatPortEndpoint,
   formatPortUrl,
   projectHasAlreadyRunningConflict,
+  projectFailureActionHint,
   projectHasFailed,
   projectHasStalePorts,
   projectRuntimeMode,
@@ -150,6 +152,7 @@ const ports = computed(() => {
 
 const runningPorts = computed(() => visibleProjectPorts(props.project));
 const sourceLabel = computed(() => runtimeSourceLabel(props.project, preferences.locale));
+const failureActionHint = computed(() => projectFailureActionHint(props.project, preferences.locale));
 const stalePorts = computed(() => (runningPorts.value.length === 0 ? staleProjectPorts(props.project) : []));
 const detectedPorts = computed(() => {
   const displayed = new Set(runningPorts.value.map((port) => `${port.host ?? ""}:${port.port}`));

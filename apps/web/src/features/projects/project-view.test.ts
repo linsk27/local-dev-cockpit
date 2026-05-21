@@ -11,6 +11,7 @@ import {
   projectHasStalePorts,
   projectStatusReason,
   projectDiagnostics,
+  projectFailureActionHint,
   projectRuntimeMode,
   projectMatchesQuery,
   noCommandGuidance,
@@ -153,6 +154,32 @@ describe("project dashboard view helpers", () => {
 
     expect(projectHasAlreadyRunningConflict(alreadyRunning)).toBe(true);
     expect(projectHasFailed(alreadyRunning)).toBe(false);
+  });
+
+  it("returns concise action hints for common failures", () => {
+    expect(
+      projectFailureActionHint(
+        project({
+          lastError: {
+            commandId: "script-dev",
+            message: "缺少 Python 依赖：portalocker。请在该项目当前 Python 环境中安装：conda run -n api-env python -m pip install portalocker。",
+            occurredAt: new Date().toISOString()
+          }
+        })
+      )
+    ).toContain("Python 环境");
+
+    expect(
+      projectFailureActionHint(
+        project({
+          lastError: {
+            commandId: "script-dev",
+            message: "端口已被占用：127.0.0.1:8000。",
+            occurredAt: new Date().toISOString()
+          }
+        })
+      )
+    ).toContain("清理占用端口");
   });
 
   it("blocks a command that would bind an already open declared port", () => {

@@ -1108,6 +1108,20 @@ h2 {
   line-height: 1.55;
 }
 
+.project-status-card .status-summary {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+
+.failure-action-hint {
+  margin-top: 8px !important;
+  padding-left: 10px;
+  border-left: 2px solid color-mix(in srgb, var(--accent) 55%, var(--border));
+  color: var(--text);
+}
+
 .project-status-icon {
   display: grid;
   width: 34px;

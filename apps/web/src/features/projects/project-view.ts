@@ -140,6 +140,32 @@ export function projectHasAlreadyRunningConflict(project: Project): boolean {
   );
 }
 
+export function projectFailureActionHint(project: Project, locale: StatusReasonLocale = "zh-CN"): string {
+  const message = project.lastError?.message ?? "";
+  if (!message) return "";
+  const isEnglish = locale === "en-US";
+
+  if (projectHasAlreadyRunningConflict(project) || /端口已被占用|已有 Next\.js dev server|EADDRINUSE|winerror 10048|通常每个套接字/i.test(message)) {
+    return isEnglish
+      ? "Use the existing endpoint, or stop the occupied port before starting again."
+      : "先打开已有运行地址；如需重启，先停止或清理占用端口。";
+  }
+
+  if (/缺少 Python 依赖|ModuleNotFoundError|python -m pip install|conda run -n/i.test(message)) {
+    return isEnglish
+      ? "Install the missing package in the same Python environment, or bind the correct environment in diagnostics."
+      : "按提示在同一个 Python 环境安装缺失依赖，或在诊断里绑定正确环境。";
+  }
+
+  if (/缺少 Node 依赖|脚本命令缺失|node_modules|Cannot find package|Cannot find module/i.test(message)) {
+    return isEnglish
+      ? "Install project dependencies in this working directory, then run the command again."
+      : "先在当前项目目录安装依赖，再重新运行命令。";
+  }
+
+  return "";
+}
+
 export function recommendedProjectCommand(project: Project): Command | undefined {
   const failedCommand = project.lastError?.commandId
     ? project.commands.find((command) => command.id === project.lastError?.commandId)
