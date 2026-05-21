@@ -98,6 +98,13 @@ export interface FolderPickerResponse {
   path?: string;
 }
 
+export class RootFolderPickerUnavailableError extends Error {
+  constructor(message = "Root folder picker endpoint is unavailable") {
+    super(message);
+    this.name = "RootFolderPickerUnavailableError";
+  }
+}
+
 export interface OpenEditorResponse {
   opened: true;
   path: string;
@@ -254,7 +261,13 @@ export async function chooseRootFolder(initialPath?: string): Promise<FolderPick
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ initialPath: initialPath?.trim() ?? "" })
   });
-  await ensureOk(response, "Failed to choose folder");
+  if (!response.ok) {
+    const message = await readApiError(response, "Failed to choose folder");
+    if (isMissingFolderPickerEndpoint(response, message)) {
+      throw new RootFolderPickerUnavailableError(message);
+    }
+    throw new Error(message);
+  }
   return response.json() as Promise<FolderPickerResponse>;
 }
 
@@ -305,4 +318,8 @@ async function readApiError(response: Response, fallback: string): Promise<strin
   } catch {
     return statusText;
   }
+}
+
+function isMissingFolderPickerEndpoint(response: Response, message: string): boolean {
+  return response.status === 404 || response.status === 405 || /Cannot\s+(POST|GET)|not\s+found|web assets not found/i.test(message);
 }

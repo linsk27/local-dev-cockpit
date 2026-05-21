@@ -626,6 +626,11 @@ describe("folder picker commands", () => {
     expect(windows.args).toContain("-STA");
     expect(windows.args.at(-1)).toContain("FolderBrowserDialog");
     expect(windows.cancelExitCodes).toContain(2);
+    expect(windows.fallback).toMatchObject({
+      command: "powershell.exe",
+      cancelExitCodes: [2]
+    });
+    expect(windows.fallback?.args.at(-1)).toContain("BrowseForFolder");
 
     expect(createFolderPickerCommand("darwin", "/Users/me/demo")).toMatchObject({
       command: "osascript",

@@ -145,7 +145,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { Check, Code2, Download, DownloadCloud, FolderOpen, FolderPlus, Palette, Plus, RefreshCw, Save, Trash2 } from "lucide-vue-next";
-import { addRoot, chooseRootFolder, getConfig, getRoots, removeRoot, updateConfig, type RootEntry } from "../../api";
+import { RootFolderPickerUnavailableError, addRoot, chooseRootFolder, getConfig, getRoots, removeRoot, updateConfig, type RootEntry } from "../../api";
 import { useNotificationsStore } from "../../stores/notifications";
 import { accentOptions, localeOptions, themeOptions, usePreferencesStore } from "../../stores/preferences";
 import { useUpdatesStore } from "../../stores/updates";
@@ -236,7 +236,12 @@ async function pickRootFolder(): Promise<void> {
       notifications.success(preferences.t("rootFolderSelectedNotice"));
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorMessage =
+      error instanceof RootFolderPickerUnavailableError
+        ? preferences.t("rootFolderPickerOldServerNotice")
+        : error instanceof Error
+          ? error.message
+          : String(error);
     notifications.error(preferences.t("rootFolderPickerFailedNotice", { message: errorMessage }));
   } finally {
     rootPicking.value = false;

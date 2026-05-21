@@ -423,28 +423,13 @@ export interface FolderPickerCommand {
   command: string;
   args: string[];
   cancelExitCodes: number[];
+  description?: string;
   fallback?: FolderPickerCommand;
 }
 
 export function createFolderPickerCommand(platform: NodeJS.Platform, initialPath: string): FolderPickerCommand {
   if (platform === "win32") {
-    const script = [
-      "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8",
-      "Add-Type -AssemblyName System.Windows.Forms",
-      "$dialog = New-Object System.Windows.Forms.FolderBrowserDialog",
-      "$dialog.Description = 'Select project root'",
-      "$dialog.ShowNewFolderButton = $true",
-      `$initialPath = ${quotePowerShellString(initialPath)}`,
-      "if (Test-Path -LiteralPath $initialPath) { $dialog.SelectedPath = $initialPath }",
-      "$result = $dialog.ShowDialog()",
-      "if ($result -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $dialog.SelectedPath; exit 0 }",
-      "exit 2"
-    ].join("; ");
-    return {
-      command: "powershell.exe",
-      args: ["-NoProfile", "-STA", "-ExecutionPolicy", "Bypass", "-Command", script],
-      cancelExitCodes: [2]
-    };
+    return createWindowsFormsFolderPickerCommand(initialPath);
   }
 
   if (platform === "darwin") {
@@ -465,6 +450,45 @@ export function createFolderPickerCommand(platform: NodeJS.Platform, initialPath
       args: ["--getexistingdirectory", initialPath, "--title", "Select project root"],
       cancelExitCodes: [1]
     }
+  };
+}
+
+function createWindowsFormsFolderPickerCommand(initialPath: string): FolderPickerCommand {
+  const script = [
+    "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8",
+    "Add-Type -AssemblyName System.Windows.Forms",
+    "$dialog = New-Object System.Windows.Forms.FolderBrowserDialog",
+    "$dialog.Description = 'Select project root'",
+    "$dialog.ShowNewFolderButton = $true",
+    `$initialPath = ${quotePowerShellString(initialPath)}`,
+    "if (Test-Path -LiteralPath $initialPath) { $dialog.SelectedPath = $initialPath }",
+    "$result = $dialog.ShowDialog()",
+    "if ($result -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $dialog.SelectedPath; exit 0 }",
+    "exit 2"
+  ].join("; ");
+  return {
+    command: "powershell.exe",
+    args: ["-NoProfile", "-STA", "-ExecutionPolicy", "Bypass", "-Command", script],
+    cancelExitCodes: [2],
+    description: "Windows Forms folder picker",
+    fallback: createWindowsShellFolderPickerCommand(initialPath)
+  };
+}
+
+function createWindowsShellFolderPickerCommand(initialPath: string): FolderPickerCommand {
+  const script = [
+    "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8",
+    `$initialPath = ${quotePowerShellString(initialPath)}`,
+    "$shell = New-Object -ComObject Shell.Application",
+    "$folder = $shell.BrowseForFolder(0, 'Select project root', 0, $initialPath)",
+    "if ($folder -and $folder.Self -and $folder.Self.Path) { Write-Output $folder.Self.Path; exit 0 }",
+    "exit 2"
+  ].join("; ");
+  return {
+    command: "powershell.exe",
+    args: ["-NoProfile", "-STA", "-ExecutionPolicy", "Bypass", "-Command", script],
+    cancelExitCodes: [2],
+    description: "Windows Shell folder picker"
   };
 }
 
@@ -490,9 +514,7 @@ async function runNativeFolderPicker(command: FolderPickerCommand): Promise<stri
   }
   if (result.exitCode === 0) return normalizeFolderPickerOutput(result.stdout);
   if (command.cancelExitCodes.includes(result.exitCode)) return undefined;
-  if (command.fallback && result.exitCode !== 0 && /not found|not installed|cannot find/i.test(`${result.stderr}\n${result.stdout}`)) {
-    return runNativeFolderPicker(command.fallback);
-  }
+  if (command.fallback) return runNativeFolderPicker(command.fallback);
   throw new Error(result.stderr.trim() || result.stdout.trim() || `Folder picker failed with exit code ${result.exitCode}`);
 }
 
