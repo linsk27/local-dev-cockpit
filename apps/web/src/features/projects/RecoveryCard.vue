@@ -5,47 +5,24 @@
         <h2>{{ project.name }}</h2>
         <p class="project-path" :title="project.path">{{ project.path }}</p>
       </div>
-    </div>
 
-    <div class="quick-actions" :aria-label="preferences.t('quickActions')">
-      <button class="text-button quick-action" type="button" :title="preferences.t('openFolder')" :aria-label="preferences.t('openFolder')" @click="openFolder">
-        <FolderOpen :size="14" />
-      </button>
-      <button class="text-button quick-action" type="button" :title="preferences.t('openEditor')" :aria-label="preferences.t('openEditor')" @click="openEditor">
-        <Code2 :size="14" />
-      </button>
-      <button class="text-button quick-action" type="button" :title="preferences.t('copyPath')" :aria-label="preferences.t('copyPath')" @click="copyProjectPath">
-        <Copy :size="14" />
-      </button>
-      <button class="text-button quick-action" type="button" :title="preferences.t('copyAiContext')" :aria-label="preferences.t('copyAiContext')" @click="copyProjectContext">
-        <Bot :size="14" />
-      </button>
-    </div>
-
-    <div class="project-meta-strip">
-      <div class="fact">
-        <span>{{ preferences.t("stack") }}</span>
-        <strong>{{ project.kind }}</strong>
-      </div>
-      <div class="fact">
-        <span>{{ preferences.t("branch") }}</span>
-        <strong>{{ project.git.branch }}</strong>
-      </div>
-      <div class="fact">
-        <span>{{ preferences.t("dirty") }}</span>
-        <strong>{{ project.git.dirtyCount }}</strong>
-      </div>
-      <div class="fact">
-        <span>{{ preferences.t("runtimeSource") }}</span>
-        <strong>{{ sourceLabel }}</strong>
-      </div>
-      <div class="fact">
-        <span>{{ preferences.t("ports") }}</span>
-        <strong>{{ ports }}</strong>
+      <div class="quick-actions" :aria-label="preferences.t('quickActions')">
+        <button class="text-button quick-action" type="button" :title="preferences.t('openFolder')" :aria-label="preferences.t('openFolder')" @click="openFolder">
+          <FolderOpen :size="14" />
+        </button>
+        <button class="text-button quick-action" type="button" :title="preferences.t('openEditor')" :aria-label="preferences.t('openEditor')" @click="openEditor">
+          <Code2 :size="14" />
+        </button>
+        <button class="text-button quick-action" type="button" :title="preferences.t('copyPath')" :aria-label="preferences.t('copyPath')" @click="copyProjectPath">
+          <Copy :size="14" />
+        </button>
+        <button class="text-button quick-action" type="button" :title="preferences.t('copyAiContext')" :aria-label="preferences.t('copyAiContext')" @click="copyProjectContext">
+          <Bot :size="14" />
+        </button>
       </div>
     </div>
 
-    <div class="runtime-panel" :class="statusTone">
+    <div class="overview-status-band" :class="[statusTone, { compact: !hasPortDetails }]">
       <div class="project-status-card" :class="statusTone">
         <span class="project-status-icon">
           <Activity :size="15" />
@@ -57,7 +34,7 @@
         </div>
       </div>
 
-      <div class="port-overview">
+      <div v-if="hasPortDetails" class="port-overview">
         <div class="port-group">
           <span>{{ preferences.t("runningEndpoints") }}</span>
           <template v-if="runningPorts.length > 0">
@@ -116,6 +93,25 @@
         </div>
       </div>
     </div>
+
+    <div class="project-meta-strip">
+      <div class="fact">
+        <span>{{ preferences.t("stack") }}</span>
+        <strong>{{ project.kind }}</strong>
+      </div>
+      <div class="fact">
+        <span>{{ preferences.t("branch") }}</span>
+        <strong>{{ project.git.branch }}</strong>
+      </div>
+      <div class="fact">
+        <span>{{ preferences.t("dirty") }}</span>
+        <strong>{{ project.git.dirtyCount }}</strong>
+      </div>
+      <div class="fact">
+        <span>{{ preferences.t("ports") }}</span>
+        <strong>{{ ports }}</strong>
+      </div>
+    </div>
   </section>
 </template>
 
@@ -158,6 +154,9 @@ const detectedPorts = computed(() => {
   const displayed = new Set(runningPorts.value.map((port) => `${port.host ?? ""}:${port.port}`));
   return detectedProjectPorts(props.project).filter((port) => !displayed.has(`${port.host ?? ""}:${port.port}`));
 });
+const hasPortDetails = computed(
+  () => runningPorts.value.length > 0 || detectedPorts.value.length > 0 || stalePorts.value.length > 0 || props.project.lastRun?.status === "running"
+);
 const statusTone = computed(() => {
   const mode = projectRuntimeMode(props.project);
   if (mode === "managed-running" || mode === "detected-online") return "good";
@@ -173,8 +172,8 @@ const summary = computed(() => {
   if (props.project.lastError) return props.project.lastError.message;
   if (props.project.lastRun?.status === "failed") return "命令运行失败，请查看日志。";
   if (props.project.commands.length > 0) {
-    const manager = props.project.packageManager ? `，${props.project.packageManager} 管理` : "";
-    return `${props.project.kind} 项目${manager}，已识别 ${props.project.commands.length} 个命令，当前没有运行中的服务。`;
+    const manager = props.project.packageManager ? `${props.project.packageManager}，` : "";
+    return `${manager}已识别 ${props.project.commands.length} 个命令，当前无服务。`;
   }
   return preferences.t("noCommandsSummary");
 });

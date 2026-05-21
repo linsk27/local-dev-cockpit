@@ -1,6 +1,6 @@
 <template>
-  <section class="surface diagnostics-panel">
-    <div class="surface-heading">
+  <section class="diagnostics-panel" :class="{ surface: !embedded, embedded }">
+    <div v-if="!embedded" class="surface-heading">
       <span>{{ preferences.t("diagnostics") }}</span>
       <Activity :size="16" />
     </div>
@@ -106,7 +106,9 @@ import { usePreferencesStore } from "../../stores/preferences";
 import { useProjectsStore } from "../../stores/projects";
 import { projectDiagnostics } from "./project-view";
 
-const props = defineProps<{ project: Project }>();
+const props = withDefaults(defineProps<{ project: Project; embedded?: boolean }>(), {
+  embedded: false
+});
 const projectStore = useProjectsStore();
 const preferences = usePreferencesStore();
 const notifications = useNotificationsStore();
