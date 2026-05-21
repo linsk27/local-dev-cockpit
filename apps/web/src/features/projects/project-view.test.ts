@@ -201,6 +201,27 @@ describe("project dashboard view helpers", () => {
     ).toBe(true);
   });
 
+  it("keeps commands stoppable while the project has a managed running process", () => {
+    const runningProject = project({
+      lastRun: {
+        id: "run-1",
+        projectId: "project",
+        commandId: "script-dev",
+        status: "running",
+        startedAt: new Date().toISOString(),
+        logPath: "run.log"
+      },
+      ports: [
+        { port: 3000, host: "localhost", status: "open", source: "detected" },
+        { port: 3001, host: "localhost", status: "unknown", source: "detected" }
+      ]
+    });
+    const devCommand = runningProject.commands[0]!;
+
+    expect(commandWouldReuseOpenPort(runningProject, devCommand)).toBe(false);
+    expect(commandBlockedByStalePort(runningProject, devCommand)).toBe(false);
+  });
+
   it("blocks dev/start commands when a stale detected port belongs to the project", () => {
     expect(
       commandBlockedByStalePort(

@@ -89,11 +89,13 @@ function commandAction(commandId: string) {
 }
 
 function isAlreadyOnlineCommand(commandId: string): boolean {
+  if (isRunningCommand(commandId)) return false;
   const command = props.project.commands.find((item) => item.id === commandId);
   return command ? commandWouldReuseOpenPort(props.project, command) : false;
 }
 
 function isBlockedByStalePort(commandId: string): boolean {
+  if (isRunningCommand(commandId)) return false;
   const command = props.project.commands.find((item) => item.id === commandId);
   return command ? commandBlockedByStalePort(props.project, command) : false;
 }
@@ -139,11 +141,12 @@ function commandHint(commandId: string): string {
 function commandStateLabel(commandId: string, fallback: string): string {
   if (commandAction(commandId) === "starting") return preferences.t("starting");
   if (commandAction(commandId) === "stopping") return preferences.t("stopping");
+  if (isRunningCommand(commandId)) return preferences.t("running");
   if (hasMissingDiagnostic(commandId)) return label("缺环境", "missing");
   if (hasWarnDiagnostic(commandId)) return label("需确认", "review");
   if (isAlreadyOnlineCommand(commandId)) return label("已在线", "online");
   if (isBlockedByStalePort(commandId)) return label("需清理", "cleanup");
-  return isRunningCommand(commandId) ? preferences.t("running") : fallback;
+  return fallback;
 }
 
 async function toggleCommand(commandId: string): Promise<void> {
