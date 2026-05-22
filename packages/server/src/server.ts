@@ -88,6 +88,10 @@ export async function startDevCockpitServer(options: DevCockpitServerOptions = {
       if (handledApi) return;
       const handledLens = await handleApiLensProxyRoute(req, res, routeContext);
       if (handledLens) return;
+      if (isApiRequest(req)) {
+        sendJson(res, 404, { error: "API endpoint not found" });
+        return;
+      }
       await serveStatic(req, res, webRoot);
     } catch (error) {
       sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
@@ -112,6 +116,11 @@ export async function startDevCockpitServer(options: DevCockpitServerOptions = {
       wss.close();
     }
   };
+}
+
+function isApiRequest(req: IncomingMessage): boolean {
+  const url = new URL(req.url ?? "/", "http://localhost");
+  return url.pathname === "/api" || url.pathname.startsWith("/api/");
 }
 
 async function serveStatic(req: IncomingMessage, res: ServerResponse, webRoot?: string): Promise<void> {

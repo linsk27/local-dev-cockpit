@@ -4,7 +4,7 @@
   gap: 18px;
   height: 100%;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
   padding-right: 4px;
 }
 
@@ -33,6 +33,7 @@
   display: grid;
   grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
   gap: 16px;
+  flex: 1 1 auto;
   min-height: 0;
 }
 
@@ -48,14 +49,16 @@
   flex-direction: column;
   gap: 14px;
   align-self: start;
-  max-height: min(720px, calc(100vh - 160px));
+  height: 100%;
+  max-height: 100%;
   overflow: hidden;
 }
 
 .api-lens-target-form {
   display: grid;
   gap: 12px;
-  padding: 0 14px 14px;
+  border-bottom: 1px solid var(--border);
+  padding: 0 14px 16px;
 }
 
 .api-lens-target-form label {
@@ -70,6 +73,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
   padding: 0 14px 14px;
@@ -138,7 +142,9 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+  height: 100%;
   min-height: 0;
+  overflow: hidden;
 }
 
 .api-lens-proxy {
@@ -171,6 +177,7 @@
 }
 
 .api-lens-filters {
+  flex: 0 0 auto;
   padding: 12px;
 }
 
@@ -185,24 +192,36 @@
 
 .api-lens-content {
   display: grid;
-  grid-template-columns: minmax(300px, 0.9fr) minmax(0, 1.45fr);
+  grid-template-columns: minmax(280px, 0.85fr) minmax(360px, 1.5fr);
   gap: 14px;
-  min-height: 480px;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .api-lens-requests,
 .api-lens-detail {
   display: flex;
   flex-direction: column;
+  min-height: 0;
   overflow: hidden;
 }
 
 .api-lens-requests .surface-heading,
 .api-lens-detail .surface-heading {
   flex: 0 0 auto;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface-bg);
+  backdrop-filter: blur(14px);
+}
+
+.api-lens-requests {
+  overflow: auto;
 }
 
 .api-lens-request {
+  flex: 0 0 auto;
   display: grid;
   grid-template-columns: 58px minmax(0, 1fr) auto auto;
   align-items: center;
@@ -210,7 +229,7 @@
   width: 100%;
   min-height: 56px;
   border: 0;
-  border-top: 1px solid var(--border-soft);
+  border-top: 1px solid var(--border);
   background: transparent;
   color: var(--text);
   padding: 10px 14px;
@@ -285,7 +304,7 @@
 
 .api-lens-facts {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
   gap: 10px;
 }
 
@@ -307,8 +326,9 @@
 .api-lens-facts strong {
   min-width: 0;
   overflow: hidden;
+  overflow-wrap: anywhere;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .api-lens-error {
@@ -321,7 +341,7 @@
 
 .api-lens-preview-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 12px;
   min-height: 0;
 }
@@ -329,7 +349,8 @@
 .api-lens-preview-grid > div {
   display: flex;
   min-width: 0;
-  min-height: 220px;
+  min-height: 180px;
+  max-height: 360px;
   flex-direction: column;
   border: 1px solid var(--border);
   border-radius: 16px;
@@ -340,7 +361,7 @@
 .api-lens-preview-grid h3 {
   flex: 0 0 auto;
   margin: 0;
-  border-bottom: 1px solid var(--border-soft);
+  border-bottom: 1px solid var(--border);
   padding: 10px 12px;
   font-size: 13px;
 }

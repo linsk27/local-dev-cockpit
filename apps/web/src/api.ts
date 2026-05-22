@@ -190,8 +190,7 @@ export async function checkUpdates(): Promise<UpdateCheckResult> {
 
 export async function getApiLensTargets(): Promise<ApiLensTarget[]> {
   const response = await fetch("/api/api-lens/targets");
-  await ensureOk(response, "Failed to load API Lens targets");
-  return ((await response.json()) as { targets: ApiLensTarget[] }).targets;
+  return (await readJsonResponse<{ targets: ApiLensTarget[] }>(response, "Failed to load API Lens targets")).targets;
 }
 
 export async function createApiLensTarget(input: { name: string; baseUrl: string; projectId?: string }): Promise<ApiLensTarget> {
@@ -200,8 +199,7 @@ export async function createApiLensTarget(input: { name: string; baseUrl: string
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input)
   });
-  await ensureOk(response, "Failed to create API Lens target");
-  return ((await response.json()) as { target: ApiLensTarget }).target;
+  return (await readJsonResponse<{ target: ApiLensTarget }>(response, "Failed to create API Lens target")).target;
 }
 
 export async function deleteApiLensTarget(targetId: string): Promise<void> {
@@ -214,8 +212,7 @@ export async function getApiLensRequests(options: { targetId?: string; limit?: n
   if (options.targetId) params.set("targetId", options.targetId);
   if (options.limit) params.set("limit", String(options.limit));
   const response = await fetch(`/api/api-lens/requests${params.size > 0 ? `?${params.toString()}` : ""}`);
-  await ensureOk(response, "Failed to load API Lens requests");
-  return ((await response.json()) as { requests: ApiLensRequestRecord[] }).requests;
+  return (await readJsonResponse<{ requests: ApiLensRequestRecord[] }>(response, "Failed to load API Lens requests")).requests;
 }
 
 export async function clearApiLensRequests(targetId?: string): Promise<void> {
@@ -227,8 +224,7 @@ export async function clearApiLensRequests(targetId?: string): Promise<void> {
 
 export async function getApiLensRequestContext(requestId: string): Promise<string> {
   const response = await fetch(`/api/api-lens/requests/${encodeURIComponent(requestId)}/context`);
-  await ensureOk(response, "Failed to load API Lens context");
-  return ((await response.json()) as { context: string }).context;
+  return (await readJsonResponse<{ context: string }>(response, "Failed to load API Lens context")).context;
 }
 
 export async function getProject(projectId: string): Promise<Project> {
@@ -385,6 +381,20 @@ async function ensureOk(response: Response, fallback: string): Promise<void> {
   throw new Error(await readApiError(response, fallback));
 }
 
+async function readJsonResponse<T>(response: Response, fallback: string): Promise<T> {
+  await ensureOk(response, fallback);
+  const contentType = response.headers.get("content-type") ?? "";
+  if (!contentType.toLowerCase().includes("application/json")) {
+    const text = await response.text();
+    throw new Error(formatUnexpectedApiResponse(response, fallback, text));
+  }
+  try {
+    return (await response.json()) as T;
+  } catch (error) {
+    throw new Error(`${fallback}: invalid JSON response (${error instanceof Error ? error.message : String(error)})`);
+  }
+}
+
 async function readApiError(response: Response, fallback: string): Promise<string> {
   const statusText = `${fallback}: ${response.status}`;
   const contentType = response.headers.get("content-type") ?? "";
@@ -398,6 +408,15 @@ async function readApiError(response: Response, fallback: string): Promise<strin
   } catch {
     return statusText;
   }
+}
+
+function formatUnexpectedApiResponse(response: Response, fallback: string, text: string): string {
+  const preview = text.trim().slice(0, 120);
+  const looksLikeHtml = /^<!doctype|^<html|<body[\s>]/i.test(preview);
+  if (looksLikeHtml) {
+    return `${fallback}: Dev Cockpit API returned HTML instead of JSON. Check that the page is connected to the running Dev Cockpit server, then refresh.`;
+  }
+  return `${fallback}: expected JSON but received ${response.headers.get("content-type") || "unknown content"} (${response.status})`;
 }
 
 function isMissingFolderPickerEndpoint(response: Response, message: string): boolean {
