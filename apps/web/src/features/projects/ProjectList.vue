@@ -57,11 +57,13 @@
         :class="{ 'port-conflict': hasPortConflict(project) }"
         :href="formatPortUrl(primaryPort(project)!)"
         :title="preferences.t('openEndpoint')"
+        target="_blank"
+        rel="noreferrer"
         @click.stop
       >
         <span>{{ formatPortEndpoint(primaryPort(project)!) }}</span>
         <ExternalLink :size="13" />
-        <em v-if="hasPortConflict(project)">{{ preferences.t("portConflict") }}</em>
+        <em v-if="hasPortConflict(project)" @click.prevent.stop>{{ preferences.t("portConflict") }}</em>
       </a>
       <span v-else-if="hasPortInformation(project)" class="project-port" :class="{ 'project-port-stale': projectHasStalePorts(project) }">
         <span>{{ openPorts(project) }}</span>
