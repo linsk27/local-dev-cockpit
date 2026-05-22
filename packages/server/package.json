@@ -1,6 +1,6 @@
 {
   "name": "@local-dev-cockpit/server",
-  "version": "0.1.13",
+  "version": "0.2.0",
   "description": "Local HTTP and process server for Dev Cockpit.",
   "license": "MIT",
   "type": "module",

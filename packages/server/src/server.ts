@@ -5,8 +5,9 @@ import { WebSocketServer } from "ws";
 import { EventBus } from "./events.js";
 import { resolveAppPaths } from "./paths.js";
 import { ProcessManager } from "./process-manager.js";
+import { ApiLensRecorder } from "./services/api-lens/index.js";
 import { ProjectScanCache } from "./services/project-scan-cache.js";
-import { handleApiRoute, sendJson } from "./routes.js";
+import { handleApiLensProxyRoute, handleApiRoute, sendJson } from "./routes.js";
 import { JsonStore } from "./store.js";
 
 export { commandStartBlockReason } from "./services/command-guards.js";
@@ -55,7 +56,7 @@ export {
 } from "./services/native-shell.js";
 export type { FolderPickerCommand, FolderPickerResult } from "./services/native-shell.js";
 
-const DEFAULT_APP_VERSION = "0.1.13";
+const DEFAULT_APP_VERSION = "0.2.0";
 
 export interface DevCockpitServerOptions {
   cwd?: string;
@@ -76,13 +77,18 @@ export async function startDevCockpitServer(options: DevCockpitServerOptions = {
   const eventBus = new EventBus();
   const processManager = new ProcessManager(paths, store, eventBus);
   const projectCache = new ProjectScanCache();
+  const apiLensRecorder = new ApiLensRecorder();
   const webRoot = options.webRoot ? path.resolve(options.webRoot) : undefined;
   const currentVersion = options.version ?? DEFAULT_APP_VERSION;
 
   const server = createServer(async (req, res) => {
     try {
-      const handled = await handleApiRoute(req, res, { store, processManager, projectCache, currentVersion });
-      if (!handled) await serveStatic(req, res, webRoot);
+      const routeContext = { store, processManager, projectCache, apiLensRecorder, currentVersion };
+      const handledApi = await handleApiRoute(req, res, routeContext);
+      if (handledApi) return;
+      const handledLens = await handleApiLensProxyRoute(req, res, routeContext);
+      if (handledLens) return;
+      await serveStatic(req, res, webRoot);
     } catch (error) {
       sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
     }

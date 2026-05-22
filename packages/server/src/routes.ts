@@ -15,12 +15,25 @@ import { loadProject, loadProjects } from "./services/project-service.js";
 import { stopPort } from "./services/port-control.js";
 import { checkForUpdates } from "./services/update-checker.js";
 import { chooseProjectRootFolder, openProjectFolder, openProjectInEditor } from "./services/native-shell.js";
+import {
+  addApiLensTarget,
+  ApiLensRecorder,
+  createApiLensContext,
+  createApiLensTarget,
+  handleApiLensProxy,
+  removeApiLensTarget
+} from "./services/api-lens/index.js";
 import { type JsonStore, projectEnvironmentForPath, rootId } from "./store.js";
 
 const addRootSchema = z.object({ path: z.string().min(1) });
 const openFolderDialogSchema = z.object({ initialPath: z.string().max(500).optional().default("") });
 const updateConfigSchema = z.object({ editorCommand: z.string().min(1).max(260).optional() });
 const updateProjectEnvironmentSchema = z.object({ python: z.string().max(500).default("") });
+const createApiLensTargetSchema = z.object({
+  name: z.string().max(80).default(""),
+  baseUrl: z.string().min(1).max(500),
+  projectId: z.string().max(500).optional()
+});
 const startedAt = Date.now();
 let cpuSample = { at: startedAt, usage: process.cpuUsage() };
 
@@ -28,6 +41,7 @@ export interface ServerRouteContext {
   store: JsonStore;
   processManager: ProcessManager;
   projectCache: ProjectScanCache;
+  apiLensRecorder: ApiLensRecorder;
   currentVersion: string;
 }
 
@@ -79,6 +93,66 @@ export async function handleApiRoute(req: IncomingMessage, res: ServerResponse, 
 
   if (method === "GET" && url.pathname === "/api/config") {
     sendJson(res, 200, { config: await context.store.readConfig() });
+    return true;
+  }
+
+  if (method === "GET" && url.pathname === "/api/api-lens/targets") {
+    const config = await context.store.readConfig();
+    sendJson(res, 200, { targets: config.apiLens.targets });
+    return true;
+  }
+
+  if (method === "POST" && url.pathname === "/api/api-lens/targets") {
+    const body = createApiLensTargetSchema.parse(await readJson(req));
+    let target;
+    try {
+      target = createApiLensTarget(body);
+    } catch (error) {
+      sendJson(res, 400, { error: error instanceof Error ? error.message : String(error) });
+      return true;
+    }
+    const config = addApiLensTarget(await context.store.readConfig(), target);
+    await context.store.writeConfig(config);
+    sendJson(res, 200, { target });
+    return true;
+  }
+
+  const apiLensTargetDelete = url.pathname.match(/^\/api\/api-lens\/targets\/([^/]+)$/);
+  if (method === "DELETE" && apiLensTargetDelete) {
+    const targetId = decodeURIComponent(apiLensTargetDelete[1] ?? "");
+    const config = removeApiLensTarget(await context.store.readConfig(), targetId);
+    await context.store.writeConfig(config);
+    context.apiLensRecorder.clear(targetId);
+    sendJson(res, 200, { deleted: true });
+    return true;
+  }
+
+  if (method === "GET" && url.pathname === "/api/api-lens/requests") {
+    const targetId = url.searchParams.get("targetId") || undefined;
+    const rawLimit = Number(url.searchParams.get("limit") ?? "100");
+    sendJson(res, 200, {
+      requests: context.apiLensRecorder.list({ targetId, limit: Number.isFinite(rawLimit) ? rawLimit : undefined })
+    });
+    return true;
+  }
+
+  if (method === "DELETE" && url.pathname === "/api/api-lens/requests") {
+    const targetId = url.searchParams.get("targetId") || undefined;
+    context.apiLensRecorder.clear(targetId);
+    sendJson(res, 200, { cleared: true });
+    return true;
+  }
+
+  const apiLensContextMatch = url.pathname.match(/^\/api\/api-lens\/requests\/([^/]+)\/context$/);
+  if (method === "GET" && apiLensContextMatch) {
+    const record = context.apiLensRecorder.get(decodeURIComponent(apiLensContextMatch[1] ?? ""));
+    if (!record) {
+      sendJson(res, 404, { error: "API Lens request not found" });
+      return true;
+    }
+    const config = await context.store.readConfig();
+    const target = config.apiLens.targets.find((item) => item.id === record.targetId);
+    sendJson(res, 200, { context: createApiLensContext(record, target) });
     return true;
   }
 
@@ -276,6 +350,25 @@ export async function handleApiRoute(req: IncomingMessage, res: ServerResponse, 
   }
 
   return false;
+}
+
+export async function handleApiLensProxyRoute(req: IncomingMessage, res: ServerResponse, context: ServerRouteContext): Promise<boolean> {
+  const url = new URL(req.url ?? "/", "http://localhost");
+  const match = url.pathname.match(/^\/lens\/([^/]+)\/?(.*)$/);
+  if (!match) return false;
+  const targetId = decodeURIComponent(match[1] ?? "");
+  const config = await context.store.readConfig();
+  const target = config.apiLens.targets.find((item) => item.id === targetId);
+  if (!target) {
+    sendJson(res, 404, { error: "API Lens target not found" });
+    return true;
+  }
+  await handleApiLensProxy(req, res, {
+    target,
+    targetPath: match[2] ?? "",
+    recorder: context.apiLensRecorder
+  });
+  return true;
 }
 
 function readProcessMetrics() {

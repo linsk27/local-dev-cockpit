@@ -68,6 +68,7 @@ http://localhost:8787
 - 识别外部已启动服务，例如 VS Code 或终端里已经跑起来的 Vite、Next.js、Uvicorn。
 - 对端口占用、残留端口、缺少包管理器、缺少 Python/Conda 环境等情况给出诊断。
 - 生成和复制 AI 上下文，也可显式写入 `PROJECT_CONTEXT.md` 和 `AGENTS.md`。
+- API Lens 本地接口观察：通过本地代理记录前后端请求、状态码、耗时、错误、请求/响应摘要，并一键复制给 AI。
 - 支持中文/英文、多主题、多强调色。
 - 支持 Windows 安装包和免安装版。
 
@@ -143,6 +144,26 @@ npx local-dev-cockpit context D:\个人\my-project
 npx local-dev-cockpit context D:\个人\my-project --write
 ```
 
+## API Lens
+
+API Lens 是本地接口观察器，不做系统级抓包，也不会上传请求数据。
+
+使用方式：
+
+1. 打开左侧 `接口 / API Lens`。
+2. 添加目标服务，例如 `http://127.0.0.1:8000`。
+3. 把前端项目里的 API base URL 临时改成页面给出的代理地址，例如 `http://127.0.0.1:8787/lens/<targetId>/`。
+4. 在前端页面操作业务流程，API Lens 会记录最近请求。
+5. 选择请求后，可以查看状态码、耗时、请求/响应摘要，并复制 AI 上下文。
+
+安全边界：
+
+- 只允许代理 `localhost`、`127.0.0.1`、`::1` 和局域网私有地址。
+- `authorization`、`cookie`、`set-cookie`、`x-api-key` 等 header 会自动脱敏。
+- `password`、`token`、`secret` 等 body 字段会自动脱敏。
+- 请求记录只保存在内存 ring buffer，默认每个目标最多 200 条，不落盘。
+- 单次请求 body 超过 10MB 会返回 413；文件上传和大请求暂不观察。
+
 ## 桌面版
 
 Release 页面提供两个 Windows 产物：
@@ -210,6 +231,6 @@ pnpm --filter @local-dev-cockpit/desktop dist:win
 
 ## 当前阶段
 
-当前版本是 `0.1.13`。重点是把“本地项目恢复”这个核心流程做稳定：扫描、识别命令、诊断环境、运行/停止命令、查看日志、识别端口、交给 AI。
+当前版本是 `0.2.0`。重点是在稳定的本地项目恢复能力上，新增 API Lens：用低权限本地代理观察开发接口请求，并把接口上下文交给 AI。
 
 后续不会急着堆新模块。下一步会优先收集真实用户试用问题，再决定是否扩展到更大的模块。

@@ -32,6 +32,10 @@
           <LayoutDashboard :size="17" />
           <span class="nav-label">{{ preferences.t("navProjects") }}</span>
         </RouterLink>
+        <RouterLink to="/api-lens" class="nav-link">
+          <ScanSearch :size="17" />
+          <span class="nav-label">{{ preferences.t("navApiLens") }}</span>
+        </RouterLink>
         <RouterLink to="/settings" class="nav-link">
           <Settings :size="17" />
           <span class="nav-label">{{ preferences.t("navSettings") }}</span>
@@ -54,7 +58,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { Download, LayoutDashboard, PanelLeftClose, PanelLeftOpen, Settings } from "lucide-vue-next";
+import { Download, LayoutDashboard, PanelLeftClose, PanelLeftOpen, ScanSearch, Settings } from "lucide-vue-next";
 import { usePreferencesStore } from "./stores/preferences";
 import { useUpdatesStore } from "./stores/updates";
 import { animateSubtleEntrance, useGsapScope } from "./shared/animation/useGsap";

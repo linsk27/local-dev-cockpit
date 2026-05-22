@@ -20,6 +20,9 @@ export interface AppConfig {
   ignoreNames: string[];
   editorCommand: string;
   projectEnvironments: Record<string, ProjectEnvironmentSettings>;
+  apiLens?: {
+    targets: ApiLensTarget[];
+  };
 }
 
 export interface ProjectEnvironmentSettings {
@@ -68,6 +71,40 @@ export interface UpdateCheckResult {
   portableAsset?: ReleaseAssetSummary;
   checkedAt: string;
   warning?: string;
+  error?: string;
+}
+
+export interface ApiLensTarget {
+  id: string;
+  name: string;
+  baseUrl: string;
+  projectId?: string;
+  createdAt: string;
+}
+
+export interface ApiLensPayloadPreview {
+  contentType?: string;
+  size: number;
+  truncated: boolean;
+  body?: unknown;
+}
+
+export interface ApiLensRequestRecord {
+  id: string;
+  targetId: string;
+  method: string;
+  path: string;
+  status?: number;
+  durationMs: number;
+  startedAt: string;
+  request: {
+    headers: Record<string, string>;
+    body?: ApiLensPayloadPreview;
+  };
+  response?: {
+    headers: Record<string, string>;
+    body?: ApiLensPayloadPreview;
+  };
   error?: string;
 }
 
@@ -149,6 +186,49 @@ export async function checkUpdates(): Promise<UpdateCheckResult> {
   const response = await fetch("/api/update");
   await ensureOk(response, "Failed to check updates");
   return response.json() as Promise<UpdateCheckResult>;
+}
+
+export async function getApiLensTargets(): Promise<ApiLensTarget[]> {
+  const response = await fetch("/api/api-lens/targets");
+  await ensureOk(response, "Failed to load API Lens targets");
+  return ((await response.json()) as { targets: ApiLensTarget[] }).targets;
+}
+
+export async function createApiLensTarget(input: { name: string; baseUrl: string; projectId?: string }): Promise<ApiLensTarget> {
+  const response = await fetch("/api/api-lens/targets", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input)
+  });
+  await ensureOk(response, "Failed to create API Lens target");
+  return ((await response.json()) as { target: ApiLensTarget }).target;
+}
+
+export async function deleteApiLensTarget(targetId: string): Promise<void> {
+  const response = await fetch(`/api/api-lens/targets/${encodeURIComponent(targetId)}`, { method: "DELETE" });
+  await ensureOk(response, "Failed to delete API Lens target");
+}
+
+export async function getApiLensRequests(options: { targetId?: string; limit?: number } = {}): Promise<ApiLensRequestRecord[]> {
+  const params = new URLSearchParams();
+  if (options.targetId) params.set("targetId", options.targetId);
+  if (options.limit) params.set("limit", String(options.limit));
+  const response = await fetch(`/api/api-lens/requests${params.size > 0 ? `?${params.toString()}` : ""}`);
+  await ensureOk(response, "Failed to load API Lens requests");
+  return ((await response.json()) as { requests: ApiLensRequestRecord[] }).requests;
+}
+
+export async function clearApiLensRequests(targetId?: string): Promise<void> {
+  const params = new URLSearchParams();
+  if (targetId) params.set("targetId", targetId);
+  const response = await fetch(`/api/api-lens/requests${params.size > 0 ? `?${params.toString()}` : ""}`, { method: "DELETE" });
+  await ensureOk(response, "Failed to clear API Lens requests");
+}
+
+export async function getApiLensRequestContext(requestId: string): Promise<string> {
+  const response = await fetch(`/api/api-lens/requests/${encodeURIComponent(requestId)}/context`);
+  await ensureOk(response, "Failed to load API Lens context");
+  return ((await response.json()) as { context: string }).context;
 }
 
 export async function getProject(projectId: string): Promise<Project> {

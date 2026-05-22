@@ -8,11 +8,24 @@ const projectEnvironmentSchema = z.object({
   python: z.string().default("")
 });
 
+const apiLensTargetSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  baseUrl: z.string(),
+  projectId: z.string().optional(),
+  createdAt: z.string()
+});
+
+const apiLensSchema = z.object({
+  targets: z.array(apiLensTargetSchema).default([])
+});
+
 const configSchema = z.object({
   roots: z.array(z.string()).default([]),
   ignoreNames: z.array(z.string()).default([]),
   editorCommand: z.string().default("code"),
-  projectEnvironments: z.record(projectEnvironmentSchema).default({})
+  projectEnvironments: z.record(projectEnvironmentSchema).default({}),
+  apiLens: apiLensSchema.default({ targets: [] })
 });
 
 const STATE_VERSION = 1;
@@ -54,7 +67,7 @@ export class JsonStore {
     await fs.mkdir(this.paths.dataDir, { recursive: true });
     await fs.mkdir(this.paths.logsDir, { recursive: true });
     if (!(await exists(this.paths.configPath))) {
-      await this.writeConfig({ roots: [], ignoreNames: [], editorCommand: "code", projectEnvironments: {} });
+      await this.writeConfig(defaultConfig());
     }
     if (!(await exists(this.paths.statePath))) {
       await this.writeState({ runs: {}, errors: {} });
@@ -171,7 +184,7 @@ export class JsonStore {
 }
 
 function defaultConfig(): AppConfig {
-  return { roots: [], ignoreNames: [], editorCommand: "code", projectEnvironments: {} };
+  return { roots: [], ignoreNames: [], editorCommand: "code", projectEnvironments: {}, apiLens: { targets: [] } };
 }
 
 function defaultState(): AppState {

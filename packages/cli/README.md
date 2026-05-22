@@ -6,6 +6,8 @@ Dev Cockpit 的 CLI 入口。本地启动一个 Vue 3 面板，用来恢复项�
 npx local-dev-cockpit
 ```
 
+0.2.0 新增 API Lens：可通过本地代理观察开发接口请求、状态码、耗时、错误和请求/响应摘要，并复制给 AI。
+
 默认启动本地面板：
 
 ```txt
