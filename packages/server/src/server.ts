@@ -88,10 +88,6 @@ export async function startDevCockpitServer(options: DevCockpitServerOptions = {
         sendJson(res, 404, { error: "API endpoint not found" });
         return;
       }
-      if (isRemovedLensRequest(req)) {
-        sendJson(res, 404, { error: "Endpoint has been removed." });
-        return;
-      }
       await serveStatic(req, res, webRoot);
     } catch (error) {
       sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
@@ -121,11 +117,6 @@ export async function startDevCockpitServer(options: DevCockpitServerOptions = {
 function isApiRequest(req: IncomingMessage): boolean {
   const url = new URL(req.url ?? "/", "http://localhost");
   return url.pathname === "/api" || url.pathname.startsWith("/api/");
-}
-
-function isRemovedLensRequest(req: IncomingMessage): boolean {
-  const url = new URL(req.url ?? "/", "http://localhost");
-  return url.pathname === "/lens" || url.pathname.startsWith("/lens/");
 }
 
 async function serveStatic(req: IncomingMessage, res: ServerResponse, webRoot?: string): Promise<void> {
