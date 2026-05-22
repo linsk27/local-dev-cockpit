@@ -8,7 +8,7 @@
       <div class="api-lens-actions">
         <button class="text-button" type="button" @click="void store.refreshRequests()">
           <RefreshCw :size="15" />
-          {{ preferences.t("refreshProjects") }}
+          {{ preferences.t("apiLensRefresh") }}
         </button>
         <button class="text-button" type="button" :disabled="!store.selectedTarget" @click="void store.clearRequests()">
           <Trash2 :size="15" />
@@ -18,6 +18,36 @@
     </div>
 
     <div v-if="store.error" class="error-banner">{{ store.error }}</div>
+
+    <section class="api-lens-guide surface">
+      <div class="api-lens-guide-copy">
+        <span class="eyebrow">{{ preferences.t("apiLensGuideEyebrow") }}</span>
+        <h2>{{ preferences.t("apiLensGuideTitle") }}</h2>
+        <p>{{ preferences.t("apiLensGuideDescription") }}</p>
+      </div>
+      <div class="api-lens-guide-steps" aria-label="API Lens workflow">
+        <div>
+          <Route :size="16" />
+          <strong>{{ preferences.t("apiLensStepTarget") }}</strong>
+          <span>{{ preferences.t("apiLensStepTargetDetail") }}</span>
+        </div>
+        <div>
+          <Copy :size="16" />
+          <strong>{{ preferences.t("apiLensStepProxy") }}</strong>
+          <span>{{ preferences.t("apiLensStepProxyDetail") }}</span>
+        </div>
+        <div>
+          <MousePointerClick :size="16" />
+          <strong>{{ preferences.t("apiLensStepUse") }}</strong>
+          <span>{{ preferences.t("apiLensStepUseDetail") }}</span>
+        </div>
+        <div>
+          <ShieldCheck :size="16" />
+          <strong>{{ preferences.t("apiLensStepInspect") }}</strong>
+          <span>{{ preferences.t("apiLensStepInspectDetail") }}</span>
+        </div>
+      </div>
+    </section>
 
     <div class="api-lens-grid">
       <aside class="api-lens-targets surface">
@@ -149,7 +179,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
-import { Activity, Bot, Copy, Plus, RefreshCw, Trash2 } from "lucide-vue-next";
+import { Activity, Bot, Copy, MousePointerClick, Plus, RefreshCw, Route, ShieldCheck, Trash2 } from "lucide-vue-next";
 import type { ApiLensRequestRecord } from "../../api";
 import { useApiLensStore } from "../../stores/api-lens";
 import { useNotificationsStore } from "../../stores/notifications";

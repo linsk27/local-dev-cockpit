@@ -10,7 +10,7 @@
 
 .api-lens-toolbar {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
 }
@@ -27,6 +27,70 @@
   align-items: center;
   gap: 10px;
   min-width: 0;
+}
+
+.api-lens-guide {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.75fr) minmax(0, 1.25fr);
+  align-items: stretch;
+  gap: 16px;
+  padding: 16px;
+  background:
+    radial-gradient(circle at 12% 18%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 32%),
+    linear-gradient(135deg, color-mix(in srgb, var(--surface-soft) 92%, var(--accent)), var(--surface-bg));
+}
+
+.api-lens-guide-copy {
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.api-lens-guide-copy h2 {
+  margin: 0;
+  font-size: clamp(20px, 2.2vw, 28px);
+  line-height: 1.12;
+}
+
+.api-lens-guide-copy p {
+  max-width: 680px;
+  margin: 0;
+  color: var(--muted-strong);
+  line-height: 1.65;
+}
+
+.api-lens-guide-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.api-lens-guide-steps div {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--panel-solid) 86%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 8%, transparent);
+  padding: 13px;
+}
+
+.api-lens-guide-steps svg {
+  color: var(--accent);
+}
+
+.api-lens-guide-steps strong,
+.api-lens-guide-steps span {
+  min-width: 0;
+}
+
+.api-lens-guide-steps span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .api-lens-grid {
@@ -177,6 +241,8 @@
 }
 
 .api-lens-filters {
+  display: grid;
+  grid-template-columns: minmax(110px, 150px) minmax(110px, 150px) minmax(180px, 1fr);
   flex: 0 0 auto;
   padding: 12px;
 }
@@ -223,7 +289,7 @@
 .api-lens-request {
   flex: 0 0 auto;
   display: grid;
-  grid-template-columns: 58px minmax(0, 1fr) auto auto;
+  grid-template-columns: 62px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 10px;
   width: 100%;
@@ -234,11 +300,16 @@
   color: var(--text);
   padding: 10px 14px;
   text-align: left;
+  transition: background 160ms ease, transform 160ms ease;
 }
 
 .api-lens-request:hover,
 .api-lens-request.active {
   background: var(--surface-soft);
+}
+
+.api-lens-request.active {
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .api-lens-request strong {
@@ -377,10 +448,15 @@
 }
 
 @media (max-width: 1180px) {
+  .api-lens-guide,
   .api-lens-grid,
   .api-lens-content,
   .api-lens-preview-grid {
     grid-template-columns: 1fr;
+  }
+
+  .api-lens-guide-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .api-lens-targets {
@@ -391,10 +467,14 @@
 @media (max-width: 720px) {
   .api-lens-toolbar,
   .api-lens-proxy,
-  .api-lens-actions,
-  .api-lens-filters {
+  .api-lens-actions {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .api-lens-filters,
+  .api-lens-guide-steps {
+    grid-template-columns: 1fr;
   }
 
   .api-lens-content {

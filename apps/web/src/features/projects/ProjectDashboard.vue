@@ -52,7 +52,12 @@
 
     <div v-if="store.error" class="error-banner">{{ store.error }}</div>
 
-    <section v-if="roots.length === 0" class="surface onboarding-panel">
+    <section v-if="!rootsLoaded" class="empty-state">
+      <RefreshCw :size="34" class="spin-icon" />
+      <h2>{{ preferences.t("loadingProjects") }}</h2>
+    </section>
+
+    <section v-else-if="roots.length === 0" class="surface onboarding-panel">
       <div class="onboarding-copy">
         <h2>{{ preferences.t("onboardingTitle") }}</h2>
         <p>{{ preferences.t("onboardingDescription") }}</p>
@@ -167,10 +172,15 @@ const preferences = usePreferencesStore();
 const notifications = useNotificationsStore();
 const performance = usePerformanceStore();
 const workspaceRef = ref<HTMLElement | null>(null);
-const searchQuery = ref("");
-const projectFilter = ref<ProjectListFilter>("all");
-const selectedRootId = ref("");
+const PROJECT_FILTER_KEY = "dev-cockpit:project-filter";
+const PROJECT_SEARCH_KEY = "dev-cockpit:project-search";
+const SELECTED_ROOT_KEY = "dev-cockpit:selected-root";
+
+const searchQuery = ref(readStoredString(PROJECT_SEARCH_KEY));
+const projectFilter = ref<ProjectListFilter>(readStoredProjectFilter());
+const selectedRootId = ref(readStoredString(SELECTED_ROOT_KEY));
 const roots = ref<RootEntry[]>([]);
+const rootsLoaded = ref(false);
 const rootMenuOpen = ref(false);
 const rootFilterRef = ref<HTMLElement | null>(null);
 const rootPath = ref("");
@@ -198,7 +208,7 @@ const hasRunningProject = computed(() => store.projects.some((project) => projec
 const hasRuntimeWatch = computed(() => hasRunningProject.value || Object.keys(store.runtimeWatches).length > 0);
 const canSubmitRoot = computed(() => rootPath.value.trim().length > 0);
 const welcomeDismissed = ref(readWelcomeDismissed());
-const showWelcomeModal = computed(() => roots.value.length === 0 && !welcomeDismissed.value);
+const showWelcomeModal = computed(() => rootsLoaded.value && roots.value.length === 0 && !welcomeDismissed.value);
 
 const activeProject = computed(() => {
   return visibleProjects.value.find((project) => project.id === store.selectedId) ?? visibleProjects.value[0];
@@ -229,6 +239,18 @@ watch(
     ensureSelectedRoot();
   }
 );
+
+watch(projectFilter, (filter) => {
+  localStorage.setItem(PROJECT_FILTER_KEY, filter);
+});
+
+watch(searchQuery, (query) => {
+  writeOptionalString(PROJECT_SEARCH_KEY, query);
+});
+
+watch(selectedRootId, (rootId) => {
+  writeOptionalString(SELECTED_ROOT_KEY, rootId);
+});
 
 watch(
   () => `${roots.value.length}:${visibleProjects.value.length}:${Boolean(activeProject.value)}`,
@@ -272,6 +294,7 @@ async function refreshProjects(): Promise<void> {
   if (!selectedRootId.value) {
     store.projects = [];
     store.selectedId = "";
+    store.rootId = "";
     return;
   }
   const refreshed = await store.refresh({ force: true, rootId: selectedRootId.value });
@@ -330,6 +353,8 @@ async function loadRoots(): Promise<void> {
     ensureSelectedRoot();
   } catch (error) {
     notifications.error(preferences.t("rootActionFailedNotice", { message: error instanceof Error ? error.message : String(error) }));
+  } finally {
+    rootsLoaded.value = true;
   }
 }
 
@@ -353,11 +378,11 @@ function readWelcomeDismissed(): boolean {
 
 function selectRoot(rootId: string): void {
   selectedRootId.value = rootId;
-  projectFilter.value = "all";
   performance.setRoot(rootId);
   rootMenuOpen.value = false;
   store.projects = [];
   store.selectedId = "";
+  store.rootId = "";
   void initialRefresh();
 }
 
@@ -395,9 +420,11 @@ async function initialRefresh(): Promise<void> {
   if (!selectedRootId.value) {
     store.projects = [];
     store.selectedId = "";
+    store.rootId = "";
     return;
   }
-  const refreshed = await store.refresh({ force: true, rootId: selectedRootId.value });
+  const hasWarmProjects = store.rootId === selectedRootId.value && store.projects.length > 0;
+  const refreshed = await store.refresh({ force: !hasWarmProjects, silent: hasWarmProjects, rootId: selectedRootId.value });
   if (refreshed) lastOverviewRefreshAt = Date.now();
   await loadPerformance();
 }
@@ -426,6 +453,38 @@ function ensureSelectedRoot(): void {
     selectedRootId.value = roots.value[0]?.id ?? "";
   }
   performance.setRoot(selectedRootId.value);
+}
+
+function readStoredString(key: string): string {
+  try {
+    return localStorage.getItem(key) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function writeOptionalString(key: string, value: string): void {
+  try {
+    if (value.trim()) localStorage.setItem(key, value);
+    else localStorage.removeItem(key);
+  } catch {
+    // Local persistence is best-effort; navigation should still work without it.
+  }
+}
+
+function readStoredProjectFilter(): ProjectListFilter {
+  const value = readStoredString(PROJECT_FILTER_KEY);
+  if (
+    value === "all" ||
+    value === "online" ||
+    value === "standard-runnable" ||
+    value === "try-runnable" ||
+    value === "needs-attention" ||
+    value === "unidentified"
+  ) {
+    return value;
+  }
+  return "all";
 }
 
 onMounted(async () => {

@@ -22,6 +22,7 @@ export type PortActionState = "stopping";
 export const useProjectsStore = defineStore("projects", {
   state: () => ({
     projects: [] as Project[],
+    rootId: "" as string,
     selectedId: "" as string,
     loading: false,
     refreshing: false,
@@ -46,6 +47,7 @@ export const useProjectsStore = defineStore("projects", {
       this.error = "";
       try {
         const incomingProjects = await getProjects({ force: options.force, rootId: options.rootId });
+        this.rootId = options.rootId ?? "";
         this.projects = mergeIncomingProjects(this.projects, incomingProjects, this.runtimeWatches);
         if (this.selectedId && !this.projects.some((project) => project.id === this.selectedId)) {
           this.selectedId = this.projects[0]?.id ?? "";
