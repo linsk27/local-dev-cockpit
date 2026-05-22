@@ -27,10 +27,10 @@ body {
 
 :root[data-theme="cream"] body {
   background:
-    radial-gradient(circle at 12% 14%, rgba(255, 255, 255, 0.86) 0 7%, transparent 18%),
-    radial-gradient(circle at 88% 10%, rgba(255, 232, 214, 0.7) 0 8%, transparent 22%),
-    radial-gradient(circle at 74% 88%, rgba(214, 231, 221, 0.62) 0 10%, transparent 25%),
-    linear-gradient(135deg, #fffaf1 0%, #faeddc 48%, #f6e4d2 100%);
+    radial-gradient(circle at 12% 14%, rgba(248, 235, 220, 0.46) 0 7%, transparent 18%),
+    radial-gradient(circle at 88% 10%, rgba(220, 192, 166, 0.34) 0 8%, transparent 22%),
+    radial-gradient(circle at 74% 88%, rgba(199, 208, 193, 0.28) 0 10%, transparent 25%),
+    linear-gradient(135deg, #ecdecf 0%, #e4d3bf 52%, #dcc7b1 100%);
 }
 
 :root[data-theme="cream"] body::before {
@@ -46,6 +46,7 @@ body {
     radial-gradient(circle at 68% 56%, rgba(255, 255, 255, 0.58) 0 26%, transparent 27%);
   content: "";
   filter: blur(1px);
+  opacity: 0.45;
   pointer-events: none;
 }
 

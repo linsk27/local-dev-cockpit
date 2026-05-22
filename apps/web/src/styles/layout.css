@@ -653,23 +653,23 @@ h2 {
 
 :root[data-theme="cream"] .sidebar {
   padding: 24px 18px;
-  border-right-color: rgba(143, 104, 67, 0.09);
+  border-right-color: rgba(122, 91, 60, 0.12);
   background:
-    linear-gradient(180deg, rgba(255, 253, 248, 0.76), rgba(255, 239, 218, 0.62)),
+    linear-gradient(180deg, rgba(242, 229, 211, 0.72), rgba(222, 204, 181, 0.58)),
     var(--sidebar-bg);
   box-shadow:
-    inset -1px 0 0 rgba(255, 255, 255, 0.7),
-    12px 0 36px rgba(123, 88, 52, 0.06);
+    inset -1px 0 0 rgba(255, 255, 255, 0.34),
+    4px 0 14px rgba(82, 56, 34, 0.03);
 }
 
 :root[data-theme="cream"] .brand-mark {
   border-radius: 18px;
   background:
-    radial-gradient(circle at 32% 22%, rgba(255, 255, 255, 0.82), transparent 42%),
-    linear-gradient(145deg, color-mix(in srgb, var(--accent) 24%, #fff3df), #fff9ee);
+    radial-gradient(circle at 32% 22%, rgba(255, 250, 242, 0.62), transparent 42%),
+    linear-gradient(145deg, color-mix(in srgb, var(--accent) 18%, #efe0cc), #f7ecdd);
   box-shadow:
-    0 10px 24px color-mix(in srgb, var(--accent) 18%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    0 6px 16px color-mix(in srgb, var(--accent) 12%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.58);
 }
 
 :root[data-theme="cream"] .nav-link {
@@ -679,39 +679,39 @@ h2 {
 
 :root[data-theme="cream"] .nav-link.router-link-active {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.64), rgba(255, 239, 218, 0.7)),
+    linear-gradient(180deg, rgba(255, 250, 242, 0.5), rgba(238, 220, 199, 0.64)),
     var(--surface-hover);
   box-shadow:
-    0 10px 24px rgba(139, 98, 58, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.78);
+    0 5px 14px rgba(91, 64, 40, 0.045),
+    inset 0 1px 0 rgba(255, 255, 255, 0.52);
 }
 
 :root[data-theme="cream"] .resource-usage-card,
 :root[data-theme="cream"] .sidebar-footer {
   border-radius: 20px;
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.72), rgba(255, 242, 223, 0.78)),
+    linear-gradient(145deg, rgba(255, 250, 242, 0.5), rgba(239, 223, 203, 0.66)),
     var(--surface-soft);
   box-shadow:
-    0 12px 26px rgba(134, 95, 58, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+    0 6px 16px rgba(91, 64, 40, 0.055),
+    inset 0 1px 0 rgba(255, 255, 255, 0.52);
 }
 
 :root[data-theme="cream"] .resource-ring,
 :root[data-theme="cream"] .performance-icon {
   border-radius: 999px;
   box-shadow:
-    0 8px 18px color-mix(in srgb, var(--flow) 18%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.78);
+    0 5px 12px color-mix(in srgb, var(--flow) 12%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.54);
 }
 
 :root[data-theme="cream"] .resource-popover {
   border-radius: 22px;
-  background: rgba(255, 250, 241, 0.92);
+  background: rgba(248, 239, 224, 0.94);
   box-shadow:
-    0 22px 46px rgba(136, 96, 58, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.84);
-  backdrop-filter: blur(18px) saturate(1.04);
+    0 12px 28px rgba(91, 64, 40, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.54);
+  backdrop-filter: blur(14px) saturate(1.02);
 }
 
 :root[data-theme="cream"] .search-box,
@@ -719,18 +719,18 @@ h2 {
   height: 46px;
   border-radius: 18px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(255, 242, 224, 0.76)),
+    linear-gradient(180deg, rgba(255, 250, 242, 0.56), rgba(239, 223, 203, 0.68)),
     var(--surface-soft);
   box-shadow:
-    0 10px 22px rgba(135, 95, 58, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+    0 5px 14px rgba(91, 64, 40, 0.045),
+    inset 0 1px 0 rgba(255, 255, 255, 0.54);
 }
 
 :root[data-theme="cream"] .root-menu {
   border-radius: 18px;
-  background: rgba(255, 250, 241, 0.94);
-  box-shadow: 0 20px 42px rgba(136, 96, 58, 0.14);
-  backdrop-filter: blur(18px);
+  background: rgba(248, 239, 224, 0.96);
+  box-shadow: 0 10px 26px rgba(91, 64, 40, 0.08);
+  backdrop-filter: blur(14px);
 }
 
 :root[data-theme="cream"] .root-menu-item {

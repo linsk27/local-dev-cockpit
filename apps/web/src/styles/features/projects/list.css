@@ -406,7 +406,7 @@
   gap: 8px;
   padding: 12px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(255, 244, 229, 0.5)),
+    linear-gradient(180deg, rgba(255, 250, 242, 0.34), rgba(235, 218, 198, 0.42)),
     transparent;
 }
 
@@ -414,19 +414,19 @@
   height: 34px;
   border-radius: 999px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(255, 239, 218, 0.72)),
+    linear-gradient(180deg, rgba(255, 250, 242, 0.58), rgba(238, 220, 199, 0.66)),
     var(--surface-soft);
   box-shadow:
-    0 7px 14px rgba(140, 98, 58, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    0 4px 10px rgba(91, 64, 40, 0.045),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
 :root[data-theme="cream"] .project-filter-chip.active {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.76), color-mix(in srgb, var(--accent-soft) 72%, #fff0db));
+    linear-gradient(180deg, rgba(255, 250, 242, 0.62), color-mix(in srgb, var(--accent-soft) 64%, #ead8c0));
   box-shadow:
-    0 9px 18px color-mix(in srgb, var(--accent) 16%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.86);
+    0 5px 12px color-mix(in srgb, var(--accent) 11%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.58);
 }
 
 :root[data-theme="cream"] .project-row {
@@ -436,7 +436,7 @@
   border: 1px solid transparent;
   border-radius: 20px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.46), rgba(255, 246, 235, 0.34)),
+    linear-gradient(180deg, rgba(255, 250, 242, 0.34), rgba(235, 218, 198, 0.28)),
     transparent;
 }
 
@@ -444,11 +444,11 @@
 :root[data-theme="cream"] .project-row.active {
   border-color: color-mix(in srgb, var(--accent) 20%, var(--border));
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(255, 239, 219, 0.62)),
+    linear-gradient(180deg, rgba(255, 250, 242, 0.58), rgba(238, 220, 199, 0.58)),
     var(--surface-hover);
   box-shadow:
-    0 12px 26px rgba(136, 96, 58, 0.09),
-    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+    0 5px 14px rgba(91, 64, 40, 0.045),
+    inset 0 1px 0 rgba(255, 255, 255, 0.52);
 }
 
 :root[data-theme="cream"] .project-row.active::before {
@@ -461,6 +461,6 @@
 :root[data-theme="cream"] .project-port {
   border-radius: 999px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(255, 241, 222, 0.58)),
+    linear-gradient(180deg, rgba(255, 250, 242, 0.54), rgba(238, 220, 199, 0.52)),
     var(--surface-soft);
 }

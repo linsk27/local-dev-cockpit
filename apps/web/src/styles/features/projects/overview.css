@@ -292,13 +292,13 @@
 
 :root[data-theme="cream"] .overview-status-band,
 :root[data-theme="cream"] .fact {
-  border-radius: 22px;
+  border-radius: 18px;
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.62), rgba(255, 243, 228, 0.66)),
+    linear-gradient(145deg, rgba(255, 250, 242, 0.48), rgba(238, 221, 201, 0.58)),
     var(--surface-bg);
   box-shadow:
-    0 12px 28px rgba(136, 96, 58, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+    0 5px 14px rgba(91, 64, 40, 0.045),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
 :root[data-theme="cream"] .project-status-card {
@@ -308,17 +308,17 @@
 :root[data-theme="cream"] .project-status-icon {
   border-radius: 16px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 239, 218, 0.72)),
+    linear-gradient(180deg, rgba(255, 250, 242, 0.54), rgba(238, 220, 199, 0.62)),
     var(--surface-soft);
   box-shadow:
-    0 8px 18px rgba(136, 96, 58, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.78);
+    0 4px 11px rgba(91, 64, 40, 0.045),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
 :root[data-theme="cream"] .port-pill,
 :root[data-theme="cream"] .port-stop-button {
   border-radius: 999px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 239, 218, 0.68)),
+    linear-gradient(180deg, rgba(255, 250, 242, 0.54), rgba(238, 220, 199, 0.58)),
     var(--surface-soft);
 }
