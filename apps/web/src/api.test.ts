@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { RootFolderPickerUnavailableError, chooseRootFolder, getApiLensTargets } from "./api";
+import { RootFolderPickerUnavailableError, chooseRootFolder } from "./api";
 
 describe("chooseRootFolder", () => {
   afterEach(() => {
@@ -26,25 +26,5 @@ describe("chooseRootFolder", () => {
     );
 
     await expect(chooseRootFolder()).rejects.toThrow("Folder picker failed with exit code 1");
-  });
-});
-
-describe("API JSON responses", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it("reports an HTML fallback response as a server connection problem", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(
-        new Response("<!doctype html><html><body>Dev Cockpit</body></html>", {
-          status: 200,
-          headers: { "content-type": "text/html; charset=utf-8" }
-        })
-      )
-    );
-
-    await expect(getApiLensTargets()).rejects.toThrow("returned HTML instead of JSON");
   });
 });

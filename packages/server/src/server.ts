@@ -5,9 +5,8 @@ import { WebSocketServer } from "ws";
 import { EventBus } from "./events.js";
 import { resolveAppPaths } from "./paths.js";
 import { ProcessManager } from "./process-manager.js";
-import { ApiLensRecorder } from "./services/api-lens/index.js";
 import { ProjectScanCache } from "./services/project-scan-cache.js";
-import { handleApiLensProxyRoute, handleApiRoute, sendJson } from "./routes.js";
+import { handleApiRoute, sendJson } from "./routes.js";
 import { JsonStore } from "./store.js";
 
 export { commandStartBlockReason } from "./services/command-guards.js";
@@ -77,19 +76,20 @@ export async function startDevCockpitServer(options: DevCockpitServerOptions = {
   const eventBus = new EventBus();
   const processManager = new ProcessManager(paths, store, eventBus);
   const projectCache = new ProjectScanCache();
-  const apiLensRecorder = new ApiLensRecorder();
   const webRoot = options.webRoot ? path.resolve(options.webRoot) : undefined;
   const currentVersion = options.version ?? DEFAULT_APP_VERSION;
 
   const server = createServer(async (req, res) => {
     try {
-      const routeContext = { store, processManager, projectCache, apiLensRecorder, currentVersion };
+      const routeContext = { store, processManager, projectCache, currentVersion };
       const handledApi = await handleApiRoute(req, res, routeContext);
       if (handledApi) return;
-      const handledLens = await handleApiLensProxyRoute(req, res, routeContext);
-      if (handledLens) return;
       if (isApiRequest(req)) {
         sendJson(res, 404, { error: "API endpoint not found" });
+        return;
+      }
+      if (isRemovedLensRequest(req)) {
+        sendJson(res, 404, { error: "Endpoint has been removed." });
         return;
       }
       await serveStatic(req, res, webRoot);
@@ -121,6 +121,11 @@ export async function startDevCockpitServer(options: DevCockpitServerOptions = {
 function isApiRequest(req: IncomingMessage): boolean {
   const url = new URL(req.url ?? "/", "http://localhost");
   return url.pathname === "/api" || url.pathname.startsWith("/api/");
+}
+
+function isRemovedLensRequest(req: IncomingMessage): boolean {
+  const url = new URL(req.url ?? "/", "http://localhost");
+  return url.pathname === "/lens" || url.pathname.startsWith("/lens/");
 }
 
 async function serveStatic(req: IncomingMessage, res: ServerResponse, webRoot?: string): Promise<void> {

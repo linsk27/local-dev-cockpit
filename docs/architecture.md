@@ -50,13 +50,6 @@ services/port-control.ts
 services/update-checker.ts
   GitHub Release / npm registry 更新检查和下载资产选择。
 
-services/api-lens
-  API Lens 本地接口观察器。目标服务配置持久化到 config.json，请求记录只保存在内存 ring buffer。
-  - api-lens/targets.ts：目标服务创建、URL 标准化、本地/私有地址限制。
-  - api-lens/proxy.ts：/lens/:targetId/* 代理转发、请求体上限、CORS 和错误记录。
-  - api-lens/recorder.ts：按 target 分组的内存 ring buffer。
-  - api-lens/redaction.ts：敏感 header 和 body 字段脱敏、请求/响应预览截断。
-  - api-lens/context.ts：把单条请求生成可复制给 AI 的上下文。
 services/failure-summary.ts
   进程失败日志摘要 facade。规则放在子模块：
   - failure-summary/port-conflict.ts：Next、Uvicorn、Node 等端口占用摘要。

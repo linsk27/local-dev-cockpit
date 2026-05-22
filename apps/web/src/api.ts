@@ -20,9 +20,6 @@ export interface AppConfig {
   ignoreNames: string[];
   editorCommand: string;
   projectEnvironments: Record<string, ProjectEnvironmentSettings>;
-  apiLens?: {
-    targets: ApiLensTarget[];
-  };
 }
 
 export interface ProjectEnvironmentSettings {
@@ -71,40 +68,6 @@ export interface UpdateCheckResult {
   portableAsset?: ReleaseAssetSummary;
   checkedAt: string;
   warning?: string;
-  error?: string;
-}
-
-export interface ApiLensTarget {
-  id: string;
-  name: string;
-  baseUrl: string;
-  projectId?: string;
-  createdAt: string;
-}
-
-export interface ApiLensPayloadPreview {
-  contentType?: string;
-  size: number;
-  truncated: boolean;
-  body?: unknown;
-}
-
-export interface ApiLensRequestRecord {
-  id: string;
-  targetId: string;
-  method: string;
-  path: string;
-  status?: number;
-  durationMs: number;
-  startedAt: string;
-  request: {
-    headers: Record<string, string>;
-    body?: ApiLensPayloadPreview;
-  };
-  response?: {
-    headers: Record<string, string>;
-    body?: ApiLensPayloadPreview;
-  };
   error?: string;
 }
 
@@ -186,45 +149,6 @@ export async function checkUpdates(): Promise<UpdateCheckResult> {
   const response = await fetch("/api/update");
   await ensureOk(response, "Failed to check updates");
   return response.json() as Promise<UpdateCheckResult>;
-}
-
-export async function getApiLensTargets(): Promise<ApiLensTarget[]> {
-  const response = await fetch("/api/api-lens/targets");
-  return (await readJsonResponse<{ targets: ApiLensTarget[] }>(response, "Failed to load API Lens targets")).targets;
-}
-
-export async function createApiLensTarget(input: { name: string; baseUrl: string; projectId?: string }): Promise<ApiLensTarget> {
-  const response = await fetch("/api/api-lens/targets", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(input)
-  });
-  return (await readJsonResponse<{ target: ApiLensTarget }>(response, "Failed to create API Lens target")).target;
-}
-
-export async function deleteApiLensTarget(targetId: string): Promise<void> {
-  const response = await fetch(`/api/api-lens/targets/${encodeURIComponent(targetId)}`, { method: "DELETE" });
-  await ensureOk(response, "Failed to delete API Lens target");
-}
-
-export async function getApiLensRequests(options: { targetId?: string; limit?: number } = {}): Promise<ApiLensRequestRecord[]> {
-  const params = new URLSearchParams();
-  if (options.targetId) params.set("targetId", options.targetId);
-  if (options.limit) params.set("limit", String(options.limit));
-  const response = await fetch(`/api/api-lens/requests${params.size > 0 ? `?${params.toString()}` : ""}`);
-  return (await readJsonResponse<{ requests: ApiLensRequestRecord[] }>(response, "Failed to load API Lens requests")).requests;
-}
-
-export async function clearApiLensRequests(targetId?: string): Promise<void> {
-  const params = new URLSearchParams();
-  if (targetId) params.set("targetId", targetId);
-  const response = await fetch(`/api/api-lens/requests${params.size > 0 ? `?${params.toString()}` : ""}`, { method: "DELETE" });
-  await ensureOk(response, "Failed to clear API Lens requests");
-}
-
-export async function getApiLensRequestContext(requestId: string): Promise<string> {
-  const response = await fetch(`/api/api-lens/requests/${encodeURIComponent(requestId)}/context`);
-  return (await readJsonResponse<{ context: string }>(response, "Failed to load API Lens context")).context;
 }
 
 export async function getProject(projectId: string): Promise<Project> {
@@ -381,20 +305,6 @@ async function ensureOk(response: Response, fallback: string): Promise<void> {
   throw new Error(await readApiError(response, fallback));
 }
 
-async function readJsonResponse<T>(response: Response, fallback: string): Promise<T> {
-  await ensureOk(response, fallback);
-  const contentType = response.headers.get("content-type") ?? "";
-  if (!contentType.toLowerCase().includes("application/json")) {
-    const text = await response.text();
-    throw new Error(formatUnexpectedApiResponse(response, fallback, text));
-  }
-  try {
-    return (await response.json()) as T;
-  } catch (error) {
-    throw new Error(`${fallback}: invalid JSON response (${error instanceof Error ? error.message : String(error)})`);
-  }
-}
-
 async function readApiError(response: Response, fallback: string): Promise<string> {
   const statusText = `${fallback}: ${response.status}`;
   const contentType = response.headers.get("content-type") ?? "";
@@ -408,15 +318,6 @@ async function readApiError(response: Response, fallback: string): Promise<strin
   } catch {
     return statusText;
   }
-}
-
-function formatUnexpectedApiResponse(response: Response, fallback: string, text: string): string {
-  const preview = text.trim().slice(0, 120);
-  const looksLikeHtml = /^<!doctype|^<html|<body[\s>]/i.test(preview);
-  if (looksLikeHtml) {
-    return `${fallback}: Dev Cockpit API returned HTML instead of JSON. Check that the page is connected to the running Dev Cockpit server, then refresh.`;
-  }
-  return `${fallback}: expected JSON but received ${response.headers.get("content-type") || "unknown content"} (${response.status})`;
 }
 
 function isMissingFolderPickerEndpoint(response: Response, message: string): boolean {

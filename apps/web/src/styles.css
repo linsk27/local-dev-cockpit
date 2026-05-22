@@ -3,7 +3,6 @@
 @import "./styles/layout.css";
 @import "./styles/components.css";
 @import "./styles/features/projects.css";
-@import "./styles/features/api-lens.css";
 @import "./styles/features/settings.css";
 
 @media (max-width: 1180px) {

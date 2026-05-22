@@ -16,8 +16,7 @@ export default defineConfig({
     host: "127.0.0.1",
     port: 5178,
     proxy: {
-      "/api": "http://127.0.0.1:8787",
-      "/lens": "http://127.0.0.1:8787"
+      "/api": "http://127.0.0.1:8787"
     }
   }
 });

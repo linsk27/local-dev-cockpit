@@ -8,24 +8,11 @@ const projectEnvironmentSchema = z.object({
   python: z.string().default("")
 });
 
-const apiLensTargetSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  baseUrl: z.string(),
-  projectId: z.string().optional(),
-  createdAt: z.string()
-});
-
-const apiLensSchema = z.object({
-  targets: z.array(apiLensTargetSchema).default([])
-});
-
 const configSchema = z.object({
   roots: z.array(z.string()).default([]),
   ignoreNames: z.array(z.string()).default([]),
   editorCommand: z.string().default("code"),
-  projectEnvironments: z.record(projectEnvironmentSchema).default({}),
-  apiLens: apiLensSchema.default({ targets: [] })
+  projectEnvironments: z.record(projectEnvironmentSchema).default({})
 });
 
 const STATE_VERSION = 1;
@@ -184,7 +171,7 @@ export class JsonStore {
 }
 
 function defaultConfig(): AppConfig {
-  return { roots: [], ignoreNames: [], editorCommand: "code", projectEnvironments: {}, apiLens: { targets: [] } };
+  return { roots: [], ignoreNames: [], editorCommand: "code", projectEnvironments: {} };
 }
 
 function defaultState(): AppState {
