@@ -19,12 +19,18 @@
   },
   "keywords": [
     "local-dev",
+    "local-development",
     "developer-tools",
     "dashboard",
     "devtools",
     "localhost",
     "process-manager",
     "ai-context",
+    "ai-coding",
+    "developer-workflow",
+    "project-state",
+    "workspace-recovery",
+    "project-dashboard",
     "vue",
     "cli"
   ],

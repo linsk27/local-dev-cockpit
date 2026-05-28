@@ -16,12 +16,17 @@
   },
   "keywords": [
     "developer-tools",
+    "local-development",
     "local-dev",
     "dashboard",
     "vue",
     "cli",
     "devtools",
     "ai-context",
+    "ai-coding",
+    "developer-workflow",
+    "project-state",
+    "workspace-recovery",
     "project-dashboard"
   ],
   "pnpm": {

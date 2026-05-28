@@ -4,6 +4,12 @@ Dev Cockpit 是一个本地开发工作台：把电脑里的项目、启动命�
 
 > 定位：本机项目的“开发现场恢复台”。它不是 IDE、不是云平台，也不是 AI 聊天工具。
 
+English summary: Dev Cockpit is a local development dashboard for restoring project state, commands, logs, ports, Git status, runtime diagnostics, and AI coding context.
+
+项目展示页：[linsk27 projects - Dev Cockpit](https://linsk27-github-io.vercel.app/projects/#dev-cockpit)
+
+如果这个工具能帮你减少重复切换和项目恢复时间，欢迎 Star；我会优先根据 Star 和真实反馈继续打磨。
+
 ```bash
 npx local-dev-cockpit
 ```
