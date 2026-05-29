@@ -5,6 +5,33 @@
       <Terminal :size="16" />
     </div>
     <div class="command-list">
+      <div v-if="commandGuardPorts.length > 0" class="command-port-guard">
+        <div class="command-port-guard-copy">
+          <strong>{{ label("检测到端口已占用", "Port already in use") }}</strong>
+          <span>{{ label("相关启动命令已被保护，先打开现有服务或停止端口后再运行。", "Related commands are protected. Open the existing service or stop the port before running.") }}</span>
+        </div>
+        <div class="command-port-guard-actions">
+          <span v-for="port in commandGuardPorts" :key="`${port.host ?? 'host'}:${port.port}`" class="command-port-action">
+            <a v-if="port.status === 'open'" class="text-button command-port-link" :href="formatPortUrl(port)" target="_blank" rel="noreferrer">
+              <ExternalLink :size="13" />
+              <span>{{ formatPortEndpoint(port) }}</span>
+            </a>
+            <button
+              v-if="isStoppablePort(port.port)"
+              class="text-button command-port-stop"
+              type="button"
+              :disabled="isStoppingPort(port.port)"
+              :title="port.status === 'open' ? label(`停止端口 ${port.port}`, `Stop port ${port.port}`) : label(`清理残留端口 ${port.port}`, `Clean stale port ${port.port}`)"
+              @click="stopPort(port.port)"
+            >
+              <Loader2 v-if="isStoppingPort(port.port)" :size="13" class="spin-icon" />
+              <Square v-else :size="13" />
+              <span>{{ port.status === "open" ? label("停止", "Stop") : label("清理", "Clean") }}</span>
+            </button>
+          </span>
+        </div>
+      </div>
+
       <button
         v-for="command in project.commands"
         :key="command.id"
@@ -44,14 +71,23 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
-import { CircleAlert, CircleCheck, Loader2, Play, Square, Terminal } from "lucide-vue-next";
-import type { Project } from "@local-dev-cockpit/core";
+import { computed, ref, watch } from "vue";
+import { CircleAlert, CircleCheck, ExternalLink, Loader2, Play, Square, Terminal } from "lucide-vue-next";
+import type { Command, PortStatus, Project } from "@local-dev-cockpit/core";
 import { getEnvironmentDiagnostics, type CommandEnvironmentDiagnostic } from "../../api";
 import { useNotificationsStore } from "../../stores/notifications";
 import { useProjectsStore } from "../../stores/projects";
 import { usePreferencesStore } from "../../stores/preferences";
-import { commandBlockedByStalePort, commandWouldReuseOpenPort } from "./project-view";
+import {
+  commandBlockedByStalePort,
+  commandDeclaredPorts,
+  commandWouldReuseOpenPort,
+  formatPortEndpoint,
+  formatPortUrl,
+  staleProjectPorts,
+  stoppableProjectPorts,
+  visibleProjectPorts
+} from "./project-view";
 
 const props = defineProps<{ project: Project }>();
 const store = useProjectsStore();
@@ -59,6 +95,16 @@ const preferences = usePreferencesStore();
 const notifications = useNotificationsStore();
 const environmentDiagnostics = ref<CommandEnvironmentDiagnostic[]>([]);
 let diagnosticsRequestId = 0;
+
+const commandGuardPorts = computed(() => {
+  const byPort = new Map<number, PortStatus>();
+  for (const command of props.project.commands) {
+    for (const port of commandTouchedBlockedPorts(command)) {
+      if (!byPort.has(port.port)) byPort.set(port.port, port);
+    }
+  }
+  return [...byPort.values()].sort((left, right) => left.port - right.port);
+});
 
 watch(
   () => [props.project.id, props.project.commands.map((command) => command.id).join("|")],
@@ -147,6 +193,31 @@ function commandStateLabel(commandId: string, fallback: string): string {
   if (isAlreadyOnlineCommand(commandId)) return label("已在线", "online");
   if (isBlockedByStalePort(commandId)) return label("需清理", "cleanup");
   return fallback;
+}
+
+function commandTouchedBlockedPorts(command: Command): PortStatus[] {
+  if (!commandWouldReuseOpenPort(props.project, command) && !commandBlockedByStalePort(props.project, command)) return [];
+  const blockedPorts = [...visibleProjectPorts(props.project), ...staleProjectPorts(props.project)];
+  const declaredPorts = commandDeclaredPorts(command);
+  if (declaredPorts.length > 0) return blockedPorts.filter((port) => declaredPorts.includes(port.port));
+  return command.kind === "dev" || command.kind === "start" ? blockedPorts : [];
+}
+
+function isStoppingPort(port: number): boolean {
+  return store.portAction(props.project.id, port) === "stopping";
+}
+
+function isStoppablePort(port: number): boolean {
+  return stoppableProjectPorts(props.project).some((item) => item.port === port);
+}
+
+async function stopPort(port: number): Promise<void> {
+  const result = await store.stopPort(port, props.project.id);
+  if (result?.stopped) {
+    notifications.success(result.alreadyClosed ? label(`端口 ${port} 已关闭`, `Port ${port} is already closed.`) : label(`已停止端口 ${port}`, `Stopped port ${port}`));
+  } else {
+    notifications.error(label(`端口操作失败：${store.error || port}`, `Port action failed: ${store.error || port}`));
+  }
 }
 
 async function toggleCommand(commandId: string): Promise<void> {

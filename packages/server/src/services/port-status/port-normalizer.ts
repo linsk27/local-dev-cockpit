@@ -81,7 +81,7 @@ export function mergePorts(detected: PortStatus[], processPorts: PortStatus[]): 
 
 async function resolveReachableScannedPort(port: PortStatus): Promise<PortStatus | undefined> {
   for (const candidate of externalListenerProbeCandidates(port.port, port.host)) {
-    if (await isLocalHttpEndpointReachable(candidate, 700)) {
+    if (await isLocalHttpEndpointReachable(candidate, 700, { requireUsableContent: true })) {
       return {
         ...port,
         host: candidate.host,
@@ -101,5 +101,5 @@ function projectKnownPortNumbers(project: Project, hints: PortStatus[]): Set<num
 }
 
 function portKey(port: PortStatus): string {
-  return port.host ? `${port.host}:${port.port}:${port.source}` : `${port.port}:${port.source}`;
+  return `${port.port}:${port.source}`;
 }

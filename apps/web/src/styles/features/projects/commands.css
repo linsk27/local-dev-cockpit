@@ -72,6 +72,64 @@
   overflow-x: hidden;
 }
 
+.command-port-guard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--warn) 12%, transparent), transparent 66%),
+    color-mix(in srgb, var(--surface) 92%, var(--warn));
+}
+
+.command-port-guard-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.command-port-guard-copy strong {
+  color: var(--text-strong);
+  font-size: 13px;
+}
+
+.command-port-guard-copy span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command-port-guard-actions,
+.command-port-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+}
+
+.command-port-link,
+.command-port-stop {
+  min-height: 28px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.command-port-link {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.command-port-stop {
+  color: color-mix(in srgb, var(--danger) 76%, var(--text));
+}
+
 .command-row {
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr) auto;
@@ -188,4 +246,15 @@
   color: var(--accent);
   font-size: 12px;
   font-style: normal;
+}
+
+@media (max-width: 760px) {
+  .command-port-guard {
+    grid-template-columns: 1fr;
+  }
+
+  .command-port-guard-actions,
+  .command-port-action {
+    justify-content: flex-start;
+  }
 }

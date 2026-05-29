@@ -8,6 +8,23 @@ const projectEnvironmentSchema = z.object({
   python: z.string().default("")
 });
 
+const DEFAULT_AI_BASE_URL = "https://api.openai.com/v1";
+const DEFAULT_AI_MODEL = "gpt-4o-mini";
+const DEFAULT_AI_PROVIDER_ID = "rayinai";
+const DEFAULT_AI_OUTPUT_LOCALE = "zh-CN";
+
+const aiProviderIdSchema = z.enum(["openai", "rayinai", "deepseek", "siliconflow", "openrouter", "ollama", "custom"]);
+const aiOutputLocaleSchema = z.enum(["zh-CN", "en-US", "source"]);
+
+const aiSettingsSchema = z.object({
+  provider: z.literal("openai-compatible").default("openai-compatible"),
+  providerId: aiProviderIdSchema.default(DEFAULT_AI_PROVIDER_ID),
+  baseUrl: z.string().default(DEFAULT_AI_BASE_URL),
+  model: z.string().default(DEFAULT_AI_MODEL),
+  outputLocale: aiOutputLocaleSchema.default(DEFAULT_AI_OUTPUT_LOCALE),
+  apiKey: z.string().default("")
+});
+
 const configSchema = z.object({
   roots: z.array(z.string()).default([]),
   ignoreNames: z.array(z.string()).default([]),
@@ -41,6 +58,29 @@ const stateFileSchema = z.object({
 });
 
 export type AppConfig = z.infer<typeof configSchema>;
+export type AiSettings = z.infer<typeof aiSettingsSchema>;
+
+export interface PublicAiSettings {
+  provider: "openai-compatible";
+  providerId: AiProviderId;
+  baseUrl: string;
+  model: string;
+  outputLocale: AiOutputLocale;
+  hasApiKey: boolean;
+  source: "env" | "local" | "none";
+}
+
+export type AiProviderId = z.infer<typeof aiProviderIdSchema>;
+export type AiOutputLocale = z.infer<typeof aiOutputLocaleSchema>;
+
+export interface AiSettingsUpdate {
+  providerId?: AiProviderId;
+  baseUrl?: string;
+  model?: string;
+  outputLocale?: AiOutputLocale;
+  apiKey?: string;
+  clearApiKey?: boolean;
+}
 
 interface AppState {
   runs: Record<string, ProcessRun>;
@@ -116,6 +156,27 @@ export class JsonStore {
     return config;
   }
 
+  async readAiSettings(): Promise<AiSettings> {
+    await this.ensure();
+    try {
+      const parsed = aiSettingsSchema.safeParse(JSON.parse(await fs.readFile(this.aiSettingsPath(), "utf8")));
+      return parsed.success ? parsed.data : defaultAiSettings();
+    } catch {
+      return defaultAiSettings();
+    }
+  }
+
+  async updateAiSettings(input: AiSettingsUpdate): Promise<AiSettings> {
+    const current = await this.readAiSettings();
+    const next = applyAiSettingsUpdate(current, input);
+    await writeJsonAtomic(this.aiSettingsPath(), next);
+    return next;
+  }
+
+  async previewAiSettings(input: AiSettingsUpdate): Promise<AiSettings> {
+    return applyAiSettingsUpdate(await this.readAiSettings(), input);
+  }
+
   async readState(): Promise<AppState> {
     await this.ensure();
     try {
@@ -168,6 +229,10 @@ export class JsonStore {
   private async writeState(state: AppState): Promise<void> {
     await writeJsonAtomic(this.paths.statePath, { version: STATE_VERSION, ...state });
   }
+
+  private aiSettingsPath(): string {
+    return path.join(this.paths.dataDir, "ai-settings.json");
+  }
 }
 
 function defaultConfig(): AppConfig {
@@ -176,6 +241,34 @@ function defaultConfig(): AppConfig {
 
 function defaultState(): AppState {
   return { runs: {}, errors: {} };
+}
+
+function defaultAiSettings(): AiSettings {
+  const preset = AI_PROVIDER_PRESETS[DEFAULT_AI_PROVIDER_ID];
+  return {
+    provider: "openai-compatible",
+    providerId: DEFAULT_AI_PROVIDER_ID,
+    baseUrl: preset.baseUrl,
+    model: preset.model,
+    outputLocale: DEFAULT_AI_OUTPUT_LOCALE,
+    apiKey: ""
+  };
+}
+
+export function toPublicAiSettings(settings: AiSettings): PublicAiSettings {
+  const envProviderId = parseAiProviderId(process.env.DEV_COCKPIT_AI_PROVIDER_ID);
+  const envApiKey = process.env.DEV_COCKPIT_AI_API_KEY?.trim();
+  const envBaseUrl = process.env.DEV_COCKPIT_AI_BASE_URL?.trim();
+  const envModel = process.env.DEV_COCKPIT_AI_MODEL?.trim();
+  return {
+    provider: "openai-compatible",
+    providerId: envProviderId || settings.providerId || DEFAULT_AI_PROVIDER_ID,
+    baseUrl: envBaseUrl || settings.baseUrl || DEFAULT_AI_BASE_URL,
+    model: envModel || settings.model || DEFAULT_AI_MODEL,
+    outputLocale: settings.outputLocale || DEFAULT_AI_OUTPUT_LOCALE,
+    hasApiKey: Boolean(envApiKey || settings.apiKey),
+    source: envApiKey ? "env" : settings.apiKey ? "local" : "none"
+  };
 }
 
 async function writeJsonAtomic(filePath: string, data: unknown): Promise<void> {
@@ -222,6 +315,42 @@ export function sanitizeCommandInput(input: string): string {
 
 export function sanitizeEnvironmentInput(input: string): string {
   return sanitizeCommandInput(input).replace(/^["'`]+|["'`]+$/g, "").trim();
+}
+
+function sanitizeAiConfigInput(input: string): string {
+  return sanitizeCommandInput(input).replace(/\/+$/g, "");
+}
+
+export const AI_PROVIDER_PRESETS: Record<AiProviderId, { label: string; baseUrl: string; model: string }> = {
+  openai: { label: "OpenAI", baseUrl: "https://api.openai.com/v1", model: "gpt-4o-mini" },
+  rayinai: { label: "RayinAI / Custom Gateway", baseUrl: "https://code.rayinai.com/v1", model: "gpt-5.4" },
+  deepseek: { label: "DeepSeek", baseUrl: "https://api.deepseek.com/v1", model: "deepseek-chat" },
+  siliconflow: { label: "SiliconFlow", baseUrl: "https://api.siliconflow.cn/v1", model: "Qwen/Qwen2.5-72B-Instruct" },
+  openrouter: { label: "OpenRouter", baseUrl: "https://openrouter.ai/api/v1", model: "openai/gpt-4o-mini" },
+  ollama: { label: "Ollama Local", baseUrl: "http://127.0.0.1:11434/v1", model: "llama3.1" },
+  custom: { label: "Custom OpenAI-compatible", baseUrl: DEFAULT_AI_BASE_URL, model: DEFAULT_AI_MODEL }
+};
+
+function applyAiSettingsUpdate(current: AiSettings, input: AiSettingsUpdate): AiSettings {
+  return {
+    provider: "openai-compatible",
+    providerId: input.providerId ?? current.providerId ?? DEFAULT_AI_PROVIDER_ID,
+    baseUrl: input.baseUrl !== undefined ? sanitizeAiConfigInput(input.baseUrl) || DEFAULT_AI_BASE_URL : current.baseUrl,
+    model: input.model !== undefined ? sanitizeAiConfigInput(input.model) || DEFAULT_AI_MODEL : current.model,
+    outputLocale: input.outputLocale ?? current.outputLocale ?? DEFAULT_AI_OUTPUT_LOCALE,
+    apiKey:
+      input.clearApiKey === true
+        ? ""
+        : input.apiKey !== undefined && input.apiKey.trim().length > 0
+          ? input.apiKey.trim()
+          : current.apiKey
+  };
+}
+
+function parseAiProviderId(value: string | undefined): AiProviderId | undefined {
+  if (!value) return undefined;
+  const parsed = aiProviderIdSchema.safeParse(value.trim());
+  return parsed.success ? parsed.data : undefined;
 }
 
 export function projectEnvironmentForPath(config: AppConfig, projectPath: string): { python?: string } | undefined {

@@ -32,12 +32,22 @@
           <LayoutDashboard :size="17" />
           <span class="nav-label">{{ preferences.t("navProjects") }}</span>
         </RouterLink>
-        <RouterLink to="/settings" class="nav-link">
-          <Settings :size="17" />
-          <span class="nav-label">{{ preferences.t("navSettings") }}</span>
+        <RouterLink to="/resources" class="nav-link">
+          <Radar :size="17" />
+          <span class="nav-label">{{ preferences.t("navResources") }}</span>
         </RouterLink>
       </nav>
       <div class="sidebar-bottom">
+        <nav class="nav sidebar-bottom-nav">
+          <RouterLink to="/ai-settings" class="nav-link">
+            <KeyRound :size="17" />
+            <span class="nav-label">{{ preferences.t("navAiSettings") }}</span>
+          </RouterLink>
+          <RouterLink to="/settings" class="nav-link">
+            <Settings :size="17" />
+            <span class="nav-label">{{ preferences.t("navSettings") }}</span>
+          </RouterLink>
+        </nav>
         <ResourceUsagePanel />
         <div class="sidebar-footer">
           <span>{{ preferences.t("localOnly") }}</span>
@@ -54,7 +64,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { Download, LayoutDashboard, PanelLeftClose, PanelLeftOpen, Settings } from "lucide-vue-next";
+import { Download, KeyRound, LayoutDashboard, PanelLeftClose, PanelLeftOpen, Radar, Settings } from "lucide-vue-next";
 import { usePreferencesStore } from "./stores/preferences";
 import { useUpdatesStore } from "./stores/updates";
 import { animateSubtleEntrance, useGsapScope } from "./shared/animation/useGsap";

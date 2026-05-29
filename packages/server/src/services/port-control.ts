@@ -1,4 +1,4 @@
-import { NodeProcessAdapter } from "@local-dev-cockpit/core";
+import { NodeProcessAdapter, type Project } from "@local-dev-cockpit/core";
 
 export interface StopPortResult {
   stopped: boolean;
@@ -24,7 +24,7 @@ export async function stopPort(port: number): Promise<StopPortResult> {
   const killablePids = pids.filter((pid) => pid > 0 && pid !== process.pid);
   if (killablePids.length === 0) {
     if (pids.includes(process.pid)) {
-      return { stopped: false, port, pids, error: "Refusing to stop Dev Cockpit itself" };
+      return { stopped: false, port, pids, error: "Dev Cockpit 不会停止自身进程。" };
     }
     const stillOpen = await processAdapter.isPortOpen(port);
     if (!stillOpen) {
@@ -34,7 +34,7 @@ export async function stopPort(port: number): Promise<StopPortResult> {
       stopped: false,
       port,
       pids,
-      error: "Port is open, but Dev Cockpit could not find an owning process. Close the terminal that started it or retry with administrator permissions."
+      error: "端口仍在监听，但 Dev Cockpit 没有找到可停止的所属进程。请关闭启动它的终端，或用管理员权限重试。"
     };
   }
 
@@ -45,10 +45,10 @@ export async function stopPort(port: number): Promise<StopPortResult> {
       process.platform === "win32"
         ? await stopWindowsPid(processAdapter, pid)
         : await stopUnixPid(processAdapter, pid);
-    if (!result.ok) {
-      failures.push(result.message);
-    } else {
+    if (result.ok) {
       actions.push(result.message);
+    } else {
+      failures.push(result.message);
     }
   }
 
@@ -70,8 +70,17 @@ export async function stopPort(port: number): Promise<StopPortResult> {
     error:
       failures.length > 0
         ? failures.join("\n")
-        : [...actions, "端口仍在监听。父进程可能不可见或由系统代理托管，请关闭启动它的终端，或用管理员权限重新运行 Dev Cockpit。"].join("\n")
+        : [...actions, "端口仍在监听。父进程可能不可见，或由系统代理托管；请关闭启动它的终端，或用管理员权限重试 Dev Cockpit。"].join("\n")
   };
+}
+
+export function projectPortCanBeStopped(project: Project, port: number): boolean {
+  return project.ports.some(
+    (item) =>
+      item.port === port &&
+      ((item.status === "open" && (item.source === "process" || item.source === "detected")) ||
+        (item.status === "unknown" && item.source === "detected"))
+  );
 }
 
 async function stopWindowsPid(processAdapter: NodeProcessAdapter, pid: number): Promise<StopPidResult> {

@@ -38,29 +38,21 @@
         <div class="port-group">
           <span>{{ preferences.t("runningEndpoints") }}</span>
           <template v-if="runningPorts.length > 0">
-            <span
-              v-for="port in runningPorts"
-              :key="`${port.host ?? 'host'}:${port.port}`"
-              class="port-action"
-            >
-              <a
-                class="port-pill active"
-                :href="formatPortUrl(port)"
-                target="_blank"
-                rel="noreferrer"
-              >
+            <span v-for="port in runningPorts" :key="`${port.host ?? 'host'}:${port.port}`" class="port-action">
+              <a class="port-pill active" :href="formatPortUrl(port)" target="_blank" rel="noreferrer">
                 {{ formatPortEndpoint(port) }}
               </a>
               <button
+                v-if="isStoppablePort(port.port)"
                 class="port-stop-button"
                 type="button"
                 :disabled="isStoppingPort(port.port)"
-                :title="`停止端口 ${port.port}`"
+                :title="localText(`\u505c\u6b62\u7aef\u53e3 ${port.port}`, `Stop port ${port.port}`)"
                 @click="stopPort(port.port)"
               >
                 <Loader2 v-if="isStoppingPort(port.port)" :size="12" class="spin-icon" />
                 <Square v-else :size="12" />
-                <span>{{ isStoppingPort(port.port) ? "停止中" : "停止" }}</span>
+                <span>{{ isStoppingPort(port.port) ? localText("\u505c\u6b62\u4e2d", "Stopping") : localText("\u505c\u6b62", "Stop") }}</span>
               </button>
             </span>
           </template>
@@ -68,26 +60,24 @@
         </div>
         <div v-if="detectedPorts.length > 0" class="port-group">
           <span>{{ preferences.t("detectedPorts") }}</span>
-          <span v-for="port in detectedPorts" :key="port.port" class="port-pill">{{ formatPortEndpoint(port) }}</span>
+          <a v-for="port in detectedPorts" :key="`${port.host ?? 'host'}:${port.port}`" class="port-pill active" :href="formatPortUrl(port)" target="_blank" rel="noreferrer">
+            {{ formatPortEndpoint(port) }}
+          </a>
         </div>
         <div v-if="stalePorts.length > 0" class="port-group">
           <span>{{ preferences.t("stalePorts") }}</span>
-          <span
-            v-for="port in stalePorts"
-            :key="`${port.host ?? 'host'}:${port.port}`"
-            class="port-action"
-          >
+          <span v-for="port in stalePorts" :key="`${port.host ?? 'host'}:${port.port}`" class="port-action">
             <span class="port-pill stale">{{ formatPortEndpoint(port) }}</span>
             <button
               class="port-stop-button"
               type="button"
               :disabled="isStoppingPort(port.port)"
-              :title="`停止残留端口 ${port.port}`"
+              :title="localText(`\u6e05\u7406\u6b8b\u7559\u7aef\u53e3 ${port.port}`, `Clean stale port ${port.port}`)"
               @click="stopPort(port.port)"
             >
               <Loader2 v-if="isStoppingPort(port.port)" :size="12" class="spin-icon" />
               <Square v-else :size="12" />
-              <span>{{ isStoppingPort(port.port) ? "停止中" : "清理" }}</span>
+              <span>{{ isStoppingPort(port.port) ? localText("\u6e05\u7406\u4e2d", "Cleaning") : localText("\u6e05\u7406", "Clean") }}</span>
             </button>
           </span>
         </div>
@@ -126,14 +116,15 @@ import {
   detectedProjectPorts,
   formatPortEndpoint,
   formatPortUrl,
-  projectHasAlreadyRunningConflict,
   projectFailureActionHint,
   projectFailureHeadline,
+  projectHasAlreadyRunningConflict,
   projectHasFailed,
   projectHasStalePorts,
   projectRuntimeMode,
   runtimeSourceLabel,
   staleProjectPorts,
+  stoppableProjectPorts,
   visibleProjectPorts
 } from "./project-view";
 
@@ -142,18 +133,19 @@ const store = useProjectsStore();
 const preferences = usePreferencesStore();
 const notifications = useNotificationsStore();
 
+const visiblePorts = computed(() => visibleProjectPorts(props.project));
+const runningPorts = computed(() => visiblePorts.value);
 const ports = computed(() => {
-  const open = visibleProjectPorts(props.project).map((port) => formatPortEndpoint(port));
+  const open = visiblePorts.value.map((port) => formatPortEndpoint(port));
   return open.length > 0 ? open.join(", ") : preferences.t("none");
 });
 
-const runningPorts = computed(() => visibleProjectPorts(props.project));
 const sourceLabel = computed(() => runtimeSourceLabel(props.project, preferences.locale));
 const failureActionHint = computed(() => projectFailureActionHint(props.project, preferences.locale));
-const stalePorts = computed(() => (runningPorts.value.length === 0 ? staleProjectPorts(props.project) : []));
+const stalePorts = computed(() => (visiblePorts.value.length === 0 ? staleProjectPorts(props.project) : []));
 const detectedPorts = computed(() => {
-  const displayed = new Set(runningPorts.value.map((port) => `${port.host ?? ""}:${port.port}`));
-  return detectedProjectPorts(props.project).filter((port) => !displayed.has(`${port.host ?? ""}:${port.port}`));
+  const displayed = new Set(runningPorts.value.map((port) => port.port));
+  return detectedProjectPorts(props.project).filter((port) => !displayed.has(port.port));
 });
 const hasPortDetails = computed(
   () => runningPorts.value.length > 0 || detectedPorts.value.length > 0 || stalePorts.value.length > 0 || props.project.lastRun?.status === "running"
@@ -166,21 +158,25 @@ const statusTone = computed(() => {
   return "idle";
 });
 const summary = computed(() => {
-  if (projectHasAlreadyRunningConflict(props.project)) return "服务已在检测到的端口运行；上次启动命令因为端口占用退出。";
+  if (projectHasAlreadyRunningConflict(props.project)) return localText("\u670d\u52a1\u5df2\u5728\u68c0\u6d4b\u5230\u7684\u7aef\u53e3\u8fd0\u884c\uff1b\u4e0a\u6b21\u542f\u52a8\u547d\u4ee4\u56e0\u4e3a\u7aef\u53e3\u5360\u7528\u9000\u51fa\u3002", "The service is already running on a detected port; the last start exited because the port was occupied.");
   if (props.project.lastRun?.status === "running") return preferences.t("commandRunning");
-  if (runningPorts.value.length > 0) return "服务已在检测到的端口运行，可以直接打开运行地址。";
-  if (stalePorts.value.length > 0) return "检测到开发进程占用端口，但 HTTP 无法访问。请先清理端口再重新运行。";
+  if (visiblePorts.value.length > 0) return localText("\u670d\u52a1\u5df2\u5728\u68c0\u6d4b\u5230\u7684\u7aef\u53e3\u8fd0\u884c\uff0c\u53ef\u4ee5\u76f4\u63a5\u6253\u5f00\u8fd0\u884c\u5730\u5740\u3002", "The service is running on a detected port. Open the endpoint directly.");
+  if (stalePorts.value.length > 0) return localText("\u68c0\u6d4b\u5230\u5f00\u53d1\u8fdb\u7a0b\u5360\u7528\u7aef\u53e3\uff0c\u4f46 HTTP \u65e0\u6cd5\u8bbf\u95ee\u3002\u8bf7\u5148\u6e05\u7406\u7aef\u53e3\u518d\u91cd\u65b0\u8fd0\u884c\u3002", "A development process is holding a port, but HTTP is unreachable. Clean the port before restarting.");
   if (props.project.lastError) return projectFailureHeadline(props.project, preferences.locale);
-  if (props.project.lastRun?.status === "failed") return "命令运行失败，请查看日志。";
+  if (props.project.lastRun?.status === "failed") return localText("\u547d\u4ee4\u8fd0\u884c\u5931\u8d25\uff0c\u8bf7\u67e5\u770b\u65e5\u5fd7\u3002", "The command failed. Check the logs.");
   if (props.project.commands.length > 0) {
-    const manager = props.project.packageManager ? `${props.project.packageManager} 项目，` : "";
-    return `${manager}已识别 ${props.project.commands.length} 个命令，当前没有运行中的服务。`;
+    const manager = props.project.packageManager ? `${props.project.packageManager} \u9879\u76ee\uff0c` : "";
+    const englishManager = props.project.packageManager ? `${props.project.packageManager} project, ` : "";
+    return localText(`${manager}\u5df2\u8bc6\u522b ${props.project.commands.length} \u4e2a\u547d\u4ee4\uff0c\u5f53\u524d\u6ca1\u6709\u8fd0\u884c\u4e2d\u7684\u670d\u52a1\u3002`, `${englishManager}detected ${props.project.commands.length} commands and no service is running.`);
   }
   return preferences.t("noCommandsSummary");
 });
-
 function isStoppingPort(port: number): boolean {
   return store.portAction(props.project.id, port) === "stopping";
+}
+
+function isStoppablePort(port: number): boolean {
+  return stoppableProjectPorts(props.project).some((item) => item.port === port);
 }
 
 async function stopPort(port: number): Promise<void> {
@@ -188,14 +184,17 @@ async function stopPort(port: number): Promise<void> {
   if (result?.stopped) {
     notifications.success(portStopSuccessMessage(port, result.alreadyClosed, result.pids.length));
   } else {
-    notifications.error(`停止端口失败：${store.error || port}`);
+    notifications.error(localText(`\u7aef\u53e3\u64cd\u4f5c\u5931\u8d25\uff1a${store.error || port}`, `Port action failed: ${store.error || port}`));
   }
 }
 
 function portStopSuccessMessage(port: number, alreadyClosed?: boolean, pidCount = 0): string {
-  if (alreadyClosed && pidCount > 0) return `端口 ${port} 已关闭，旧进程记录已清理`;
-  if (alreadyClosed) return `端口 ${port} 已经关闭`;
-  return `已停止端口 ${port}`;
+  if (alreadyClosed && pidCount > 0) return localText(`\u7aef\u53e3 ${port} \u5df2\u5173\u95ed\uff0c\u65e7\u8fdb\u7a0b\u8bb0\u5f55\u5df2\u6e05\u7406`, `Port ${port} is closed and stale process records were cleared.`);
+  if (alreadyClosed) return localText(`\u7aef\u53e3 ${port} \u5df2\u7ecf\u5173\u95ed`, `Port ${port} is already closed.`);
+  return localText(`\u5df2\u505c\u6b62\u7aef\u53e3 ${port}`, `Stopped port ${port}`);
+}
+function localText(zh: string, en = zh): string {
+  return preferences.locale === "zh-CN" ? zh : en;
 }
 
 async function copyProjectPath(): Promise<void> {

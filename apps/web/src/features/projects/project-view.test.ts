@@ -4,6 +4,7 @@ import {
   buildProjectListFilters,
   classifyProjectForList,
   commandBlockedByStalePort,
+  commandDeclaredPorts,
   commandWouldReuseOpenPort,
   formatDisplayPath,
   formatPortUrl,
@@ -20,7 +21,9 @@ import {
   noCommandGuidance,
   runtimeSourceLabel,
   recommendedProjectCommand,
-  sortProjectsForDashboard
+  sortProjectsForDashboard,
+  stoppableProjectPorts,
+  visibleProjectPorts
 } from "./project-view";
 
 describe("project dashboard view helpers", () => {
@@ -46,6 +49,62 @@ describe("project dashboard view helpers", () => {
     expect(projectMatchesQuery(target, "feat/search")).toBe(true);
     expect(projectMatchesQuery(target, "127.0.0.1:3000")).toBe(true);
     expect(projectMatchesQuery(target, "missing")).toBe(false);
+  });
+
+  it("treats managed, detected, and stale project ports as stoppable", () => {
+    const target = project({
+      ports: [
+        { port: 3000, host: "127.0.0.1", status: "open", source: "detected" },
+        { port: 5173, host: "127.0.0.1", status: "open", source: "process" },
+        { port: 5173, host: "localhost", status: "open", source: "process" },
+        { port: 8000, host: "127.0.0.1", status: "unknown", source: "detected" },
+        { port: 8080, status: "open", source: "common" }
+      ]
+    });
+
+    expect(stoppableProjectPorts(target).map((port) => port.port)).toEqual([3000, 5173, 8000]);
+  });
+
+  it("deduplicates visible ports by port number within one project", () => {
+    const target = project({
+      ports: [
+        { port: 3000, host: "localhost", url: "http://localhost:3000", status: "open", source: "detected" },
+        { port: 3000, host: "127.0.0.1", url: "http://127.0.0.1:3000", status: "open", source: "detected" },
+        { port: 3001, host: "localhost", status: "open", source: "process" },
+        { port: 3001, host: "127.0.0.1", status: "open", source: "process" }
+      ]
+    });
+
+    expect(visibleProjectPorts(target).map((port) => port.port)).toEqual([3000, 3001]);
+    expect(stoppableProjectPorts(target).map((port) => port.port)).toEqual([3000, 3001]);
+    expect(projectMatchesQuery(target, "3000")).toBe(true);
+  });
+
+  it("extracts declared command ports from args and command metadata", () => {
+    expect(
+      commandDeclaredPorts({
+        id: "dev",
+        label: "dev",
+        command: "pnpm",
+        args: ["run", "dev", "--", "--host", "127.0.0.1", "--port", "5173"],
+        ports: [3000],
+        cwd: "D:\\personal\\project",
+        source: "package-script",
+        kind: "dev"
+      })
+    ).toEqual([3000, 5173]);
+
+    expect(
+      commandDeclaredPorts({
+        id: "vite",
+        label: "vite",
+        command: "vite",
+        args: ["--host", "0.0.0.0", "--server.port=8080"],
+        cwd: "D:\\personal\\project",
+        source: "detected",
+        kind: "dev"
+      })
+    ).toEqual([8080]);
   });
 
   it("classifies projects for list filters by runnable confidence", () => {

@@ -2,14 +2,16 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { WebSocketServer } from "ws";
+import { ZodError } from "zod";
 import { EventBus } from "./events.js";
 import { resolveAppPaths } from "./paths.js";
 import { ProcessManager } from "./process-manager.js";
 import { ProjectScanCache } from "./services/project-scan-cache.js";
 import { handleApiRoute, sendJson } from "./routes.js";
+import { SkillRadarStore } from "./services/skill-radar/index.js";
 import { JsonStore } from "./store.js";
 
-export { commandStartBlockReason } from "./services/command-guards.js";
+export { commandStartBlockReason, commandSystemPortBlockReason } from "./services/command-guards.js";
 export { writeProjectContextFiles } from "./services/context-files.js";
 export {
   assignExternalPortOwners,
@@ -38,6 +40,7 @@ export type { ReleaseAssetSummary, UpdateCheckResult } from "./services/update-c
 
 export {
   parseNetstatListeningPids,
+  projectPortCanBeStopped,
   parseStoppedChildrenOutput,
   stopPort
 } from "./services/port-control.js";
@@ -76,12 +79,13 @@ export async function startDevCockpitServer(options: DevCockpitServerOptions = {
   const eventBus = new EventBus();
   const processManager = new ProcessManager(paths, store, eventBus);
   const projectCache = new ProjectScanCache();
+  const skillRadar = new SkillRadarStore(paths);
   const webRoot = options.webRoot ? path.resolve(options.webRoot) : undefined;
   const currentVersion = options.version ?? DEFAULT_APP_VERSION;
 
   const server = createServer(async (req, res) => {
     try {
-      const routeContext = { store, processManager, projectCache, currentVersion };
+      const routeContext = { store, processManager, projectCache, skillRadar, currentVersion };
       const handledApi = await handleApiRoute(req, res, routeContext);
       if (handledApi) return;
       if (isApiRequest(req)) {
@@ -90,6 +94,10 @@ export async function startDevCockpitServer(options: DevCockpitServerOptions = {
       }
       await serveStatic(req, res, webRoot);
     } catch (error) {
+      if (isZodErrorLike(error)) {
+        sendJson(res, 400, { error: formatValidationError(error) });
+        return;
+      }
       sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
     }
   });
@@ -112,6 +120,16 @@ export async function startDevCockpitServer(options: DevCockpitServerOptions = {
       wss.close();
     }
   };
+}
+
+function isZodErrorLike(error: unknown): error is ZodError {
+  return error instanceof ZodError || (typeof error === "object" && error !== null && Array.isArray((error as { issues?: unknown }).issues));
+}
+
+function formatValidationError(error: ZodError): string {
+  const firstIssue = error.issues[0];
+  if (firstIssue?.message === "Paste a link or text first") return "请先粘贴链接或文本。";
+  return firstIssue?.message || "Invalid request payload";
 }
 
 function isApiRequest(req: IncomingMessage): boolean {

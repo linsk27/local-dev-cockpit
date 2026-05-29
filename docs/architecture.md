@@ -75,8 +75,12 @@ services/port-status.ts
 services/context-files.ts
   生成 Web 端 AI 上下文响应，并在用户显式请求时写入 PROJECT_CONTEXT.md / AGENTS.md。
 
+services/skill-radar/
+  资源雷达服务。负责本地 AI skill、在线 Demo、工具、教程和提示词线索导入、URL 摘要抓取、规则/可选 AI 分类、状态管理、AI 上下文和类型化评估草稿生成。导入流程分为 preview 和 commit：preview 抓取 URL/README/网页摘要和可展示图像，只生成结构化预览且不写入文件；commit 在用户确认后才写入 skill-radar.json。旧 API 名称继续兼容。AI 解析支持供应商预设、OpenAI-compatible 自定义端点、连接测试和环境变量，未配置时回退本地规则。资源类型使用固定 kind；业务分类使用动态 categoryPath，导入时会把已有分类交给 AI，优先复用已有大类/小类，避免分类爆炸。
+  本地规则只做可靠兜底，规则入口在 skill-radar/taxonomy.ts。新增分类规则必须带真实资源样例测试，例如 react-bits、articraft、MiroFish、huashu-design 这类链接，避免用过宽关键词把不同资源混到同一类。
+
 services/command-guards.ts
-  启动命令前的重复运行、端口占用和残留端口拦截。
+  启动命令前的重复运行、项目端口占用、命令声明端口的系统占用和残留端口拦截。
 
 services/command-environment.ts
   运行环境 facade。保留对外入口，编排各 runtime resolver。
@@ -337,11 +341,24 @@ Dev Cockpit 需要能长期挂着，所以默认避免高频全量扫描：
 
 ```txt
 %APPDATA%\local-dev-cockpit\config.json
+%APPDATA%\local-dev-cockpit\ai-settings.json
 %APPDATA%\local-dev-cockpit\state.json
+%APPDATA%\local-dev-cockpit\skill-radar.json
 %APPDATA%\local-dev-cockpit\logs\*.log
 ```
 
-配置包含 root、编辑器命令和项目级 Python 环境绑定。语言、主题和强调色属于前端偏好，保存在浏览器 `localStorage`。
+配置包含 root、编辑器命令和项目级 Python 环境绑定。AI Key、供应商端点和模型单独存储在 `ai-settings.json`，普通 `/api/config` 不返回密钥；资源线索单独存储在 `skill-radar.json`，避免污染项目运行状态。界面语言、主题和强调色属于前端偏好，保存在浏览器 `localStorage`。AI 输出语言自动跟随当前应用语言，不单独暴露配置项。中英文支持不引入额外 i18n 运行时包，继续使用本项目的轻量字典和类型化 key。
+
+## 依赖与包体治理
+
+Dev Cockpit 允许为了明确功能收益增加依赖，但每个新增依赖都必须满足四个条件：
+
+- 说明它解决的具体问题。
+- 说明为什么不使用已有代码或轻量自研。
+- 评估对 CLI 包和桌面包体积的影响。
+- 能按需加载的能力优先按需加载，例如 3D 雷达只在进入对应视图时加载 Three.js。
+
+基础表单、下拉框、空状态和布局修正优先使用原生控件与 CSS token，不为了视觉微调引入重型 UI 库。
 
 ## 发布策略
 

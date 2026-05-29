@@ -239,6 +239,7 @@
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface-soft) 70%, transparent);
   color: var(--muted-strong);
+  font: inherit;
   font-size: 12px;
   text-align: right;
 }
@@ -248,6 +249,7 @@
   background: color-mix(in srgb, var(--accent) 8%, var(--surface-soft));
   color: var(--text);
   text-decoration: none;
+  cursor: pointer;
 }
 
 .project-port-link:hover {
@@ -463,4 +465,33 @@
   background:
     linear-gradient(180deg, rgba(255, 250, 242, 0.54), rgba(238, 220, 199, 0.52)),
     var(--surface-soft);
+}
+
+@media (max-width: 980px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+    grid-auto-rows: max-content;
+    align-items: start;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 4px;
+    scrollbar-gutter: stable;
+  }
+
+  .project-list {
+    height: auto;
+    max-height: min(42vh, 360px);
+    overflow: auto;
+  }
+
+  .project-detail {
+    height: auto;
+    min-height: min(720px, 100%);
+    overflow: visible;
+  }
+
+  .detail-tabs {
+    position: relative;
+    z-index: 2;
+  }
 }

@@ -1,7 +1,7 @@
 import path from "node:path";
 import { NodeProcessAdapter, type PortStatus, type ProcessRun } from "@local-dev-cockpit/core";
 import { stripAnsiControlSequences } from "../../log-decoder.js";
-import { isEndpointOpen, normalizePortHost, resolveReachableEndpoint } from "./port-probes.js";
+import { isLocalHttpEndpointReachable, normalizePortHost, resolveReachableEndpoint } from "./port-probes.js";
 
 export async function extractPortsFromLogs(logs: string, status: ProcessRun["status"], projectPath: string): Promise<PortStatus[]> {
   const ports = new Map<string, Pick<PortStatus, "port" | "host" | "url">>();
@@ -17,7 +17,11 @@ export async function extractPortsFromLogs(logs: string, status: ProcessRun["sta
   const statuses: PortStatus[] = [];
   const shouldProbeEndpoint = status === "running" || existingServer;
   for (const endpoint of ports.values()) {
-    const isOpen = shouldProbeEndpoint && (await isEndpointOpen(processAdapter, endpoint));
+    const isOpen =
+      shouldProbeEndpoint &&
+      (await isLocalHttpEndpointReachable(endpoint, 700, {
+        requireUsableContent: true
+      }));
     statuses.push({
       ...endpoint,
       status: isOpen ? "open" : "closed",

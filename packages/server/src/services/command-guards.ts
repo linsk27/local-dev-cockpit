@@ -1,4 +1,4 @@
-import type { Command, PortStatus, Project } from "@local-dev-cockpit/core";
+import { NodeProcessAdapter, type Command, type PortStatus, type Project } from "@local-dev-cockpit/core";
 
 export function commandStartBlockReason(project: Project, command: Command): string | undefined {
   if (project.lastRun?.status === "running") {
@@ -18,6 +18,22 @@ export function commandStartBlockReason(project: Project, command: Command): str
   }
 
   return undefined;
+}
+
+export async function commandSystemPortBlockReason(
+  command: Command,
+  processAdapter = new NodeProcessAdapter()
+): Promise<string | undefined> {
+  const ports = commandDeclaredPorts(command);
+  if (ports.length === 0) return undefined;
+
+  const occupied: number[] = [];
+  for (const port of ports) {
+    if (await processAdapter.isPortOpen(port)) occupied.push(port);
+  }
+
+  if (occupied.length === 0) return undefined;
+  return `端口 ${occupied.join(", ")} 已被系统占用，已阻止启动。需要重启时请先停止当前端口，或修改项目端口配置。`;
 }
 
 function commandWouldTouchPorts(command: Command, ports: PortStatus[]): boolean {

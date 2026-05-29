@@ -7,20 +7,29 @@ import {
   type ProcessManager,
   validatePythonEnvironmentBinding
 } from "./process-manager.js";
-import { commandStartBlockReason } from "./services/command-guards.js";
+import { commandStartBlockReason, commandSystemPortBlockReason } from "./services/command-guards.js";
 import { createProjectContextPayload, writeProjectContextFiles } from "./services/context-files.js";
 import { EXTERNAL_PORT_OWNER_CACHE_TTL_MS, invalidateExternalPortOwnersCache } from "./services/port-status.js";
 import { PROJECT_SCAN_CACHE_TTL_MS, type ProjectScanCache } from "./services/project-scan-cache.js";
 import { loadProject, loadProjects } from "./services/project-service.js";
-import { stopPort } from "./services/port-control.js";
+import { projectPortCanBeStopped, stopPort } from "./services/port-control.js";
 import { checkForUpdates } from "./services/update-checker.js";
 import { chooseProjectRootFolder, openProjectFolder, openProjectInEditor } from "./services/native-shell.js";
-import { type JsonStore, projectEnvironmentForPath, rootId } from "./store.js";
+import { createSkillContext, createSkillDraft, testAiConnection, type SkillRadarStore } from "./services/skill-radar/index.js";
+import { AI_PROVIDER_PRESETS, type JsonStore, projectEnvironmentForPath, rootId, toPublicAiSettings } from "./store.js";
 
 const addRootSchema = z.object({ path: z.string().min(1) });
 const openFolderDialogSchema = z.object({ initialPath: z.string().max(500).optional().default("") });
 const updateConfigSchema = z.object({ editorCommand: z.string().min(1).max(260).optional() });
 const updateProjectEnvironmentSchema = z.object({ python: z.string().max(500).default("") });
+const updateAiSettingsSchema = z.object({
+  providerId: z.enum(["openai", "rayinai", "deepseek", "siliconflow", "openrouter", "ollama", "custom"]).optional(),
+  baseUrl: z.string().max(500).optional(),
+  model: z.string().max(160).optional(),
+  outputLocale: z.enum(["zh-CN", "en-US", "source"]).optional(),
+  apiKey: z.string().max(4000).optional(),
+  clearApiKey: z.boolean().optional()
+});
 const startedAt = Date.now();
 let cpuSample = { at: startedAt, usage: process.cpuUsage() };
 
@@ -28,6 +37,7 @@ export interface ServerRouteContext {
   store: JsonStore;
   processManager: ProcessManager;
   projectCache: ProjectScanCache;
+  skillRadar: SkillRadarStore;
   currentVersion: string;
 }
 
@@ -55,6 +65,120 @@ export async function handleApiRoute(req: IncomingMessage, res: ServerResponse, 
         externalPortOwnerCacheTtlMs: EXTERNAL_PORT_OWNER_CACHE_TTL_MS
       }
     });
+    return true;
+  }
+
+  if (method === "GET" && url.pathname === "/api/skills") {
+    sendJson(res, 200, { skills: await context.skillRadar.list() });
+    return true;
+  }
+
+  if (method === "GET" && url.pathname === "/api/skills/ai-config") {
+    sendJson(res, 200, { config: toPublicAiSettings(await context.store.readAiSettings()) });
+    return true;
+  }
+
+  if (method === "GET" && url.pathname === "/api/ai/config") {
+    sendJson(res, 200, { config: toPublicAiSettings(await context.store.readAiSettings()), providers: AI_PROVIDER_PRESETS });
+    return true;
+  }
+
+  if (method === "PATCH" && url.pathname === "/api/skills/ai-config") {
+    const settings = await context.store.updateAiSettings(updateAiSettingsSchema.parse(await readJson(req)));
+    sendJson(res, 200, { config: toPublicAiSettings(settings) });
+    return true;
+  }
+
+  if (method === "PATCH" && url.pathname === "/api/ai/config") {
+    const settings = await context.store.updateAiSettings(updateAiSettingsSchema.parse(await readJson(req)));
+    sendJson(res, 200, { config: toPublicAiSettings(settings), providers: AI_PROVIDER_PRESETS });
+    return true;
+  }
+
+  if (method === "POST" && url.pathname === "/api/ai/test") {
+    const candidate = await context.store.previewAiSettings(updateAiSettingsSchema.parse(await readJson(req)));
+    sendJson(res, 200, await testAiConnection(candidate));
+    return true;
+  }
+
+  if (method === "POST" && url.pathname === "/api/skills/preview") {
+    const preview = await context.skillRadar.preview(await readJson(req), { aiSettings: await context.store.readAiSettings() });
+    sendJson(res, 200, { preview });
+    return true;
+  }
+
+  if (method === "POST" && url.pathname === "/api/skills/commit") {
+    const skill = await context.skillRadar.commitPreview(await readJson(req));
+    sendJson(res, 201, { skill });
+    return true;
+  }
+
+  if (method === "POST" && url.pathname === "/api/skills") {
+    const skill = await context.skillRadar.create(await readJson(req), { aiSettings: await context.store.readAiSettings() });
+    sendJson(res, 201, { skill });
+    return true;
+  }
+
+  const skillMatch = url.pathname.match(/^\/api\/skills\/([^/]+)$/);
+  if (skillMatch) {
+    const skillId = decodeURIComponent(skillMatch[1] ?? "");
+    if (method === "GET") {
+      const skill = await context.skillRadar.get(skillId);
+      if (!skill) {
+        sendJson(res, 404, { error: "Skill not found" });
+        return true;
+      }
+      sendJson(res, 200, { skill });
+      return true;
+    }
+    if (method === "PATCH") {
+      const skill = await context.skillRadar.update(skillId, await readJson(req));
+      if (!skill) {
+        sendJson(res, 404, { error: "Skill not found" });
+        return true;
+      }
+      sendJson(res, 200, { skill });
+      return true;
+    }
+    if (method === "DELETE") {
+      const removed = await context.skillRadar.remove(skillId);
+      sendJson(res, removed ? 200 : 404, removed ? { removed: true } : { error: "Skill not found" });
+      return true;
+    }
+  }
+
+  const skillContextMatch = url.pathname.match(/^\/api\/skills\/([^/]+)\/context$/);
+  if (method === "GET" && skillContextMatch) {
+    const skill = await context.skillRadar.get(decodeURIComponent(skillContextMatch[1] ?? ""));
+    if (!skill) {
+      sendJson(res, 404, { error: "Skill not found" });
+      return true;
+    }
+    sendJson(res, 200, createSkillContext(skill));
+    return true;
+  }
+
+  const skillDraftMatch = url.pathname.match(/^\/api\/skills\/([^/]+)\/generate-skill$/);
+  if (method === "POST" && skillDraftMatch) {
+    const skill = await context.skillRadar.get(decodeURIComponent(skillDraftMatch[1] ?? ""));
+    if (!skill) {
+      sendJson(res, 404, { error: "Skill not found" });
+      return true;
+    }
+    sendJson(res, 200, createSkillDraft(skill));
+    return true;
+  }
+
+  const skillAnalyzeMatch = url.pathname.match(/^\/api\/skills\/([^/]+)\/analyze$/);
+  if (method === "POST" && skillAnalyzeMatch) {
+    const skill = await context.skillRadar.analyze(decodeURIComponent(skillAnalyzeMatch[1] ?? ""), {
+      aiSettings: await context.store.readAiSettings()
+    });
+    if (!skill) {
+      sendJson(res, 404, { error: "Skill not found" });
+      return true;
+    }
+    sendJson(res, 200, { skill });
     return true;
   }
 
@@ -151,6 +275,11 @@ export async function handleApiRoute(req: IncomingMessage, res: ServerResponse, 
       sendJson(res, 409, { error: blockReason });
       return true;
     }
+    const systemPortBlockReason = await commandSystemPortBlockReason(command);
+    if (systemPortBlockReason) {
+      sendJson(res, 409, { error: systemPortBlockReason });
+      return true;
+    }
     const config = await context.store.readConfig();
     const environmentDiagnostic = await diagnoseCommandEnvironment(command, {
       projectEnvironment: projectEnvironmentForPath(config, command.cwd)
@@ -193,6 +322,16 @@ export async function handleApiRoute(req: IncomingMessage, res: ServerResponse, 
     const port = Number(stopPortMatch[2]);
     if (!Number.isInteger(port) || port <= 0 || port > 65535) {
       sendJson(res, 400, { stopped: false, port, pids: [], error: "Invalid port" });
+      return true;
+    }
+    const project = await loadProject(projectId, context.store, context.processManager);
+    if (!projectPortCanBeStopped(project, port)) {
+      sendJson(res, 200, {
+        stopped: false,
+        port,
+        pids: [],
+        error: "该端口不是 Dev Cockpit 托管进程，也不是当前项目的残留端口。请在启动它的终端或系统任务管理器中停止。"
+      });
       return true;
     }
     const result = await stopPort(port);

@@ -200,6 +200,11 @@
   min-width: 0;
 }
 
+.sidebar-bottom-nav {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
 .resource-usage {
   --flow: var(--success);
   position: relative;

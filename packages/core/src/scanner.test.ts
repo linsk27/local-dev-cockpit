@@ -416,6 +416,25 @@ describe("scanRoot", () => {
     expect([...probes.values()].every((count) => count === 1)).toBe(true);
   });
 
+  it("uses Vite configured ports as command port hints", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-vite-port-"));
+    const app = path.join(root, "vite-app");
+    await fs.mkdir(app, { recursive: true });
+    await fs.writeFile(path.join(app, "package.json"), JSON.stringify({ name: "vite-app", scripts: { dev: "vite --host --open" } }), "utf8");
+    await fs.writeFile(
+      path.join(app, "vite.config.js"),
+      "export default { server: { port: 8080, strictPort: true } }\n",
+      "utf8"
+    );
+
+    const result = await scanRoot(root, { maxDepth: 2 });
+    const project = result.projects.find((item) => item.name === "vite-app");
+    const devCommand = project?.commands.find((command) => command.id === "script-dev");
+
+    expect(devCommand?.ports).toEqual([8080]);
+    expect(project?.ports.some((port) => port.port === 8080 && port.source === "detected")).toBe(true);
+  });
+
   it("renders recovery and AI context without external AI calls", async () => {
     const result = await scanRoot(fixtureRoot, { maxDepth: 2 });
     const project = result.projects.find((item) => item.name === "vue-app");

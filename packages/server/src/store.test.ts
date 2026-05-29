@@ -9,7 +9,8 @@ import {
   rootId,
   sanitizeCommandInput,
   sanitizeEnvironmentInput,
-  sanitizePathInput
+  sanitizePathInput,
+  toPublicAiSettings
 } from "./store.js";
 
 describe("JsonStore roots", () => {
@@ -117,6 +118,47 @@ describe("JsonStore roots", () => {
 
     config = await store.updateProjectEnvironment(projectPath, "   ");
     expect(projectEnvironmentForPath(config, projectPath)).toBeUndefined();
+  });
+
+  it("stores AI settings separately and never exposes the raw API key in public settings", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-store-"));
+    const store = new JsonStore(
+      {
+        dataDir: tmp,
+        configPath: path.join(tmp, "config.json"),
+        statePath: path.join(tmp, "state.json"),
+        logsDir: path.join(tmp, "logs")
+      },
+      tmp
+    );
+
+    const settings = await store.updateAiSettings({
+      providerId: "rayinai",
+      baseUrl: "https://api.example.test/v1/",
+      model: "resource-parser",
+      outputLocale: "en-US",
+      apiKey: "secret-key"
+    });
+
+    expect(settings).toMatchObject({
+      providerId: "rayinai",
+      baseUrl: "https://api.example.test/v1",
+      model: "resource-parser",
+      outputLocale: "en-US",
+      apiKey: "secret-key"
+    });
+    expect(toPublicAiSettings(settings)).toEqual({
+      provider: "openai-compatible",
+      providerId: "rayinai",
+      baseUrl: "https://api.example.test/v1",
+      model: "resource-parser",
+      outputLocale: "en-US",
+      hasApiKey: true,
+      source: "local"
+    });
+
+    const cleared = await store.updateAiSettings({ clearApiKey: true });
+    expect(cleared.apiKey).toBe("");
   });
 
   it("can clear a stale running state without a live process", async () => {

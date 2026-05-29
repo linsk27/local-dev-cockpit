@@ -1,19 +1,29 @@
 import type { Command, PortStatus, Project } from "@local-dev-cockpit/core";
 
 export function visibleProjectPorts(project: Project): PortStatus[] {
-  return project.ports.filter((port) => port.status === "open" && port.source !== "common");
+  return uniquePortsByNumber(project.ports.filter((port) => port.status === "open" && port.source !== "common"));
 }
 
 export function runningProjectPorts(project: Project): PortStatus[] {
-  return project.ports.filter((port) => port.status === "open" && port.source === "process");
+  return uniquePortsByNumber(project.ports.filter((port) => port.status === "open" && port.source === "process"));
+}
+
+export function stoppableProjectPorts(project: Project): PortStatus[] {
+  return uniquePortsByNumber(
+    project.ports.filter(
+      (port) =>
+        (port.status === "open" && (port.source === "process" || port.source === "detected")) ||
+        (port.status === "unknown" && port.source === "detected")
+    )
+  );
 }
 
 export function detectedProjectPorts(project: Project): PortStatus[] {
-  return project.ports.filter((port) => port.status === "open" && port.source === "detected");
+  return uniquePortsByNumber(project.ports.filter((port) => port.status === "open" && port.source === "detected"));
 }
 
 export function staleProjectPorts(project: Project): PortStatus[] {
-  return project.ports.filter((port) => port.status === "unknown" && port.source === "detected");
+  return uniquePortsByNumber(project.ports.filter((port) => port.status === "unknown" && port.source === "detected"));
 }
 
 export function projectHasStalePorts(project: Project): boolean {
@@ -66,12 +76,35 @@ function formatUrlHost(host: string): string {
   return host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
 }
 
-function commandDeclaredPorts(command: Command): number[] {
+export function commandDeclaredPorts(command: Command): number[] {
+  const ports = new Set<number>(command.ports ?? []);
   const text = `${command.command} ${command.args.join(" ")}`;
-  const ports = new Set<number>();
-  for (const match of text.matchAll(/(?:--port(?:=|\s+)|-p\s+|PORT=|:)(\d{2,5})/gi)) {
-    const port = Number(match[1]);
-    if (Number.isInteger(port) && port > 0 && port < 65536) ports.add(port);
+  const patterns = [
+    /(?:--(?:port|server\.port)(?:=|\s+)|-p\s+|(?:^|\s)[A-Z_]*PORT=)(\d{2,5})/gi,
+    /(?:https?:\/\/)?(?:localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0):(\d{2,5})/gi
+  ];
+  for (const pattern of patterns) {
+    for (const match of text.matchAll(pattern)) {
+      const port = Number(match[1]);
+      if (Number.isInteger(port) && port > 0 && port < 65536) ports.add(port);
+    }
   }
   return [...ports];
+}
+
+function uniquePortsByNumber(ports: PortStatus[]): PortStatus[] {
+  const byPort = new Map<number, PortStatus>();
+  for (const port of ports) {
+    const existing = byPort.get(port.port);
+    if (!existing || portDisplayPriority(port) > portDisplayPriority(existing)) {
+      byPort.set(port.port, port);
+    }
+  }
+  return [...byPort.values()];
+}
+
+function portDisplayPriority(port: PortStatus): number {
+  const sourcePriority = port.source === "process" ? 30 : port.source === "detected" ? 20 : 10;
+  const urlPriority = port.url ? 2 : port.host ? 1 : 0;
+  return sourcePriority + urlPriority;
 }

@@ -17,7 +17,7 @@ export interface LocalProbeEndpoint {
 export async function resolveExternalProjectEndpoint(owner: Pick<PortStatus, "port" | "host">): Promise<ResolvedExternalProjectEndpoint> {
   const candidates = externalListenerProbeCandidates(owner.port, owner.host);
   for (const candidate of candidates) {
-    if (await isLocalHttpEndpointReachable(candidate)) {
+    if (await isLocalHttpEndpointReachable(candidate, 2500, { requireUsableContent: true })) {
       return { ...candidate, reachable: true };
     }
   }
@@ -52,7 +52,11 @@ export async function isEndpointOpen(processAdapter: NodeProcessAdapter, endpoin
   return processAdapter.isPortOpen(endpoint.port, endpoint.host);
 }
 
-export function isLocalHttpEndpointReachable(endpoint: Pick<PortStatus, "port" | "host" | "url">, timeoutMs = 2500): Promise<boolean> {
+export function isLocalHttpEndpointReachable(
+  endpoint: Pick<PortStatus, "port" | "host" | "url">,
+  timeoutMs = 2500,
+  options: { requireUsableContent?: boolean } = {}
+): Promise<boolean> {
   const targetUrl = endpoint.url ?? formatLocalUrl(endpoint.port, endpoint.host ?? "localhost");
   return new Promise((resolve) => {
     let finished = false;
@@ -71,7 +75,7 @@ export function isLocalHttpEndpointReachable(endpoint: Pick<PortStatus, "port" |
       return;
     }
     const client = parsed.protocol === "https:" ? https : http;
-    const options: http.RequestOptions & { rejectUnauthorized?: boolean } = {
+    const requestOptions: http.RequestOptions & { rejectUnauthorized?: boolean } = {
       method: "GET",
       timeout: timeoutMs,
       headers: { "user-agent": "Dev-Cockpit/health-check" },
@@ -79,16 +83,50 @@ export function isLocalHttpEndpointReachable(endpoint: Pick<PortStatus, "port" |
     };
     request = client.request(
       parsed,
-      options,
+      requestOptions,
       (response) => {
-        response.resume();
-        finish(true);
+        if (!options.requireUsableContent) {
+          response.resume();
+          finish(true);
+          return;
+        }
+        const headerDecision = responseHeadersLookLikeUsableEndpoint(response);
+        if (headerDecision !== undefined) {
+          response.resume();
+          finish(headerDecision);
+          return;
+        }
+        let observedBytes = 0;
+        response.on("data", (chunk: Buffer | string) => {
+          observedBytes += Buffer.byteLength(chunk);
+          if (observedBytes > SMALL_AUXILIARY_RESPONSE_BYTES) {
+            response.resume();
+            finish(true);
+          }
+        });
+        response.once("end", () => finish(false));
+        response.once("error", () => finish(false));
       }
     );
     request.once("timeout", () => finish(false));
     request.once("error", () => finish(false));
     request.end();
   });
+}
+
+const SMALL_AUXILIARY_RESPONSE_BYTES = 32;
+
+function responseHeadersLookLikeUsableEndpoint(response: http.IncomingMessage): boolean | undefined {
+  const contentType = headerValue(response.headers["content-type"]).toLowerCase();
+  if (contentType.length > 0) return true;
+  const contentLength = Number(headerValue(response.headers["content-length"]));
+  if (!Number.isFinite(contentLength) || contentLength <= 0) return undefined;
+  return contentLength > SMALL_AUXILIARY_RESPONSE_BYTES;
+}
+
+function headerValue(value: string | string[] | number | undefined): string {
+  if (Array.isArray(value)) return value[0] ?? "";
+  return typeof value === "number" ? String(value) : value ?? "";
 }
 
 export async function resolveReachableEndpoint(

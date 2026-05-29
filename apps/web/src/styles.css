@@ -3,6 +3,7 @@
 @import "./styles/layout.css";
 @import "./styles/components.css";
 @import "./styles/features/projects.css";
+@import "./styles/features/resources.css";
 @import "./styles/features/settings.css";
 
 @media (max-width: 1180px) {
@@ -87,8 +88,11 @@
   }
 
   .main-surface {
+    width: 100%;
+    min-width: 0;
     height: 100%;
     padding: 16px;
+    overflow-x: clip;
   }
 
   .overview-status-band,
@@ -158,6 +162,10 @@
   .sidebar-bottom {
     width: 100%;
     margin-left: 0;
+  }
+
+  .main-surface {
+    padding: 12px;
   }
 
   .resource-usage {

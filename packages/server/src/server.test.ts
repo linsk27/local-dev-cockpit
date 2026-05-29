@@ -4,10 +4,13 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NodeProcessAdapter, type Project } from "@local-dev-cockpit/core";
+import { extractPortsFromLogs } from "./services/port-status/port-logs.js";
+import { mergePorts } from "./services/port-status/port-normalizer.js";
 import {
   assignExternalPortOwners,
   checkForUpdates,
   commandStartBlockReason,
+  commandSystemPortBlockReason,
   commandLineReferencesProject,
   createEditorCommand,
   createFolderPickerCommand,
@@ -27,6 +30,7 @@ import {
   parseMissingToolName,
   parseNetstatListeningPids,
   parseNpmLatest,
+  projectPortCanBeStopped,
   parseStoppedChildrenOutput,
   resolveFolderPickerInitialPath,
   selectUpdateAssets,
@@ -194,6 +198,23 @@ describe("stopPort", () => {
   });
 });
 
+describe("projectPortCanBeStopped", () => {
+  it("allows managed, external detected, and stale project ports but rejects common probes", () => {
+    const target = project("demo", "D:\\个人\\demo");
+    target.ports = [
+      { port: 3000, host: "127.0.0.1", status: "open", source: "detected" },
+      { port: 5173, host: "127.0.0.1", status: "open", source: "process" },
+      { port: 8000, host: "127.0.0.1", status: "unknown", source: "detected" },
+      { port: 8080, status: "open", source: "common" }
+    ];
+
+    expect(projectPortCanBeStopped(target, 3000)).toBe(true);
+    expect(projectPortCanBeStopped(target, 5173)).toBe(true);
+    expect(projectPortCanBeStopped(target, 8000)).toBe(true);
+    expect(projectPortCanBeStopped(target, 8080)).toBe(false);
+  });
+});
+
 describe("parseLocalEndpointsFromLogs", () => {
   it("extracts existing Next.js server endpoints from failed logs", () => {
     const endpoints = parseLocalEndpointsFromLogs(
@@ -211,6 +232,31 @@ describe("parseLocalEndpointsFromLogs", () => {
       { port: 3001, host: "localhost", url: "http://localhost:3001" },
       { port: 3000, host: "localhost", url: "http://localhost:3000" }
     ]);
+  });
+});
+
+describe("extractPortsFromLogs", () => {
+  it("does not mark tiny auxiliary log endpoints as open", async () => {
+    const server = createServer((_request, response) => {
+      response.writeHead(200);
+      response.end("ok");
+    });
+    const port = await listenOnRandomPort(server);
+    try {
+      await expect(
+        extractPortsFromLogs(`Local: http://127.0.0.1:${port}`, "running", "D:\\个人\\demo")
+      ).resolves.toEqual([
+        {
+          port,
+          host: "127.0.0.1",
+          url: `http://127.0.0.1:${port}`,
+          status: "closed",
+          source: "process"
+        }
+      ]);
+    } finally {
+      await closeServer(server);
+    }
   });
 });
 
@@ -276,6 +322,7 @@ describe("assignExternalPortOwners", () => {
 describe("findExternalProjectPorts", () => {
   it("detects reachable wildcard listeners through loopback candidates", async () => {
     const server = createServer((_request, response) => {
+      response.setHeader("content-type", "text/plain");
       response.end("ok");
     });
     const port = await listenOnRandomPort(server);
@@ -311,6 +358,28 @@ describe("findExternalProjectPorts", () => {
         }
       ])
     ).resolves.toEqual([]);
+  });
+
+  it("hides tiny auxiliary listeners without a usable response body", async () => {
+    const server = createServer((_request, response) => {
+      response.writeHead(200);
+      response.end("ok");
+    });
+    const port = await listenOnRandomPort(server);
+    try {
+      await expect(
+        findExternalProjectPorts(project("demo", "D:\\个人\\demo"), [
+          {
+            port,
+            host: "0.0.0.0",
+            pid: 23392,
+            commandLine: "node D:\\个人\\demo\\node_modules\\vite\\bin\\vite.js"
+          }
+        ])
+      ).resolves.toEqual([]);
+    } finally {
+      await closeServer(server);
+    }
   });
 
   it("keeps unreachable declared project ports visible as stale instead of online", async () => {
@@ -366,6 +435,7 @@ describe("findExternalProjectPorts", () => {
 describe("normalizeScannedPorts", () => {
   it("keeps unique scanned ports online only when HTTP is reachable", async () => {
     const server = createServer((_request, response) => {
+      response.setHeader("content-type", "text/plain");
       response.end("ok");
     });
     const port = await listenOnRandomPort(server);
@@ -402,6 +472,23 @@ describe("normalizeScannedPorts", () => {
     await expect(
       normalizeScannedPorts(target, [{ port: 9, host: "127.0.0.1", status: "unknown", source: "detected" }], new Map([[9, 1]]))
     ).resolves.toEqual([{ port: 9, host: "127.0.0.1", status: "open", source: "detected" }]);
+  });
+});
+
+describe("mergePorts", () => {
+  it("deduplicates same-source endpoints by port number", () => {
+    expect(
+      mergePorts(
+        [
+          { port: 3000, host: "localhost", url: "http://localhost:3000", status: "open", source: "detected" },
+          { port: 3000, host: "127.0.0.1", url: "http://127.0.0.1:3000", status: "open", source: "detected" }
+        ],
+        [
+          { port: 5173, host: "localhost", status: "open", source: "process" },
+          { port: 5173, host: "127.0.0.1", status: "open", source: "process" }
+        ]
+      ).map((port) => `${port.source}:${port.port}`)
+    ).toEqual(["detected:3000", "process:5173"]);
   });
 });
 
@@ -469,6 +556,40 @@ describe("isLocalHttpEndpointReachable", () => {
     try {
       await expect(isLocalHttpEndpointReachable({ port, host: "127.0.0.1", url: `http://127.0.0.1:${port}` })).resolves.toBe(true);
       await expect(isLocalHttpEndpointReachable({ port: 9, host: "127.0.0.1", url: "http://127.0.0.1:9" }, 300)).resolves.toBe(false);
+    } finally {
+      await closeServer(server);
+    }
+  });
+
+  it("rejects tiny chunked auxiliary responses when a usable endpoint is required", async () => {
+    const server = createServer((_request, response) => {
+      response.writeHead(200);
+      response.end("ok");
+    });
+    const port = await listenOnRandomPort(server);
+    try {
+      await expect(
+        isLocalHttpEndpointReachable({ port, host: "127.0.0.1", url: `http://127.0.0.1:${port}` }, 300, {
+          requireUsableContent: true
+        })
+      ).resolves.toBe(false);
+    } finally {
+      await closeServer(server);
+    }
+  });
+
+  it("accepts HTML endpoints when a usable endpoint is required", async () => {
+    const server = createServer((_request, response) => {
+      response.setHeader("content-type", "text/html; charset=utf-8");
+      response.end("<!doctype html><title>demo</title>");
+    });
+    const port = await listenOnRandomPort(server);
+    try {
+      await expect(
+        isLocalHttpEndpointReachable({ port, host: "127.0.0.1", url: `http://127.0.0.1:${port}` }, 300, {
+          requireUsableContent: true
+        })
+      ).resolves.toBe(true);
     } finally {
       await closeServer(server);
     }
@@ -577,6 +698,23 @@ describe("commandStartBlockReason", () => {
     target.ports = [{ port: 5179, host: "127.0.0.1", status: "open", source: "detected" }];
 
     expect(commandStartBlockReason(target, target.commands[0]!)).toContain("服务已经在线");
+  });
+
+  it("blocks explicit command ports that are occupied even when project scan missed them", async () => {
+    const command = {
+      id: "script-dev",
+      label: "dev",
+      command: "pnpm",
+      args: ["run", "dev"],
+      ports: [8080],
+      cwd: "D:\\个人\\web",
+      source: "package-script" as const,
+      kind: "dev" as const
+    };
+    const processAdapter = { isPortOpen: vi.fn().mockResolvedValue(true) };
+
+    await expect(commandSystemPortBlockReason(command, processAdapter as unknown as NodeProcessAdapter)).resolves.toContain("端口 8080 已被系统占用");
+    expect(processAdapter.isPortOpen).toHaveBeenCalledWith(8080);
   });
 });
 

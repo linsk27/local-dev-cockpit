@@ -27,14 +27,22 @@ async function readDeclaredPackageManager(projectPath: string, fs: FileSystemAda
 }
 
 export async function detectNodeCommands(projectPath: string, packageManager: Project["packageManager"], fs: FileSystemAdapter): Promise<Command[]> {
-  return readPackageScripts(projectPath, packageManager ?? "npm", fs);
+  const configuredPorts = await detectNodeDevServerPorts(projectPath, fs);
+  return readPackageScripts(projectPath, packageManager ?? "npm", fs, configuredPorts);
 }
 
-async function readPackageScripts(projectPath: string, packageManager: NonNullable<Project["packageManager"]>, fs: FileSystemAdapter): Promise<Command[]> {
+async function readPackageScripts(
+  projectPath: string,
+  packageManager: NonNullable<Project["packageManager"]>,
+  fs: FileSystemAdapter,
+  configuredPorts: number[]
+): Promise<Command[]> {
   try {
     const raw = await fs.readFile(path.join(projectPath, "package.json"));
     const parsed = parseJsonText<{ scripts?: Record<string, string> }>(raw);
     return Object.entries(parsed.scripts ?? {}).map(([scriptName, scriptBody]) => {
+      const scriptPorts = extractPortNumbersFromText(scriptBody);
+      const ports = shouldUseConfiguredDevServerPorts(scriptName, scriptBody) ? uniquePorts([...scriptPorts, ...configuredPorts]) : scriptPorts;
       return command(
         `script-${scriptName}`,
         scriptName,
@@ -43,12 +51,54 @@ async function readPackageScripts(projectPath: string, packageManager: NonNullab
         projectPath,
         "package-script",
         inferCommandKind(scriptName),
-        extractPortNumbersFromText(scriptBody)
+        ports
       );
     });
   } catch {
     return [];
   }
+}
+
+async function detectNodeDevServerPorts(projectPath: string, fs: FileSystemAdapter): Promise<number[]> {
+  const ports = new Set<number>();
+  for (const configName of ["vite.config.js", "vite.config.ts", "vite.config.mjs", "vite.config.cjs", "vite.config.mts", "vite.config.cts"]) {
+    await collectConfigPorts(path.join(projectPath, configName), fs, ports);
+  }
+  await collectConfigPorts(path.join(projectPath, "vue.config.js"), fs, ports);
+  await collectConfigPorts(path.join(projectPath, "vue.config.ts"), fs, ports);
+  return [...ports];
+}
+
+async function collectConfigPorts(configPath: string, fs: FileSystemAdapter, ports: Set<number>): Promise<void> {
+  if (!(await fs.exists(configPath))) return;
+  try {
+    const source = stripComments(await fs.readFile(configPath));
+    for (const port of extractConfiguredPorts(source)) ports.add(port);
+  } catch {
+    // Configuration files are user code. If one cannot be read, keep the scan best-effort.
+  }
+}
+
+function extractConfiguredPorts(source: string): number[] {
+  const ports = new Set<number>();
+  for (const match of source.matchAll(/\b(?:server|devServer)\s*:\s*\{[\s\S]{0,2000}?\bport\s*:\s*(\d{2,5})/g)) {
+    const port = Number(match[1]);
+    if (Number.isInteger(port) && port > 0 && port < 65536) ports.add(port);
+  }
+  return [...ports];
+}
+
+function stripComments(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+}
+
+function shouldUseConfiguredDevServerPorts(scriptName: string, scriptBody: string): boolean {
+  if (!/(dev|serve|preview|start)/i.test(scriptName)) return false;
+  return /\b(vite|vue-cli-service|webpack-dev-server|next)\b/i.test(scriptBody);
+}
+
+function uniquePorts(ports: number[]): number[] {
+  return [...new Set(ports)];
 }
 
 function buildPackageScriptArgs(packageManager: NonNullable<Project["packageManager"]>, scriptName: string, scriptBody: string): string[] {

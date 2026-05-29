@@ -31,8 +31,9 @@
       class="project-row"
       :class="{ active: project.id === selectedId }"
       :title="projectStatusReason(project, preferences.locale)"
+      @click="$emit('select', project.id)"
     >
-      <button class="project-row-select" @click="$emit('select', project.id)">
+      <button class="project-row-select" type="button" @click.stop="$emit('select', project.id)">
         <div class="project-row-main">
           <span class="status-dot" :class="statusClass(project)" />
           <div class="project-row-copy">
@@ -51,10 +52,19 @@
           </div>
         </div>
       </button>
+      <button
+        v-if="primaryPort(project) && hasPortConflict(project)"
+        class="project-port project-port-link port-conflict"
+        type="button"
+        :title="portConflictTitle(project)"
+        @click.stop="$emit('select', project.id)"
+      >
+        <span>{{ formatPortEndpoint(primaryPort(project)!) }}</span>
+        <em>{{ preferences.t("portConflict") }}</em>
+      </button>
       <a
-        v-if="primaryPort(project)"
+        v-else-if="primaryPort(project)"
         class="project-port project-port-link"
-        :class="{ 'port-conflict': hasPortConflict(project) }"
         :href="formatPortUrl(primaryPort(project)!)"
         :title="preferences.t('openEndpoint')"
         target="_blank"
@@ -63,7 +73,6 @@
       >
         <span>{{ formatPortEndpoint(primaryPort(project)!) }}</span>
         <ExternalLink :size="13" />
-        <em v-if="hasPortConflict(project)" @click.prevent.stop>{{ preferences.t("portConflict") }}</em>
       </a>
       <span v-else-if="hasPortInformation(project)" class="project-port" :class="{ 'project-port-stale': projectHasStalePorts(project) }">
         <span>{{ openPorts(project) }}</span>
@@ -187,5 +196,13 @@ watch(
 
 function hasPortConflict(project: Project): boolean {
   return hasProjectPortConflict(project, openPortCounts.value);
+}
+
+function portConflictTitle(project: Project): string {
+  const port = primaryPort(project);
+  const endpoint = port ? formatPortEndpoint(port) : "";
+  return preferences.locale === "zh-CN"
+    ? `${endpoint} 被多个项目检测到。点击后在右侧概况里停止或清理端口。`
+    : `${endpoint} is detected by multiple projects. Select it, then stop or clean the port from the overview.`;
 }
 </script>
