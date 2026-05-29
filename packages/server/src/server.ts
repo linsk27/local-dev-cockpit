@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { promises as fs } from "node:fs";
+import { readFileSync, promises as fs } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "ws";
 import { ZodError } from "zod";
 import { EventBus } from "./events.js";
@@ -58,7 +59,7 @@ export {
 } from "./services/native-shell.js";
 export type { FolderPickerCommand, FolderPickerResult } from "./services/native-shell.js";
 
-const DEFAULT_APP_VERSION = "0.2.0";
+const DEFAULT_APP_VERSION = readOwnPackageVersion("0.0.0");
 
 export interface DevCockpitServerOptions {
   cwd?: string;
@@ -135,6 +136,16 @@ function formatValidationError(error: ZodError): string {
 function isApiRequest(req: IncomingMessage): boolean {
   const url = new URL(req.url ?? "/", "http://localhost");
   return url.pathname === "/api" || url.pathname.startsWith("/api/");
+}
+
+function readOwnPackageVersion(fallback: string): string {
+  try {
+    const current = path.dirname(fileURLToPath(import.meta.url));
+    const packageJson = JSON.parse(readFileSync(path.join(current, "..", "package.json"), "utf8")) as { version?: unknown };
+    return typeof packageJson.version === "string" && packageJson.version.trim() ? packageJson.version.trim() : fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 async function serveStatic(req: IncomingMessage, res: ServerResponse, webRoot?: string): Promise<void> {

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,7 +25,7 @@ import {
 import { noCommandGuidance, shouldInspectPythonEnvironment } from "./doctor-guidance.js";
 import { formatScanProject } from "./scan-output.js";
 
-const CLI_VERSION = "0.2.0";
+const CLI_VERSION = readOwnPackageVersion("0.0.0");
 
 const program = new Command()
   .name("local-dev-cockpit")
@@ -175,6 +176,16 @@ function resolveWebRoot(): string {
   const bundledWeb = path.join(current, "web");
   if (existsSync(path.join(bundledWeb, "index.html"))) return bundledWeb;
   return path.resolve(current, "../../../apps/web/dist");
+}
+
+function readOwnPackageVersion(fallback: string): string {
+  try {
+    const current = path.dirname(fileURLToPath(import.meta.url));
+    const packageJson = JSON.parse(readFileSync(path.join(current, "..", "package.json"), "utf8")) as { version?: unknown };
+    return typeof packageJson.version === "string" && packageJson.version.trim() ? packageJson.version.trim() : fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 function openBrowser(url: string): void {
