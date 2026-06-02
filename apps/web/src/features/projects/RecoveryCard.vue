@@ -43,7 +43,7 @@
                 {{ formatPortEndpoint(port) }}
               </a>
               <button
-                v-if="isStoppablePort(port.port)"
+                v-if="canStopVisiblePort(port.port)"
                 class="port-stop-button"
                 type="button"
                 :disabled="isStoppingPort(port.port)"
@@ -60,15 +60,30 @@
         </div>
         <div v-if="detectedPorts.length > 0" class="port-group">
           <span>{{ preferences.t("detectedPorts") }}</span>
-          <a v-for="port in detectedPorts" :key="`${port.host ?? 'host'}:${port.port}`" class="port-pill active" :href="formatPortUrl(port)" target="_blank" rel="noreferrer">
-            {{ formatPortEndpoint(port) }}
-          </a>
+          <span v-for="port in detectedPorts" :key="`${port.host ?? 'host'}:${port.port}`" class="port-action">
+            <a class="port-pill active" :href="formatPortUrl(port)" target="_blank" rel="noreferrer">
+              {{ formatPortEndpoint(port) }}
+            </a>
+            <button
+              v-if="canStopVisiblePort(port.port)"
+              class="port-stop-button"
+              type="button"
+              :disabled="isStoppingPort(port.port)"
+              :title="localText(`\u505c\u6b62\u7aef\u53e3 ${port.port}`, `Stop port ${port.port}`)"
+              @click="stopPort(port.port)"
+            >
+              <Loader2 v-if="isStoppingPort(port.port)" :size="12" class="spin-icon" />
+              <Square v-else :size="12" />
+              <span>{{ isStoppingPort(port.port) ? localText("\u505c\u6b62\u4e2d", "Stopping") : localText("\u505c\u6b62", "Stop") }}</span>
+            </button>
+          </span>
         </div>
         <div v-if="stalePorts.length > 0" class="port-group">
           <span>{{ preferences.t("stalePorts") }}</span>
           <span v-for="port in stalePorts" :key="`${port.host ?? 'host'}:${port.port}`" class="port-action">
             <span class="port-pill stale">{{ formatPortEndpoint(port) }}</span>
             <button
+              v-if="canStopVisiblePort(port.port)"
               class="port-stop-button"
               type="button"
               :disabled="isStoppingPort(port.port)"
@@ -124,7 +139,6 @@ import {
   projectRuntimeMode,
   runtimeSourceLabel,
   staleProjectPorts,
-  stoppableProjectPorts,
   visibleProjectPorts
 } from "./project-view";
 
@@ -175,8 +189,14 @@ function isStoppingPort(port: number): boolean {
   return store.portAction(props.project.id, port) === "stopping";
 }
 
-function isStoppablePort(port: number): boolean {
-  return stoppableProjectPorts(props.project).some((item) => item.port === port);
+function canStopVisiblePort(port: number): boolean {
+  return !isCurrentDevCockpitPort(port);
+}
+
+function isCurrentDevCockpitPort(port: number): boolean {
+  if (typeof window === "undefined") return false;
+  const currentPort = Number(window.location.port || (window.location.protocol === "https:" ? "443" : "80"));
+  return Number.isFinite(currentPort) && currentPort === port;
 }
 
 async function stopPort(port: number): Promise<void> {

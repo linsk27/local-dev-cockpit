@@ -8,7 +8,7 @@
       <div v-if="commandGuardPorts.length > 0" class="command-port-guard">
         <div class="command-port-guard-copy">
           <strong>{{ label("检测到端口已占用", "Port already in use") }}</strong>
-          <span>{{ label("相关启动命令已被保护，先打开现有服务或停止端口后再运行。", "Related commands are protected. Open the existing service or stop the port before running.") }}</span>
+          <span>{{ label("相关启动命令已被保护。先打开现有服务，或停止端口后再运行。", "Related commands are protected. Open the existing service or stop the port before running.") }}</span>
         </div>
         <div class="command-port-guard-actions">
           <span v-for="port in commandGuardPorts" :key="`${port.host ?? 'host'}:${port.port}`" class="command-port-action">
@@ -17,7 +17,7 @@
               <span>{{ formatPortEndpoint(port) }}</span>
             </a>
             <button
-              v-if="isStoppablePort(port.port)"
+              v-if="canStopVisiblePort(port.port)"
               class="text-button command-port-stop"
               type="button"
               :disabled="isStoppingPort(port.port)"
@@ -76,8 +76,8 @@ import { CircleAlert, CircleCheck, ExternalLink, Loader2, Play, Square, Terminal
 import type { Command, PortStatus, Project } from "@local-dev-cockpit/core";
 import { getEnvironmentDiagnostics, type CommandEnvironmentDiagnostic } from "../../api";
 import { useNotificationsStore } from "../../stores/notifications";
-import { useProjectsStore } from "../../stores/projects";
 import { usePreferencesStore } from "../../stores/preferences";
+import { useProjectsStore } from "../../stores/projects";
 import {
   commandBlockedByStalePort,
   commandDeclaredPorts,
@@ -85,7 +85,6 @@ import {
   formatPortEndpoint,
   formatPortUrl,
   staleProjectPorts,
-  stoppableProjectPorts,
   visibleProjectPorts
 } from "./project-view";
 
@@ -137,13 +136,13 @@ function commandAction(commandId: string) {
 function isAlreadyOnlineCommand(commandId: string): boolean {
   if (isRunningCommand(commandId)) return false;
   const command = props.project.commands.find((item) => item.id === commandId);
-  return command ? commandWouldReuseOpenPort(props.project, command) : false;
+  return command ? commandTouchedBlockedPorts(command).some((port) => port.status === "open") : false;
 }
 
 function isBlockedByStalePort(commandId: string): boolean {
   if (isRunningCommand(commandId)) return false;
   const command = props.project.commands.find((item) => item.id === commandId);
-  return command ? commandBlockedByStalePort(props.project, command) : false;
+  return command ? commandTouchedBlockedPorts(command).some((port) => port.status !== "open") : false;
 }
 
 function diagnosticFor(commandId: string): CommandEnvironmentDiagnostic | undefined {
@@ -196,25 +195,35 @@ function commandStateLabel(commandId: string, fallback: string): string {
 }
 
 function commandTouchedBlockedPorts(command: Command): PortStatus[] {
-  if (!commandWouldReuseOpenPort(props.project, command) && !commandBlockedByStalePort(props.project, command)) return [];
-  const blockedPorts = [...visibleProjectPorts(props.project), ...staleProjectPorts(props.project)];
+  const visiblePorts = visibleProjectPorts(props.project);
+  const stalePorts = staleProjectPorts(props.project);
   const declaredPorts = commandDeclaredPorts(command);
-  if (declaredPorts.length > 0) return blockedPorts.filter((port) => declaredPorts.includes(port.port));
-  return command.kind === "dev" || command.kind === "start" ? blockedPorts : [];
+  const isStartupCommand = command.kind === "dev" || command.kind === "start";
+  const blocksDeclaredPort = commandWouldReuseOpenPort(props.project, command) || commandBlockedByStalePort(props.project, command);
+
+  if (isStartupCommand && visiblePorts.length > 0) return visiblePorts;
+  if (isStartupCommand && stalePorts.length > 0) return stalePorts;
+  if (declaredPorts.length > 0) {
+    return [...visiblePorts, ...stalePorts].filter((port) => declaredPorts.includes(port.port));
+  }
+
+  return blocksDeclaredPort ? stalePorts : [];
 }
 
 function isStoppingPort(port: number): boolean {
   return store.portAction(props.project.id, port) === "stopping";
 }
 
-function isStoppablePort(port: number): boolean {
-  return stoppableProjectPorts(props.project).some((item) => item.port === port);
+function canStopVisiblePort(port: number): boolean {
+  if (typeof window === "undefined") return true;
+  const currentPort = Number(window.location.port || (window.location.protocol === "https:" ? "443" : "80"));
+  return !Number.isFinite(currentPort) || currentPort !== port;
 }
 
 async function stopPort(port: number): Promise<void> {
   const result = await store.stopPort(port, props.project.id);
   if (result?.stopped) {
-    notifications.success(result.alreadyClosed ? label(`端口 ${port} 已关闭`, `Port ${port} is already closed.`) : label(`已停止端口 ${port}`, `Stopped port ${port}`));
+    notifications.success(result.alreadyClosed ? label(`端口 ${port} 已关闭。`, `Port ${port} is already closed.`) : label(`已停止端口 ${port}`, `Stopped port ${port}`));
   } else {
     notifications.error(label(`端口操作失败：${store.error || port}`, `Port action failed: ${store.error || port}`));
   }
@@ -228,11 +237,11 @@ async function toggleCommand(commandId: string): Promise<void> {
     notifications.error(`${diagnostic.summary} ${diagnostic.detail}`.trim());
     return;
   }
-  if (command && commandWouldReuseOpenPort(props.project, command)) {
+  if (command && commandTouchedBlockedPorts(command).some((port) => port.status === "open")) {
     notifications.info(label("服务已经在线，已阻止重复启动。", "Service is already online. Duplicate start blocked."));
     return;
   }
-  if (command && commandBlockedByStalePort(props.project, command)) {
+  if (command && commandTouchedBlockedPorts(command).some((port) => port.status !== "open")) {
     notifications.error(label("检测到残留端口阻塞启动，请先清理端口。", "A stale port is blocking startup. Clean it first."));
     return;
   }

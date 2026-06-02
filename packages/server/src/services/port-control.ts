@@ -78,8 +78,7 @@ export function projectPortCanBeStopped(project: Project, port: number): boolean
   return project.ports.some(
     (item) =>
       item.port === port &&
-      ((item.status === "open" && (item.source === "process" || item.source === "detected")) ||
-        (item.status === "unknown" && item.source === "detected"))
+      (item.status === "open" || (item.status === "unknown" && item.source === "detected"))
   );
 }
 

@@ -4,11 +4,12 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AppPaths } from "../../paths.js";
 import { analyzeSkillInput } from "./analyzer.js";
-import { testAiConnection } from "./ai.js";
+import { analyzeResourceWithAi, testAiConnection } from "./ai.js";
 import { createSkillContext, createSkillDraft } from "./context.js";
 import { fetchResourceMetadata } from "./fetcher.js";
 import { SkillRadarStore } from "./store.js";
 import { createTaxonomyPatch } from "./taxonomy.js";
+import type { SkillItem } from "./types.js";
 
 let tempDirs: string[] = [];
 
@@ -239,6 +240,36 @@ describe("SkillRadarStore", () => {
     await expect(store.get(preview.id)).resolves.toMatchObject({ id: preview.id, title: preview.title });
   });
 
+  it("exports and imports resources with dedupe", async () => {
+    const source = new SkillRadarStore(await createPaths());
+    const target = new SkillRadarStore(await createPaths());
+    const item = await source.commitPreview({
+      preview: analyzeSkillInput({
+        sourceUrl: "https://github.com/DavidHDev/react-bits",
+        sourceText: "Animated React components for creative interfaces."
+      })
+    });
+
+    const exported = await source.exportData();
+    expect(exported).toMatchObject({
+      app: "dev-cockpit-resource-radar",
+      version: 1,
+      items: [expect.objectContaining({ id: item.id, title: item.title })]
+    });
+
+    await expect(target.importData(exported)).resolves.toMatchObject({
+      added: 1,
+      skipped: 0,
+      total: 1,
+      items: [expect.objectContaining({ sourceUrl: item.sourceUrl })]
+    });
+    await expect(target.importData(exported)).resolves.toMatchObject({
+      added: 0,
+      skipped: 1,
+      total: 1
+    });
+  });
+
   it("runs optional AI analysis during import when a key is configured", async () => {
     process.env.DEV_COCKPIT_AI_API_KEY = "test-key";
     vi.stubGlobal(
@@ -398,6 +429,98 @@ describe("SkillRadarStore", () => {
         headers: expect.objectContaining({ authorization: "Bearer secret-key" })
       })
     );
+  });
+
+  it("sends a compact resource snapshot to AI instead of raw oversized metadata", async () => {
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  title: "Compact AI Resource",
+                  kind: "tool",
+                  categoryPath: ["工具", "前端开发"],
+                  tags: ["compact"],
+                  summary: "AI parsed a compact resource snapshot.",
+                  confidence: 90
+                })
+              }
+            }
+          ]
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const item: SkillItem = {
+      id: "resource-1",
+      title: "Oversized resource",
+      kind: "tool",
+      category: "工具 / 前端开发",
+      categoryPath: ["工具", "前端开发"],
+      tags: ["github", "tool"],
+      status: "inbox",
+      confidence: 72,
+      summary: "Rule summary.",
+      sourceUrl: "https://github.com/example/large",
+      sourceText: "source ".repeat(1_000),
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      rawMetadata: {
+        title: "Large metadata",
+        description: "description ".repeat(200),
+        textSample: "metadata ".repeat(1_000),
+        imageUrl: "https://example.com/og.png",
+        images: Array.from({ length: 10 }, (_, index) => ({
+          label: `image-${index}`,
+          url: `https://example.com/${index}.png`,
+          source: "readme"
+        })),
+        links: Array.from({ length: 10 }, (_, index) => ({
+          label: `link-${index}`,
+          url: `https://example.com/${index}`
+        })),
+        repository: {
+          owner: "example",
+          name: "large",
+          fullName: "example/large",
+          description: "repository ".repeat(200),
+          language: "TypeScript",
+          stars: 123,
+          forks: 45,
+          topics: Array.from({ length: 12 }, (_, index) => `topic-${index}`)
+        }
+      }
+    };
+
+    await expect(
+      analyzeResourceWithAi(
+        item,
+        {
+          provider: "openai-compatible",
+          providerId: "custom",
+          baseUrl: "https://api.example.test/v1",
+          model: "resource-parser",
+          outputLocale: "zh-CN",
+          apiKey: "secret-key"
+        },
+        { existingCategoryPaths: Array.from({ length: 30 }, (_, index) => ["工具", `分类-${index}`]) }
+      )
+    ).resolves.toMatchObject({ patch: { title: "Compact AI Resource" } });
+
+    const calls = fetchMock.mock.calls as unknown as Array<[string, RequestInit]>;
+    const requestBody = JSON.parse(String(calls[0]?.[1]?.body));
+    const userPayload = JSON.parse(requestBody.messages[1].content);
+    expect(requestBody.max_tokens).toBe(900);
+    expect(userPayload.sourceText.length).toBeLessThanOrEqual(1_200);
+    expect(userPayload.metadata.textSample.length).toBeLessThanOrEqual(1_800);
+    expect(userPayload.metadata.images).toHaveLength(6);
+    expect(userPayload.metadata.links).toHaveLength(6);
+    expect(userPayload.metadata.repository.topics).toHaveLength(8);
+    expect(userPayload.existingCategoryPaths).toHaveLength(24);
   });
 
   it("reports missing AI key during connection tests", async () => {

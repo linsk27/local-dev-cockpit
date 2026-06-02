@@ -13,6 +13,14 @@
         <FileText :size="14" />
         {{ expanded ? preferences.t("resourceCollapseText") : preferences.t("resourceSupplementText") }}
       </button>
+      <button class="text-button" type="button" :disabled="importExporting" @click="$emit('import')">
+        <Upload :size="14" />
+        {{ preferences.t("resourceImport") }}
+      </button>
+      <button class="text-button" type="button" :disabled="importExporting || count === 0" @click="$emit('export')">
+        <Download :size="14" />
+        {{ preferences.t("resourceExport") }}
+      </button>
       <button class="primary-button" type="submit" :disabled="previewing || !canSubmit">
         <Sparkles :size="15" />
         {{ previewing ? preferences.t("resourceParsing") : preferences.t("resourceParse") }}
@@ -30,19 +38,22 @@
 </template>
 
 <script setup lang="ts">
-import { FileText, Link as LinkIcon, Sparkles } from "lucide-vue-next";
+import { Download, FileText, Link as LinkIcon, Sparkles, Upload } from "lucide-vue-next";
 import { usePreferencesStore } from "../../stores/preferences";
 
 defineProps<{
   canSubmit: boolean;
   count: number;
   expanded: boolean;
+  importExporting: boolean;
   previewing: boolean;
   sourceText: string;
   sourceUrl: string;
 }>();
 
 const emit = defineEmits<{
+  export: [];
+  import: [];
   submit: [];
   "update:expanded": [value: boolean];
   "update:sourceText": [value: string];

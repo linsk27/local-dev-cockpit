@@ -15,8 +15,10 @@ export type {
   RadarItem,
   ResourceAnalysisSource,
   ResourceCreateInput,
+  ResourceExportPayload,
   ResourceKind,
   ResourceMetadata,
+  ResourceImportResult,
   ResourceStatus,
   ResourceUpdateInput,
   TaxonomySource

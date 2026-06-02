@@ -12,7 +12,7 @@ export function stoppableProjectPorts(project: Project): PortStatus[] {
   return uniquePortsByNumber(
     project.ports.filter(
       (port) =>
-        (port.status === "open" && (port.source === "process" || port.source === "detected")) ||
+        port.status === "open" ||
         (port.status === "unknown" && port.source === "detected")
     )
   );
@@ -34,18 +34,20 @@ export function commandWouldReuseOpenPort(project: Project, command: Command): b
   if (project.lastRun?.status === "running") return false;
   const openPorts = visibleProjectPorts(project);
   if (openPorts.length === 0) return false;
+  if (command.kind === "dev" || command.kind === "start") return true;
   const declaredPorts = commandDeclaredPorts(command);
   if (declaredPorts.length > 0) return declaredPorts.some((port) => openPorts.some((item) => item.port === port));
-  return command.kind === "dev" || command.kind === "start";
+  return false;
 }
 
 export function commandBlockedByStalePort(project: Project, command: Command): boolean {
   if (project.lastRun?.status === "running") return false;
   const stalePorts = staleProjectPorts(project);
   if (stalePorts.length === 0) return false;
+  if (command.kind === "dev" || command.kind === "start") return true;
   const declaredPorts = commandDeclaredPorts(command);
   if (declaredPorts.length > 0) return declaredPorts.some((port) => stalePorts.some((item) => item.port === port));
-  return command.kind === "dev" || command.kind === "start";
+  return false;
 }
 
 export function formatPortEndpoint(port: Pick<PortStatus, "port" | "host">): string {

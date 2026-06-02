@@ -143,6 +143,7 @@
 .segmented-control {
   display: inline-grid;
   grid-auto-flow: column;
+  align-items: center;
   gap: 4px;
   max-width: 100%;
   overflow-x: auto;
@@ -153,13 +154,16 @@
 }
 
 .segmented-control button {
-  min-width: 82px;
-  height: 30px;
-  padding: 0 10px;
+  min-width: 86px;
+  min-height: 32px;
+  height: auto;
+  padding: 7px 10px;
   border: 0;
   border-radius: 6px;
   background: transparent;
   color: var(--muted-strong);
+  line-height: 1.1;
+  white-space: nowrap;
 }
 
 .segmented-control button.active {
@@ -497,6 +501,32 @@
   .ai-settings-hero,
   .ai-settings-actions {
     flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 560px) {
+  .ai-settings-page {
+    padding-top: 0;
+  }
+
+  .ai-settings-hero {
+    padding: 12px 16px;
+  }
+
+  .ai-settings-form {
+    gap: 10px;
+    padding: 12px 16px 14px;
+  }
+
+  .ai-settings-grid,
+  .ai-settings-form label {
+    gap: 7px;
+  }
+
+  .ai-settings-actions .text-button,
+  .ai-settings-actions .primary-button {
+    min-height: 32px;
+    height: 32px;
   }
 }
 

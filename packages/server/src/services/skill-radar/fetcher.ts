@@ -170,12 +170,14 @@ async function fetchLimitedText(url: string, acceptedTypes: string[]): Promise<{
     });
     const contentType = response.headers.get("content-type") ?? "";
     const finalUrl = response.url || url;
-    if (!response.ok) return { contentType, url: finalUrl, error: `HTTP ${response.status}` };
-    if (!isAcceptedContentType(contentType, acceptedTypes)) return { contentType, url: finalUrl, error: `Unsupported content type: ${contentType || "unknown"}` };
+    if (!response.ok) return { contentType, url: finalUrl, error: `网页返回 HTTP ${response.status}，已使用本地规则解析。` };
+    if (!isAcceptedContentType(contentType, acceptedTypes)) {
+      return { contentType, url: finalUrl, error: `页面不是可解析的文本或 HTML（${contentType || "unknown"}）。` };
+    }
     const contentLength = Number(response.headers.get("content-length") ?? "0");
-    if (contentLength > MAX_METADATA_BYTES) return { contentType, url: finalUrl, error: "Response is too large to summarize" };
+    if (contentLength > MAX_METADATA_BYTES) return { contentType, url: finalUrl, error: "页面内容过大，已使用本地规则解析。" };
     const buffer = await response.arrayBuffer();
-    if (buffer.byteLength > MAX_METADATA_BYTES) return { contentType, url: finalUrl, error: "Response is too large to summarize" };
+    if (buffer.byteLength > MAX_METADATA_BYTES) return { contentType, url: finalUrl, error: "页面内容过大，已使用本地规则解析。" };
     return { text: new TextDecoder("utf-8", { fatal: false }).decode(buffer), contentType, url: finalUrl };
   } catch (error) {
     return { contentType: "", url, error: readableError(error) };
@@ -196,11 +198,11 @@ async function fetchLimitedJson(url: string): Promise<{ data?: unknown; error?: 
       },
       redirect: "follow"
     });
-    if (!response.ok) return { error: `HTTP ${response.status}` };
+    if (!response.ok) return { error: `GitHub API 返回 HTTP ${response.status}，已使用本地规则解析。` };
     const contentLength = Number(response.headers.get("content-length") ?? "0");
-    if (contentLength > MAX_GITHUB_JSON_BYTES) return { error: "Response is too large to summarize" };
+    if (contentLength > MAX_GITHUB_JSON_BYTES) return { error: "GitHub 元数据过大，已使用本地规则解析。" };
     const buffer = await response.arrayBuffer();
-    if (buffer.byteLength > MAX_GITHUB_JSON_BYTES) return { error: "Response is too large to summarize" };
+    if (buffer.byteLength > MAX_GITHUB_JSON_BYTES) return { error: "GitHub 元数据过大，已使用本地规则解析。" };
     return { data: JSON.parse(new TextDecoder("utf-8", { fatal: false }).decode(buffer)) };
   } catch (error) {
     return { error: readableError(error) };
@@ -457,6 +459,10 @@ function escapeRegExp(value: string): string {
 }
 
 function readableError(error: unknown): string {
-  if (error instanceof Error) return error.name === "AbortError" ? "Fetch timed out" : error.message;
-  return String(error);
+  if (error instanceof Error) {
+    if (error.name === "AbortError") return "网页抓取超时，已使用本地规则解析。";
+    if (/fetch failed|failed to fetch|network/i.test(error.message)) return "网络请求失败，已使用本地规则解析。";
+    return `网页抓取失败：${error.message}`;
+  }
+  return "网页抓取失败，已使用本地规则解析。";
 }

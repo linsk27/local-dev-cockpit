@@ -10,9 +10,16 @@ import {
 } from "./types.js";
 import { createTaxonomyPatch, majorCategoryForKind } from "./taxonomy.js";
 
-const AI_TIMEOUT_MS = 15_000;
+const AI_TIMEOUT_MS = 25_000;
 const DEFAULT_BASE_URL = "https://api.openai.com/v1";
 const DEFAULT_MODEL = "gpt-4o-mini";
+const MAX_AI_SOURCE_TEXT = 1_200;
+const MAX_AI_METADATA_TEXT = 1_800;
+const MAX_AI_IMAGES = 6;
+const MAX_AI_LINKS = 6;
+const MAX_AI_EXISTING_CATEGORIES = 24;
+
+type RawResourceMetadata = NonNullable<SkillItem["rawMetadata"]>;
 
 const aiAnalysisSchema = z.object({
   title: z.string().min(1).max(160),
@@ -57,8 +64,10 @@ export async function analyzeResourceWithAi(
   if (!runtime.apiKey) return { configured: false, error: "未配置 AI Key，当前使用本地规则解析。" };
 
   try {
+    const aiInput = buildAiResourceInput(item, options.existingCategoryPaths ?? [], runtime.outputLocale);
     const response = await requestChatCompletion(runtime, {
       temperature: 0.2,
+      max_tokens: 900,
       messages: [
         {
           role: "system",
@@ -81,24 +90,7 @@ export async function analyzeResourceWithAi(
         },
         {
           role: "user",
-          content: JSON.stringify({
-            sourceUrl: item.sourceUrl,
-            sourceText: item.sourceText,
-            metadata: item.rawMetadata,
-            current: {
-              title: item.title,
-              kind: item.kind,
-              category: item.category,
-              categoryPath: item.categoryPath,
-              tags: item.tags,
-              summary: item.summary,
-              confidence: item.confidence
-            },
-            existingCategoryPaths: options.existingCategoryPaths ?? [],
-            majorCategories: ["工具", "Skills", "Demo", "教程文章", "Prompt", "MCP", "Workflow", "未分类"],
-            outputLocale: runtime.outputLocale,
-            allowedKinds: ["skill-md", "mcp", "prompt", "workflow", "demo", "tool", "article", "unknown"]
-          })
+          content: JSON.stringify(aiInput)
         }
       ]
     });
@@ -108,9 +100,9 @@ export async function analyzeResourceWithAi(
     const content = payload.choices?.[0]?.message?.content;
     if (!content) return { configured: true, error: "AI 没有返回可解析内容。" };
     const parsedJson = normalizeAiAnalysisPayload(parseJsonContent(content), item, runtime.outputLocale);
-    if (!parsedJson) return { configured: true, error: "AI 返回结构不符合资源卡片 schema，已使用规则预览。" };
+    if (!parsedJson) return { configured: true, error: invalidAiSchemaMessage() };
     const parsed = aiAnalysisSchema.safeParse(parsedJson);
-    if (!parsed.success) return { configured: true, error: "AI 返回结构不符合资源卡片 schema，已使用规则预览。" };
+    if (!parsed.success) return { configured: true, error: invalidAiSchemaMessage() };
     const taxonomy = createTaxonomyPatch(parsed.data, {
       fallbackCategory: item.category,
       existingCategoryPaths: options.existingCategoryPaths,
@@ -122,11 +114,118 @@ export async function analyzeResourceWithAi(
   }
 }
 
-function normalizeAiAnalysisPayload(
-  raw: unknown,
-  fallback: SkillItem,
-  outputLocale: "zh-CN" | "en-US" | "source"
-): unknown {
+function invalidAiSchemaMessage(): string {
+  return "AI 返回结构不符合资源卡片 schema，已使用规则预览。";
+}
+
+function buildAiResourceInput(item: SkillItem, existingCategoryPaths: string[][], outputLocale: "zh-CN" | "en-US" | "source"): Record<string, unknown> {
+  return {
+    sourceUrl: item.sourceUrl,
+    sourceText: item.sourceText ? trimForSchema(item.sourceText, MAX_AI_SOURCE_TEXT) : undefined,
+    metadata: compactAiMetadata(item.rawMetadata),
+    current: {
+      title: item.title,
+      kind: item.kind,
+      category: item.category,
+      categoryPath: item.categoryPath,
+      tags: item.tags.slice(0, 8),
+      summary: trimForSchema(item.summary, 500),
+      confidence: item.confidence
+    },
+    existingCategoryPaths: compactCategoryPaths(existingCategoryPaths),
+    majorCategories: ["工具", "Skills", "Demo", "教程文章", "Prompt", "MCP", "Workflow", "未分类"],
+    outputLocale,
+    allowedKinds: ["skill-md", "mcp", "prompt", "workflow", "demo", "tool", "article", "unknown"]
+  };
+}
+
+function compactAiMetadata(metadata: SkillItem["rawMetadata"]): Record<string, unknown> | undefined {
+  if (!metadata) return undefined;
+  return removeUndefined({
+    title: trimOptional(metadata.title, 160),
+    description: trimOptional(metadata.description, 500),
+    siteName: trimOptional(metadata.siteName, 80),
+    fetchedUrl: trimOptional(metadata.fetchedUrl, 1_200),
+    imageUrl: trimOptional(metadata.imageUrl, 1_200),
+    textSample: trimOptional(metadata.textSample, MAX_AI_METADATA_TEXT),
+    images: compactAiImages(metadata.images),
+    links: compactAiLinks(metadata.links),
+    repository: compactAiRepository(metadata.repository)
+  });
+}
+
+function compactAiRepository(repository: RawResourceMetadata["repository"]): Record<string, unknown> | undefined {
+  if (!repository) return undefined;
+  return removeUndefined({
+    owner: trimOptional(repository.owner, 80),
+    name: trimOptional(repository.name, 120),
+    fullName: trimOptional(repository.fullName, 160),
+    description: trimOptional(repository.description, 500),
+    language: trimOptional(repository.language, 80),
+    stars: repository.stars,
+    forks: repository.forks,
+    topics: repository.topics?.slice(0, 8).map((topic) => trimForSchema(topic, 40)),
+    homepage: trimOptional(repository.homepage, 1_200),
+    license: trimOptional(repository.license, 80),
+    pushedAt: trimOptional(repository.pushedAt, 80)
+  });
+}
+
+function compactAiImages(images: RawResourceMetadata["images"]): Array<Record<string, unknown>> | undefined {
+  if (!Array.isArray(images)) return undefined;
+  const output = images
+    .slice(0, MAX_AI_IMAGES)
+    .map((image) =>
+      removeUndefined({
+        label: trimOptional(image.label, 60),
+        url: trimOptional(image.url, 1_200),
+        source: trimOptional(image.source, 40)
+      })
+    )
+    .filter((image) => image.url);
+  return output.length > 0 ? output : undefined;
+}
+
+function compactAiLinks(links: RawResourceMetadata["links"]): Array<Record<string, unknown>> | undefined {
+  if (!Array.isArray(links)) return undefined;
+  const output = links
+    .slice(0, MAX_AI_LINKS)
+    .map((link) =>
+      removeUndefined({
+        label: trimOptional(link.label, 80),
+        url: trimOptional(link.url, 1_200)
+      })
+    )
+    .filter((link) => link.url);
+  return output.length > 0 ? output : undefined;
+}
+
+function compactCategoryPaths(paths: string[][]): string[][] {
+  const seen = new Set<string>();
+  const output: string[][] = [];
+  for (const path of paths) {
+    const compact = path.slice(0, 2).map((part) => trimForSchema(part, 40)).filter(Boolean);
+    if (!compact.length) continue;
+    const key = compact.join("/");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    output.push(compact);
+    if (output.length >= MAX_AI_EXISTING_CATEGORIES) break;
+  }
+  return output;
+}
+
+function trimOptional(value: string | undefined, maxLength: number): string | undefined {
+  if (!value) return undefined;
+  const trimmed = trimForSchema(value, maxLength);
+  return trimmed || undefined;
+}
+
+function removeUndefined<T extends Record<string, unknown>>(value: T): T {
+  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined && entry !== "")) as T;
+}
+
+function normalizeAiAnalysisPayload(raw: unknown, fallback: SkillItem, outputLocale: "zh-CN" | "en-US" | "source"): unknown {
   const data = unwrapAiObject(raw);
   if (!data) return undefined;
   const hasRecognizedField = [
@@ -201,7 +300,7 @@ function normalizeAiCategoryPath(value: unknown, fallback: SkillItem, kind: Skil
   const raw = Array.isArray(value)
     ? value.map((item) => stringValue(item))
     : typeof value === "string"
-      ? value.split(/[>›→|,/，、]+/g)
+      ? value.split(/[>→|,/，、\s]+/g)
       : fallback.categoryPath ?? [fallback.category];
   const cleaned = raw.map((item) => trimForSchema(stringValue(item), 40)).filter(Boolean);
   return createTaxonomyPatch(

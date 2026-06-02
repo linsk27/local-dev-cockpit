@@ -17,7 +17,7 @@ export interface LocalProbeEndpoint {
 export async function resolveExternalProjectEndpoint(owner: Pick<PortStatus, "port" | "host">): Promise<ResolvedExternalProjectEndpoint> {
   const candidates = externalListenerProbeCandidates(owner.port, owner.host);
   for (const candidate of candidates) {
-    if (await isLocalHttpEndpointReachable(candidate, 2500, { requireUsableContent: true })) {
+    if (await isLocalHttpEndpointReachable(candidate, 2500, { requireUsableContent: true, allowSmallBody: true })) {
       return { ...candidate, reachable: true };
     }
   }
@@ -55,7 +55,7 @@ export async function isEndpointOpen(processAdapter: NodeProcessAdapter, endpoin
 export function isLocalHttpEndpointReachable(
   endpoint: Pick<PortStatus, "port" | "host" | "url">,
   timeoutMs = 2500,
-  options: { requireUsableContent?: boolean } = {}
+  options: { requireUsableContent?: boolean; allowSmallBody?: boolean } = {}
 ): Promise<boolean> {
   const targetUrl = endpoint.url ?? formatLocalUrl(endpoint.port, endpoint.host ?? "localhost");
   return new Promise((resolve) => {
@@ -91,6 +91,16 @@ export function isLocalHttpEndpointReachable(
           return;
         }
         const headerDecision = responseHeadersLookLikeUsableEndpoint(response);
+        if (headerDecision === true) {
+          response.resume();
+          finish(true);
+          return;
+        }
+        if (options.allowSmallBody) {
+          response.resume();
+          finish(true);
+          return;
+        }
         if (headerDecision !== undefined) {
           response.resume();
           finish(headerDecision);

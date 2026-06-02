@@ -51,7 +51,7 @@ describe("project dashboard view helpers", () => {
     expect(projectMatchesQuery(target, "missing")).toBe(false);
   });
 
-  it("treats managed, detected, and stale project ports as stoppable", () => {
+  it("treats visible open and stale project ports as stoppable", () => {
     const target = project({
       ports: [
         { port: 3000, host: "127.0.0.1", status: "open", source: "detected" },
@@ -62,7 +62,7 @@ describe("project dashboard view helpers", () => {
       ]
     });
 
-    expect(stoppableProjectPorts(target).map((port) => port.port)).toEqual([3000, 5173, 8000]);
+    expect(stoppableProjectPorts(target).map((port) => port.port)).toEqual([3000, 5173, 8000, 8080]);
   });
 
   it("deduplicates visible ports by port number within one project", () => {
@@ -319,6 +319,26 @@ describe("project dashboard view helpers", () => {
           args: ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8000"],
           cwd: "backend",
           source: "detected",
+          kind: "dev"
+        }
+      )
+    ).toBe(true);
+  });
+
+  it("blocks dev and start commands when the project is already externally online", () => {
+    expect(
+      commandWouldReuseOpenPort(
+        project({
+          ports: [{ port: 5189, host: "127.0.0.1", status: "open", source: "detected" }]
+        }),
+        {
+          id: "script-dev",
+          label: "dev",
+          command: "npm",
+          args: ["run", "dev", "--", "--port", "5173"],
+          ports: [5173],
+          cwd: "D:\\personal\\project",
+          source: "package-script",
           kind: "dev"
         }
       )

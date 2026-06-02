@@ -129,6 +129,27 @@ export const skillsFileSchema = z.object({
   items: z.array(skillItemSchema).default([])
 });
 
+export const resourceExportSchema = z.object({
+  app: z.literal("dev-cockpit-resource-radar").default("dev-cockpit-resource-radar"),
+  version: z.number().int().default(1),
+  exportedAt: z.string().optional(),
+  items: z.array(skillItemSchema).default([])
+});
+
+export const resourceImportInputSchema = z
+  .union([
+    resourceExportSchema,
+    z.object({
+      version: z.number().int().optional(),
+      items: z.array(skillItemSchema)
+    }),
+    z.array(skillItemSchema)
+  ])
+  .transform((value) => {
+    if (Array.isArray(value)) return { items: value };
+    return { items: value.items };
+  });
+
 export type SkillKind = z.infer<typeof skillKindSchema>;
 export type SkillStatus = z.infer<typeof skillStatusSchema>;
 export type AnalysisSource = z.infer<typeof analysisSourceSchema>;
@@ -141,6 +162,14 @@ export type SkillItem = z.infer<typeof skillItemSchema>;
 export type SkillCreateInput = z.infer<typeof skillCreateInputSchema>;
 export type SkillUpdateInput = z.infer<typeof skillUpdateInputSchema>;
 export type SkillPreviewCommitInput = z.infer<typeof skillPreviewCommitInputSchema>;
+export type ResourceExportPayload = z.infer<typeof resourceExportSchema>;
+export type ResourceImportInput = z.infer<typeof resourceImportInputSchema>;
+export interface ResourceImportResult {
+  added: number;
+  skipped: number;
+  total: number;
+  items: SkillItem[];
+}
 export type ResourceKind = SkillKind;
 export type ResourceStatus = SkillStatus;
 export type ResourceAnalysisSource = AnalysisSource;

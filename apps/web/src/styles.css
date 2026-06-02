@@ -159,7 +159,15 @@
     max-width: none;
   }
 
+  .compact-workspace-header .header-actions,
+  .header-actions {
+    flex: 0 0 auto;
+  }
+
   .sidebar-bottom {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
     width: 100%;
     margin-left: 0;
   }
@@ -181,14 +189,23 @@
   }
 
   .nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     justify-content: stretch;
     width: 100%;
   }
 
   .nav-link {
-    flex: 1 1 0;
+    flex: none;
     justify-content: center;
     min-width: 0;
+  }
+
+  .nav-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .project-list {
@@ -213,9 +230,20 @@
     width: 34px;
   }
 
+  .detail-tabs {
+    width: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+  }
+
   .detail-tab {
-    flex: 1 1 0;
+    flex: 0 0 auto;
     min-width: max-content;
+    padding-inline: 10px;
+  }
+
+  .detail-tab svg {
+    display: none;
   }
 
   .project-meta-strip {

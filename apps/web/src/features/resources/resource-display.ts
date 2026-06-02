@@ -39,6 +39,15 @@ export function categoryLabel(item: RadarItem): string {
   return displayCategory(item);
 }
 
+export function compactCategoryLabel(item: RadarItem, preferences: PreferencesStore): string {
+  const path = item.categoryPath?.map((part) => part.trim()).filter(Boolean) ?? [];
+  if (path.length >= 2) return path[1] ?? "";
+  const category = path[0] ?? item.category ?? "";
+  if (!category) return "";
+  const kind = kindLabel(item.kind, preferences);
+  return category === kind ? "" : category;
+}
+
 export function statusLabel(status: ResourceStatus, preferences: PreferencesStore): string {
   const labels: Record<ResourceStatus, string> = {
     inbox: preferences.t("resourceInbox"),
@@ -76,7 +85,7 @@ export function relationReasonLabel(reason: ResourceRelationReason, preferences:
 }
 
 export function analysisNoteLabel(message: string): string {
-  if (/AI.*schema|资源卡片\s*schema|AI.*结构|AI 返回结构不符合|AI 解析结果不完整/i.test(message)) {
+  if (/AI.*schema|resource card\s*schema|AI.*structure|AI returned invalid|AI analysis incomplete|AI 返回结构|结构不符合|schema/i.test(message)) {
     return "AI 返回结构不符合资源卡片要求，已使用本地规则生成预览。";
   }
   return message;
@@ -147,13 +156,13 @@ export function resourceFacts(item: RadarItem): string[] {
 export function insightCards(item: RadarItem): Array<{ title: string; value: string }> {
   const cards: Array<{ title: string; value: string }> = [];
   for (const value of item.highlights ?? []) cards.push({ title: "亮点", value });
-  for (const value of item.useCases ?? []) cards.push({ title: "用处", value });
-  for (const value of item.evidence ?? []) cards.push({ title: "证据", value });
+  for (const value of item.useCases ?? []) cards.push({ title: "用途", value });
+  for (const value of item.evidence ?? []) cards.push({ title: "依据", value });
   return cards.slice(0, 6);
 }
 
 export function resourceDecisionSummary(item: RadarItem): string {
-  const category = categoryLabel(item);
+  const category = categoryLabel(item) || "未分类";
   const summary = item.summary.trim();
   return summary ? `可作为「${category}」资源沉淀。${summary}` : `可作为「${category}」资源沉淀，后续按来源继续复核。`;
 }
@@ -163,10 +172,7 @@ export function resourceHighlightBullets(item: RadarItem): string[] {
   if (bullets.length) return bullets;
 
   const facts = resourceFacts(item).slice(0, 2);
-  return [
-    `类型与分类已归入「${categoryLabel(item)}」。`,
-    ...facts.map((fact) => `来源证据：${fact}。`)
-  ].slice(0, 3);
+  return [`类型与分类已归入「${categoryLabel(item) || "未分类"}」。`, ...facts.map((fact) => `来源依据：${fact}。`)].slice(0, 3);
 }
 
 export function resourceUseCaseBullets(item: RadarItem): string[] {
@@ -186,7 +192,7 @@ export function resourceReviewBullets(item: RadarItem): string[] {
     checks.push("当前主要来自本地规则，建议结合来源页面复核价值。");
   }
   if (!item.rawMetadata?.textSample && !item.rawMetadata?.description) {
-    checks.push("缺少完整网页摘要；可重新解析以补充更多证据。");
+    checks.push("缺少完整网页摘要，可重新解析以补充更多依据。");
   }
   if (!item.sourceUrl) {
     checks.push("缺少原始链接，建议补充出处后再长期收藏。");
@@ -236,7 +242,7 @@ export function toReadableBlocks(value: string, fallback: string): string[] {
     .trim();
   if (!cleaned) return [fallback];
 
-  const sentences = cleaned.match(/[^。！？.!?]+[。！？.!?]?/g) ?? [cleaned];
+  const sentences = cleaned.match(/[^。！？?!]+[。！？?!]?/g) ?? [cleaned];
   const blocks: string[] = [];
   let current = "";
   for (const sentence of sentences) {

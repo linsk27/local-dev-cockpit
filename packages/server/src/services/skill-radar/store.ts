@@ -8,10 +8,13 @@ import { fetchResourceMetadata } from "./fetcher.js";
 import { categoryPathsFromItems, normalizeResourceTaxonomy } from "./taxonomy.js";
 import {
   skillCreateInputSchema,
+  resourceImportInputSchema,
   skillItemSchema,
   skillPreviewCommitInputSchema,
   skillsFileSchema,
   skillUpdateInputSchema,
+  type ResourceExportPayload,
+  type ResourceImportResult,
   type SkillCreateInput,
   type SkillItem,
   type SkillPreviewCommitInput,
@@ -35,6 +38,48 @@ export class SkillRadarStore {
   async get(id: string): Promise<SkillItem | undefined> {
     const file = await this.readFile();
     return file.items.find((item) => item.id === id);
+  }
+
+  async exportData(): Promise<ResourceExportPayload> {
+    const file = await this.readFile();
+    return {
+      app: "dev-cockpit-resource-radar",
+      version: SKILL_FILE_VERSION,
+      exportedAt: new Date().toISOString(),
+      items: sortSkills(file.items)
+    };
+  }
+
+  async importData(rawInput: unknown): Promise<ResourceImportResult> {
+    const input = resourceImportInputSchema.parse(rawInput);
+    const file = await this.readFile();
+    const existing = new Set<string>();
+    for (const item of file.items) {
+      for (const key of resourceDedupKeys(item)) existing.add(key);
+    }
+
+    const added: SkillItem[] = [];
+    let skipped = 0;
+    for (const rawItem of input.items) {
+      const item = normalizeResourceTaxonomy(skillItemSchema.parse(rawItem));
+      const keys = resourceDedupKeys(item);
+      if (keys.some((key) => existing.has(key))) {
+        skipped += 1;
+        continue;
+      }
+      for (const key of keys) existing.add(key);
+      added.push(item);
+    }
+
+    if (added.length > 0) {
+      await this.writeFile([...added, ...file.items]);
+    }
+    return {
+      added: added.length,
+      skipped,
+      total: input.items.length,
+      items: sortSkills([...added, ...file.items])
+    };
   }
 
   async preview(rawInput: unknown, options: { aiSettings?: AiSettings } = {}): Promise<SkillItem> {
@@ -183,6 +228,29 @@ function normalizeManualTags(tags: string[]): string[] {
     if (normalized.length >= 20) break;
   }
   return normalized;
+}
+
+function resourceDedupKeys(item: SkillItem): string[] {
+  const keys = [`id:${item.id}`];
+  const url = normalizeResourceUrl(item.sourceUrl);
+  if (url) keys.push(`url:${url}`);
+  const title = item.title.trim().toLowerCase();
+  const summary = item.summary.trim().toLowerCase().slice(0, 120);
+  if (title && summary) keys.push(`title:${title}|summary:${summary}`);
+  return keys;
+}
+
+function normalizeResourceUrl(value: string | undefined): string {
+  const raw = value?.trim();
+  if (!raw) return "";
+  try {
+    const url = new URL(raw);
+    url.hash = "";
+    if (url.pathname.endsWith("/") && url.pathname.length > 1) url.pathname = url.pathname.slice(0, -1);
+    return url.toString().toLowerCase();
+  } catch {
+    return raw.toLowerCase();
+  }
 }
 
 async function buildAnalyzedResource(

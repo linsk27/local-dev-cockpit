@@ -3,9 +3,11 @@ import {
   createResource,
   commitResourcePreview,
   deleteResource,
+  exportResources,
   getResourceAiConfigPayload,
   getResourceContext,
   getResources,
+  importResources,
   previewResource,
   testResourceAiConfig,
   updateResource,
@@ -16,6 +18,8 @@ import {
   type ResourceAiTestResult,
   type ResourceAiConfigUpdate,
   type ResourceCreateInput,
+  type ResourceExportPayload,
+  type ResourceImportResult,
   type ResourceUpdateInput
 } from "../api";
 
@@ -35,7 +39,8 @@ export const useResourcesStore = defineStore("resources", {
     aiTestResult: undefined as ResourceAiTestResult | undefined,
     aiConfigLoading: false,
     aiConfigSaving: false,
-    aiConfigTesting: false
+    aiConfigTesting: false,
+    importExporting: false
   }),
   getters: {
     selectedItem(state): RadarItem | undefined {
@@ -202,6 +207,36 @@ export const useResourcesStore = defineStore("resources", {
         return "";
       }
     },
+    async exportLibrary(): Promise<ResourceExportPayload | undefined> {
+      this.importExporting = true;
+      this.error = "";
+      try {
+        return await exportResources();
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : String(error);
+        return undefined;
+      } finally {
+        this.importExporting = false;
+      }
+    },
+    async importLibrary(payload: unknown): Promise<ResourceImportResult | undefined> {
+      this.importExporting = true;
+      this.error = "";
+      try {
+        const result = await importResources(payload);
+        this.items = result.items;
+        if (this.selectedId && !this.items.some((item) => item.id === this.selectedId)) {
+          this.selectedId = this.items[0]?.id ?? "";
+        }
+        if (!this.selectedId && this.items[0]) this.selectedId = this.items[0].id;
+        return result;
+      } catch (error) {
+        this.error = friendlyResourceError(error);
+        return undefined;
+      } finally {
+        this.importExporting = false;
+      }
+    }
   }
 });
 

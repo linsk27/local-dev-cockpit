@@ -6,9 +6,13 @@
       v-model:source-url="sourceUrl"
       :can-submit="canSubmit"
       :count="resources.items.length"
+      :import-exporting="resources.importExporting"
       :previewing="resources.previewing"
+      @export="exportLibrary"
+      @import="openImportPicker"
       @submit="submitResource"
     />
+    <input ref="importInput" class="visually-hidden" type="file" accept="application/json,.json" @change="importLibraryFile" />
 
     <div v-if="resources.error" class="error-banner">{{ resources.error }}</div>
 
@@ -75,16 +79,6 @@
       />
 
       <section v-else class="resource-panel resource-nebula-page">
-        <div class="resource-nebula-head">
-          <div>
-            <strong>{{ preferences.t("resourceNebula") }}</strong>
-            <span>{{ preferences.t("resourceNebulaDescription") }}</span>
-          </div>
-          <button class="text-button" type="button" @click="activePage = 'cards'">
-            <FileText :size="15" />
-            {{ preferences.t("resourceBackToCards") }}
-          </button>
-        </div>
         <ResourceRadarScene :items="resources.items" :selected-id="selected?.id" @select="selectResource" @preview="focusResource" />
       </section>
     </div>
@@ -96,6 +90,7 @@ import { computed, onMounted, ref, type Component } from "vue";
 import { FileText, Radar } from "lucide-vue-next";
 import type { ResourceStatus } from "../../api";
 import { usePreferencesStore, type MessageKey } from "../../stores/preferences";
+import { useNotificationsStore } from "../../stores/notifications";
 import { useResourcesStore } from "../../stores/resources";
 import ResourceCaptureBar from "./ResourceCaptureBar.vue";
 import ResourceDetailPage from "./ResourceDetailPage.vue";
@@ -117,8 +112,10 @@ type ResourcePage = "cards" | "nebula" | "detail";
 
 const resources = useResourcesStore();
 const preferences = usePreferencesStore();
+const notifications = useNotificationsStore();
 const sourceUrl = ref("");
 const sourceText = ref("");
+const importInput = ref<HTMLInputElement | undefined>();
 const captureExpanded = ref(false);
 const query = ref("");
 const activeFilter = ref<ResourceFilter>("all");
@@ -164,6 +161,47 @@ onMounted(() => {
 
 async function refresh(): Promise<void> {
   await resources.load();
+}
+
+async function exportLibrary(): Promise<void> {
+  const payload = await resources.exportLibrary();
+  if (!payload) {
+    notifications.error(resources.error || preferences.t("resourceExportFailed"));
+    return;
+  }
+  const blob = new Blob([`${JSON.stringify(payload, null, 2)}\n`], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const date = new Date().toISOString().slice(0, 10);
+  link.href = url;
+  link.download = `dev-cockpit-resources-${date}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  notifications.success(preferences.t("resourceExportedNotice", { count: payload.items.length }));
+}
+
+function openImportPicker(): void {
+  importInput.value?.click();
+}
+
+async function importLibraryFile(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = "";
+  if (!file) return;
+  try {
+    const payload = JSON.parse(await file.text()) as unknown;
+    const result = await resources.importLibrary(payload);
+    if (!result) {
+      notifications.error(resources.error || preferences.t("resourceImportFailed"));
+      return;
+    }
+    notifications.success(preferences.t("resourceImportedNotice", { added: result.added, skipped: result.skipped }));
+  } catch (error) {
+    notifications.error(preferences.t("resourceImportFailedWithMessage", { message: error instanceof Error ? error.message : String(error) }));
+  }
 }
 
 async function submitResource(): Promise<void> {

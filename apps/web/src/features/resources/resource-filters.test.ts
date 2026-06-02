@@ -23,9 +23,9 @@ describe("resource filters", () => {
 
   it("counts buckets and groups by category", () => {
     const items = [
-      resource({ id: "1", category: "Demo", kind: "demo", status: "inbox" }),
-      resource({ id: "2", category: "Demo", kind: "tool", status: "archived" }),
-      resource({ id: "3", category: "Prompt", kind: "prompt", status: "useful" })
+      resource({ id: "1", category: "Demo", categoryPath: ["Demo"], kind: "demo", status: "inbox" }),
+      resource({ id: "2", category: "Demo", categoryPath: ["Demo"], kind: "tool", status: "archived" }),
+      resource({ id: "3", category: "Prompt", categoryPath: ["Prompt"], kind: "prompt", status: "useful" })
     ];
 
     expect(countResourceFilters(items)).toMatchObject({ all: 3, demo: 1, tool: 1, prompt: 1, archived: 1 });
@@ -44,17 +44,20 @@ describe("resource filters", () => {
 
     expect(getMajorCategories(items)).toEqual(["工具", "教程文章"]);
     expect(getCategoryTree(items)).toEqual([
-      { major: "工具", count: 2, children: [{ minor: "前端开发", count: 1 }, { minor: "视觉设计", count: 1 }] },
+      {
+        major: "工具",
+        count: 2,
+        children: [
+          { minor: "前端开发", count: 1 },
+          { minor: "视觉设计", count: 1 }
+        ]
+      },
       { major: "教程文章", count: 1, children: [{ minor: "PPT生成", count: 1 }] }
     ]);
     expect(filterResources(items, { query: "", filter: categoryFilterValue("工具") }).map((item) => item.id)).toEqual(["1", "2"]);
     expect(filterResources(items, { query: "", filter: categoryFilterValue("工具", "前端开发") }).map((item) => item.id)).toEqual(["1"]);
     expect(filterResources(items, { query: "", filter: categoryFilterValue("教程文章") }).map((item) => item.id)).toEqual(["3"]);
-    expect(groupResourcesByCategory(items).map((group) => group.category)).toEqual([
-      "工具 / 前端开发",
-      "工具 / 视觉设计",
-      "教程文章 / PPT生成"
-    ]);
+    expect(groupResourcesByCategory(items).map((group) => group.category)).toEqual(["工具 / 前端开发", "工具 / 视觉设计", "教程文章 / PPT生成"]);
 
     const counts = countResourceFilters(items);
     expect(counts[categoryFilterValue("工具")]).toBe(2);

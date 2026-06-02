@@ -15,9 +15,17 @@
         :class="{ 'is-dragging': isDragging }"
         aria-label="Resource Radar 3D graph"
       />
-      <div class="resource-radar-toolbar">
-        <span>拖拽旋转 · 滚轮缩放 · 点击资源卡</span>
-        <button type="button" @click="resetView">重置视角</button>
+      <div
+        class="resource-radar-toolbar"
+        :title="
+          preferences.locale === 'zh-CN'
+            ? '拖拽旋转，滚轮缩放，点击资源卡'
+            : 'Drag to rotate, scroll to zoom, click a resource card'
+        "
+      >
+        <button type="button" @click="resetView">
+          {{ preferences.locale === "zh-CN" ? "重置视角" : "Reset" }}
+        </button>
       </div>
       <div class="resource-radar-legend" aria-label="Resource radar clusters">
         <button
@@ -51,6 +59,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type * as Three from "three";
 import type { RadarItem } from "../../api";
+import { usePreferencesStore } from "../../stores/preferences";
 import { displayCategory } from "./resource-filters";
 import { animateRadarFocus, animateRadarScene, type RadarAnimationState } from "./resource-radar-animation";
 import { buildRadarCluster } from "./resource-radar-cluster";
@@ -82,6 +91,7 @@ const emit = defineEmits<{
 const maxNodes = 120;
 const initialCameraZ = 10.8;
 const initialRotation = { x: -0.24, y: -0.18 };
+const preferences = usePreferencesStore();
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 const isDragging = ref(false);
 const hoverItem = ref<RadarItem | undefined>();

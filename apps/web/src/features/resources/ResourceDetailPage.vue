@@ -22,10 +22,6 @@
           loading="lazy"
           @error="imageFailed = true"
         />
-        <div v-else-if="previewImage(item)" class="resource-detail-image resource-image-placeholder">
-          <span>{{ kindLabel(item.kind, preferences).slice(0, 2) }}</span>
-          <strong>{{ item.title }}</strong>
-        </div>
         <div class="resource-actions">
           <div class="resource-status-switch" role="group" :aria-label="preferences.t('resourceStatus')">
             <button
@@ -44,25 +40,18 @@
         </div>
       </div>
 
-      <div class="resource-meta-strip">
+      <div class="resource-quick-facts">
         <span>{{ kindLabel(item.kind, preferences) }}</span>
-        <span :title="categoryLabel(item)">{{ categoryLabel(item) }}</span>
+        <span v-if="compactCategoryLabel(item, preferences)" :title="categoryLabel(item)">
+          {{ compactCategoryLabel(item, preferences) }}
+        </span>
         <span>{{ statusLabel(item.status, preferences) }}</span>
-        <span>{{ analysisSourceLabel(item.analysisSource, preferences) }}</span>
+        <span v-for="fact in resourceFacts(item).slice(0, 3)" :key="fact" :title="fact">{{ fact }}</span>
+        <a v-if="item.sourceUrl" :href="item.sourceUrl" target="_blank" rel="noreferrer">
+          <ExternalLink :size="14" />
+          {{ preferences.t("resourceSource") }}
+        </a>
       </div>
-
-      <div class="resource-tags">
-        <span v-for="tag in visibleTags(item)" :key="tag">#{{ tag }}</span>
-      </div>
-
-      <div v-if="resourceFacts(item).length" class="resource-fact-list">
-        <span v-for="fact in resourceFacts(item)" :key="fact">{{ fact }}</span>
-      </div>
-
-      <a v-if="item.sourceUrl" class="resource-source-link" :href="item.sourceUrl" target="_blank" rel="noreferrer">
-        <ExternalLink :size="15" />
-        <span>{{ item.sourceUrl }}</span>
-      </a>
 
       <div v-if="item.analysisError" class="resource-analysis-note">
         {{ analysisNoteLabel(item.analysisError) }}
@@ -81,24 +70,18 @@
         </div>
       </section>
 
-      <div class="resource-decision-grid">
-        <section class="resource-decision-card">
+      <div class="resource-detail-snapshot">
+        <section v-if="resourceHighlightBullets(item).length" class="resource-snapshot-card">
           <span>{{ preferences.t("resourceEvidenceTitle") }}</span>
-          <ul>
-            <li v-for="bullet in resourceHighlightBullets(item)" :key="bullet">{{ bullet }}</li>
-          </ul>
+          <p v-for="bullet in resourceHighlightBullets(item).slice(0, 2)" :key="bullet">{{ bullet }}</p>
         </section>
-        <section class="resource-decision-card">
+        <section v-if="resourceUseCaseBullets(item).length" class="resource-snapshot-card">
           <span>{{ preferences.t("resourceBestUseTitle") }}</span>
-          <ul>
-            <li v-for="bullet in resourceUseCaseBullets(item)" :key="bullet">{{ bullet }}</li>
-          </ul>
+          <p v-for="bullet in resourceUseCaseBullets(item).slice(0, 2)" :key="bullet">{{ bullet }}</p>
         </section>
-        <section class="resource-decision-card">
+        <section v-if="resourceReviewBullets(item).length" class="resource-snapshot-card">
           <span>{{ preferences.t("resourceRiskTitle") }}</span>
-          <ul>
-            <li v-for="bullet in resourceReviewBullets(item)" :key="bullet">{{ bullet }}</li>
-          </ul>
+          <p v-for="bullet in resourceReviewBullets(item).slice(0, 1)" :key="bullet">{{ bullet }}</p>
         </section>
       </div>
 
@@ -156,7 +139,7 @@
           </div>
         </section>
         <section v-if="insightCards(item).length" class="resource-detail-section resource-insight-cards">
-          <strong>{{ preferences.t("resourceEvidenceTitle") }}</strong>
+          <strong>{{ preferences.locale === "zh-CN" ? "抓取信息" : "Fetched insight" }}</strong>
           <div class="resource-insight-grid">
             <div v-for="card in insightCards(item)" :key="card.title" class="resource-insight-card">
               <span>{{ card.title }}</span>
@@ -198,6 +181,7 @@ import {
   analysisNoteLabel,
   analysisSourceLabel,
   categoryLabel,
+  compactCategoryLabel,
   insightCards,
   kindLabel,
   metadataLinks,
@@ -211,7 +195,6 @@ import {
   resourceUseCaseBullets,
   statusLabel,
   statusOptions,
-  visibleTags
 } from "./resource-display";
 
 const props = defineProps<{

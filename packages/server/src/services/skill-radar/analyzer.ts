@@ -108,11 +108,7 @@ function analyze(input: { sourceUrl: string; sourceText: string }): Analysis {
   const frontmatter = parseFrontmatter(input.sourceText);
   const haystack = `${input.sourceUrl}\n${input.sourceText}`;
   const kind = detectKind(input.sourceUrl, input.sourceText, frontmatter);
-  const taxonomy = createTaxonomyPatch(
-    { kind, categoryPath: deriveRuleCategoryPath(kind, haystack) },
-    { source: "rules" }
-  );
-  const category = taxonomy.category;
+  const taxonomy = createTaxonomyPatch({ kind, categoryPath: deriveRuleCategoryPath(kind, haystack) }, { source: "rules" });
   const tags = normalizeTags([...frontmatter.tags, ...extractKeywordTags(haystack), sourceTag(kind)]);
   const title = inferTitle(input.sourceUrl, input.sourceText, frontmatter, kind);
   const summary = inferSummary(input.sourceText, frontmatter, input.sourceUrl, kind);
@@ -120,7 +116,19 @@ function analyze(input: { sourceUrl: string; sourceText: string }): Analysis {
   const highlights = inferHighlights(kind, input.sourceText);
   const useCases = inferUseCases(input.sourceText);
   const evidence = inferEvidence(input.sourceUrl, input.sourceText);
-  return { title, kind, category, categoryPath: taxonomy.categoryPath, taxonomySource: "rules", tags, confidence, summary, highlights, useCases, evidence };
+  return {
+    title,
+    kind,
+    category: taxonomy.category,
+    categoryPath: taxonomy.categoryPath,
+    taxonomySource: "rules",
+    tags,
+    confidence,
+    summary,
+    highlights,
+    useCases,
+    evidence
+  };
 }
 
 function detectKind(sourceUrl: string, sourceText: string, frontmatter: Frontmatter): SkillKind {
@@ -130,14 +138,16 @@ function detectKind(sourceUrl: string, sourceText: string, frontmatter: Frontmat
     /(^|\n)#\s*SKILL\.md\b/i.test(sourceText) ||
     /(^|\n)description:\s*/i.test(sourceText) ||
     /skill\.md|codex skill|cursor rule|claude skill|agent skill|\/skills?(?:[/?#\s]|$)/i.test(text)
-  )
+  ) {
     return "skill-md";
+  }
+  if (/github\.com/i.test(sourceUrl)) return "tool";
   if (isDemoUrl(sourceUrl) || /\bdemo\b|playground|preview|演示|示例/i.test(text)) return "demo";
   if (/\bmcp\b|model context protocol/i.test(text)) return "mcp";
   if (/\bprompt\b|提示词|system prompt|rules?/i.test(text)) return "prompt";
   if (/workflow|工作流|ci\/cd|pipeline|github actions/i.test(text)) return "workflow";
-  if (/\btool\b|工具|dashboard|console|platform|平台/i.test(text)) return "tool";
-  if (/github\.com/i.test(sourceUrl)) return "tool";
+  if (/\btool\b|工具|dashboard|console|platform|平台|library|sdk|app/i.test(text)) return "tool";
+  if (/tutorial|article|blog|guide|教程|文章|指南|文档/i.test(text)) return "article";
   if (/^https?:\/\//i.test(sourceUrl)) return "article";
   return "unknown";
 }
@@ -235,7 +245,7 @@ function inferEvidence(sourceUrl: string, sourceText: string): string[] | undefi
   if (/demo|playground|pages\.dev|vercel\.app|netlify\.app/i.test(sourceUrl)) evidence.push("来源包含可访问的演示或预览地址。");
   const firstSentence = sourceText
     .replace(/\s+/g, " ")
-    .split(/[。！？.!?]/)
+    .split(/[。！？?!]/)
     .map((item) => item.trim())
     .find((item) => item.length >= 18 && item.length <= 180);
   if (firstSentence) evidence.push(firstSentence);
@@ -331,7 +341,7 @@ function cleanTitle(title: string): string {
 }
 
 function trimText(value: string, maxLength: number): string {
-  return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1).trim()}…`;
+  return value.length <= maxLength ? value : `${value.slice(0, maxLength - 3).trim()}...`;
 }
 
 function stripQuotes(value: string): string {

@@ -107,6 +107,7 @@
   align-items: center;
   width: 100%;
   min-width: 0;
+  min-height: 86px;
   overflow: hidden;
   border: 0;
   border-bottom: 1px solid var(--border);
@@ -137,7 +138,7 @@
   min-width: 0;
   overflow: hidden;
   gap: 8px;
-  padding: 12px 10px 12px 14px;
+  padding: 10px 8px 10px 14px;
   border: 0;
   background: transparent;
   color: inherit;
@@ -172,7 +173,7 @@
 
 .project-row-copy {
   display: grid;
-  gap: 5px;
+  gap: 4px;
 }
 
 .project-row-titleline {
@@ -206,15 +207,16 @@
 
 .project-row-tags {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 4px;
-  max-height: 46px;
+  max-height: 22px;
   overflow: hidden;
 }
 
 .project-row-tags span {
-  max-width: min(132px, 100%);
+  flex: 0 1 auto;
+  max-width: min(104px, 100%);
   min-height: 20px;
   padding: 2px 6px;
   border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
@@ -225,13 +227,25 @@
   line-height: 1.25;
 }
 
+.project-row-tags span:nth-child(1) {
+  max-width: 64px;
+}
+
+.project-row-tags span:nth-child(2) {
+  max-width: 96px;
+}
+
+.project-row-tags span:nth-child(3) {
+  max-width: 72px;
+}
+
 .project-port {
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
   gap: 6px;
   min-width: 0;
-  max-width: 146px;
+  max-width: 122px;
   min-height: 26px;
   margin-right: 10px;
   padding: 0 8px;

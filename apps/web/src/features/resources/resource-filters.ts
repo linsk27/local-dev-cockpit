@@ -160,7 +160,7 @@ export function parseCategoryFilter(filter: ResourceFilter): ParsedCategoryFilte
 function majorCategories(item: RadarItem): string[] {
   const major = item.categoryPath?.[0]?.trim();
   if (major) return [major];
-  const legacy = item.category ? item.category.split(/\s*(?:\/|>|›|→|·|\|)\s*/g)[0]?.trim() : "";
+  const legacy = item.category ? item.category.split(/\s*(?:\/|>|→|·|\|)\s*/g)[0]?.trim() : "";
   return legacy ? [legacy] : [];
 }
 

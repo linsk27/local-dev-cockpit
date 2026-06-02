@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { RadarItem } from "../../api";
 import {
+  analysisNoteLabel,
+  insightCards,
   metadataLinks,
   previewImage,
   resourceDecisionSummary,
@@ -56,13 +58,13 @@ describe("resource display helpers", () => {
 
   it("builds decision bullets from structured AI analysis", () => {
     const item = resource({
-      highlights: ["组件多", "可复制"],
+      highlights: ["组件多", "可复用"],
       useCases: ["快速搭建动画页面"],
       evidence: ["README 提到 110+ components"]
     });
 
     expect(resourceDecisionSummary(item)).toContain("工具 / 前端开发");
-    expect(resourceHighlightBullets(item)).toEqual(["组件多", "可复制"]);
+    expect(resourceHighlightBullets(item)).toEqual(["组件多", "可复用"]);
     expect(resourceUseCaseBullets(item)).toEqual(["快速搭建动画页面"]);
     expect(resourceReviewBullets(item)).toEqual(["README 提到 110+ components"]);
   });
@@ -73,5 +75,23 @@ describe("resource display helpers", () => {
     expect(resourceHighlightBullets(item)[0]).toContain("工具 / 前端开发");
     expect(resourceUseCaseBullets(item)[0]).toContain("前端开发");
     expect(resourceReviewBullets(item)).toContain("当前主要来自本地规则，建议结合来源页面复核价值。");
+  });
+
+  it("normalizes AI schema errors into readable copy", () => {
+    expect(analysisNoteLabel("AI returned invalid resource card schema")).toBe("AI 返回结构不符合资源卡片要求，已使用本地规则生成预览。");
+  });
+
+  it("uses clean Chinese labels for insight cards", () => {
+    const item = resource({
+      highlights: ["亮点 1"],
+      useCases: ["用途 1"],
+      evidence: ["依据 1"]
+    });
+
+    expect(insightCards(item)).toEqual([
+      { title: "亮点", value: "亮点 1" },
+      { title: "用途", value: "用途 1" },
+      { title: "依据", value: "依据 1" }
+    ]);
   });
 });

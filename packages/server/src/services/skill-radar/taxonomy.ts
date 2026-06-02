@@ -99,11 +99,11 @@ function inferTopicCategory(haystack: string): string | undefined {
   if (/\u77ed\u89c6\u9891|\u89c6\u9891\u526a\u8f91|\u526a\u8f91\u5bfc\u51fa|\u5b57\u5e55|subtitle|caption|captions/i.test(haystack)) return ZH.video;
   if (/\u58f0\u97f3\u514b\u9686|\u8bed\u97f3\u514b\u9686|\u914d\u97f3|\u97f3\u8272|voice\s*(clone|cloning)|speech\s*synthesis|text[-\s]?to[-\s]?speech|\btts\b|audio\s*(clone|cloning|generation)/i.test(haystack)) return ZH.voice;
   if (/ppt|slide|presentation|deck|\u6f14\u793a\u6587\u7a3f|\u5e7b\u706f\u7247|\u8bfe\u4ef6/i.test(haystack)) return ZH.ppt;
-  if (/frontend|\u524d\u7aef|vue|react|next|css|animation|animated|gsap|\u52a8\u6548|\u52a8\u753b|\u4ea4\u4e92|components?/i.test(haystack)) return ZH.frontend;
-  if (/huashu|design|figma|visual design|poster|\u8bbe\u8ba1|\u6d77\u62a5|\u89c6\u89c9/i.test(haystack)) return ZH.visual;
   if (/3d|three\.?js|blender|asset generation|3d asset|\u4e09\u7ef4|\u6a21\u578b|\u8d44\u4ea7\u751f\u6210/i.test(haystack)) return ZH.threeD;
+  if (/huashu|design|figma|visual design|poster|\u8bbe\u8ba1|\u6d77\u62a5|\u89c6\u89c9/i.test(haystack)) return ZH.visual;
   if (/predict|prediction|forecast|swarm intelligence|\u7fa4\u4f53\u667a\u80fd|\u9884\u6d4b\u4e07\u7269|\u9884\u6d4b|simulation|\u6a21\u62df/i.test(haystack)) return ZH.predict;
   if (/agent|multi-agent|agentic|\u667a\u80fd\u4f53|\u591a\u667a\u80fd\u4f53/i.test(haystack)) return ZH.agent;
+  if (/frontend|\u524d\u7aef|vue|react|next|css|animation|animated|gsap|\u52a8\u6548|\u52a8\u753b|\u4ea4\u4e92|components?/i.test(haystack)) return ZH.frontend;
   if (/knowledge|knowledge graph|\u77e5\u8bc6\u5e93|\u77e5\u8bc6\u56fe\u8c31|\u6587\u6863\u95ee\u7b54|rag\b/i.test(haystack)) return ZH.knowledge;
   if (/office|\u529e\u516c|\u8868\u683c|\u6587\u6863|word|excel|notion/i.test(haystack)) return ZH.office;
   return undefined;

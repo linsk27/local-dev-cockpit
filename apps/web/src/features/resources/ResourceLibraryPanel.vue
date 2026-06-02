@@ -1,16 +1,15 @@
 <template>
   <section class="resource-panel resource-library-panel">
-    <div class="resource-library-head">
-      <div>
-        <strong>{{ preferences.t("resourceLibraryTitle") }}</strong>
-        <span>{{ filteredItems.length }} / {{ allItems.length }}</span>
-      </div>
-      <button class="icon-button" type="button" :disabled="loading" :title="preferences.t('resourceRefresh')" @click="$emit('refresh')">
-        <RefreshCw :size="15" :class="{ 'spin-icon': loading }" />
-      </button>
-    </div>
-
     <div class="resource-filter-bar">
+      <div class="resource-library-head">
+        <div>
+          <strong>{{ preferences.t("resourceLibraryTitle") }}</strong>
+          <span>{{ filteredItems.length }} / {{ allItems.length }}</span>
+        </div>
+        <button class="icon-button" type="button" :disabled="loading" :title="preferences.t('resourceRefresh')" @click="$emit('refresh')">
+          <RefreshCw :size="15" :class="{ 'spin-icon': loading }" />
+        </button>
+      </div>
       <div class="search-box resource-search">
         <Search :size="16" />
         <input :value="query" :placeholder="preferences.t('resourceSearchPlaceholder')" @input="updateQuery" />
@@ -70,31 +69,23 @@
         role="listitem"
         @click="$emit('select', item.id)"
       >
-        <span class="resource-kind-mark" :data-kind="item.kind" />
-        <img
-          v-if="previewImage(item) && !isImageFailed(item)"
-          class="resource-list-thumb"
-          :src="previewImage(item)"
-          :alt="item.title"
-          loading="lazy"
-          @error="markImageFailed(item)"
-        />
-        <span v-else class="resource-list-thumb resource-list-thumb-placeholder">
-          {{ imageFallbackLabel(item) }}
+        <span class="resource-list-type-mark" :data-kind="item.kind" aria-hidden="true">
+          {{ kindLabel(item.kind, preferences).slice(0, 1) }}
         </span>
         <span class="resource-list-copy">
-          <strong :title="item.title">{{ item.title }}</strong>
+          <span class="resource-list-title-row">
+            <strong :title="item.title">{{ item.title }}</strong>
+          </span>
           <small :title="item.sourceUrl ?? item.summary">{{ sourceLabel(item, preferences) }}</small>
+          <span class="resource-list-summary" :title="item.summary">{{ item.summary }}</span>
           <span class="resource-list-meta">
             <span>{{ kindLabel(item.kind, preferences) }}</span>
-            <span :title="categoryLabel(item)">{{ categoryLabel(item) }}</span>
-            <span>{{ statusLabel(item.status, preferences) }}</span>
-            <span>{{ analysisSourceLabel(item.analysisSource, preferences) }}</span>
+            <span v-if="compactCategoryLabel(item, preferences)" :title="categoryLabel(item)">
+              {{ compactCategoryLabel(item, preferences) }}
+            </span>
+            <span class="resource-list-status">{{ statusLabel(item.status, preferences) }}</span>
+            <span class="resource-list-score">{{ Math.round(item.confidence) }}/100</span>
           </span>
-        </span>
-        <span class="resource-list-open" :title="preferences.t('resourceOpenDetail')" aria-hidden="true">
-          <span>{{ preferences.t("resourceOpenDetail") }}</span>
-          <ChevronRight :size="14" />
         </span>
       </button>
       <div v-if="!loading && filteredItems.length === 0" class="resource-empty" :class="{ 'is-library-empty': allItems.length === 0 }">
@@ -109,13 +100,12 @@
 </template>
 
 <script setup lang="ts">
-import { ChevronRight, RefreshCw, Search } from "lucide-vue-next";
-import { ref } from "vue";
+import { RefreshCw, Search } from "lucide-vue-next";
 import type { RadarItem } from "../../api";
 import { usePreferencesStore, type MessageKey } from "../../stores/preferences";
 import type { ResourceCategoryNode, ResourceFilter, ResourceFilterCounts } from "./resource-filters";
 import { categoryFilterValue } from "./resource-filters";
-import { analysisSourceLabel, categoryLabel, kindLabel, previewImage, sourceLabel, statusLabel } from "./resource-display";
+import { categoryLabel, compactCategoryLabel, kindLabel, sourceLabel, statusLabel } from "./resource-display";
 
 defineProps<{
   activeCategoryMajor: string;
@@ -144,25 +134,8 @@ const emit = defineEmits<{
 }>();
 
 const preferences = usePreferencesStore();
-const failedImages = ref(new Set<string>());
 
 function updateQuery(event: Event): void {
   emit("update:query", (event.target as HTMLInputElement).value);
-}
-
-function imageKey(item: RadarItem): string {
-  return `${item.id}:${previewImage(item)}`;
-}
-
-function isImageFailed(item: RadarItem): boolean {
-  return failedImages.value.has(imageKey(item));
-}
-
-function markImageFailed(item: RadarItem): void {
-  failedImages.value = new Set([...failedImages.value, imageKey(item)]);
-}
-
-function imageFallbackLabel(item: RadarItem): string {
-  return kindLabel(item.kind, preferences).slice(0, 2);
 }
 </script>

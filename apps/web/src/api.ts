@@ -254,6 +254,20 @@ export type SkillCreateInput = ResourceCreateInput;
 export type ResourceUpdateInput = Partial<Pick<RadarItem, "title" | "summary" | "category" | "categoryPath" | "taxonomySource" | "tags" | "status">>;
 export type SkillUpdateInput = ResourceUpdateInput;
 
+export interface ResourceExportPayload {
+  app: "dev-cockpit-resource-radar";
+  version: number;
+  exportedAt?: string;
+  items: RadarItem[];
+}
+
+export interface ResourceImportResult {
+  added: number;
+  skipped: number;
+  total: number;
+  items: RadarItem[];
+}
+
 export async function getProjects(options: { force?: boolean; rootId?: string } = {}): Promise<Project[]> {
   const params = new URLSearchParams();
   if (options.force) params.set("force", "1");
@@ -284,6 +298,22 @@ export async function getSkills(): Promise<SkillItem[]> {
 }
 
 export const getResources = getSkills;
+
+export async function exportResources(): Promise<ResourceExportPayload> {
+  const response = await fetch("/api/skills/export");
+  await ensureOk(response, "Failed to export resources");
+  return response.json() as Promise<ResourceExportPayload>;
+}
+
+export async function importResources(payload: unknown): Promise<ResourceImportResult> {
+  const response = await fetch("/api/skills/import", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  await ensureOk(response, "Failed to import resources");
+  return response.json() as Promise<ResourceImportResult>;
+}
 
 export async function getResourceAiConfig(): Promise<ResourceAiConfig> {
   const response = await fetch("/api/ai/config");

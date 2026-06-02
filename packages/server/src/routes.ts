@@ -73,6 +73,16 @@ export async function handleApiRoute(req: IncomingMessage, res: ServerResponse, 
     return true;
   }
 
+  if (method === "GET" && url.pathname === "/api/skills/export") {
+    sendJson(res, 200, await context.skillRadar.exportData());
+    return true;
+  }
+
+  if (method === "POST" && url.pathname === "/api/skills/import") {
+    sendJson(res, 200, await context.skillRadar.importData(await readJson(req)));
+    return true;
+  }
+
   if (method === "GET" && url.pathname === "/api/skills/ai-config") {
     sendJson(res, 200, { config: toPublicAiSettings(await context.store.readAiSettings()) });
     return true;
@@ -330,7 +340,7 @@ export async function handleApiRoute(req: IncomingMessage, res: ServerResponse, 
         stopped: false,
         port,
         pids: [],
-        error: "该端口不是 Dev Cockpit 托管进程，也不是当前项目的残留端口。请在启动它的终端或系统任务管理器中停止。"
+        error: "该端口不是 Dev Cockpit 托管进程，也不是当前项目的可操作端口。请在启动它的终端或系统任务管理器中停止。"
       });
       return true;
     }
