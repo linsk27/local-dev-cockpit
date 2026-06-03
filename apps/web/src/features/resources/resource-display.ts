@@ -242,7 +242,7 @@ export function toReadableBlocks(value: string, fallback: string): string[] {
     .trim();
   if (!cleaned) return [fallback];
 
-  const sentences = cleaned.match(/[^。！？?!]+[。！？?!]?/g) ?? [cleaned];
+  const sentences = cleaned.match(/[^。！？!?]+[。！？!?]?/g) ?? [cleaned];
   const blocks: string[] = [];
   let current = "";
   for (const sentence of sentences) {

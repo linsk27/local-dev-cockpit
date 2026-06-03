@@ -214,7 +214,9 @@ const activeProject = computed(() => {
   return visibleProjects.value.find((project) => project.id === store.selectedId) ?? visibleProjects.value[0];
 });
 
-const loadingLabel = computed(() => `当前目录：${selectedRootLabel.value}`);
+const loadingLabel = computed(() =>
+  preferences.locale === "en-US" ? `Current root: ${selectedRootLabel.value}` : `当前目录：${selectedRootLabel.value}`
+);
 
 const workspaceAnimation = useGsapScope(workspaceRef, (element, gsap) => {
   animateSubtleEntrance(
@@ -412,7 +414,9 @@ function notifyFailedRuns(watchedBefore: Map<string, string>): void {
     const run = project.lastRun;
     if (run?.status !== "failed" || watchedBefore.get(project.id) !== run.id || notifiedFailedRunIds.has(run.id)) continue;
     notifiedFailedRunIds.add(run.id);
-    notifications.error(`命令失败：${project.name} - ${project.lastError?.message ?? "请查看日志"}`);
+    const fallback = preferences.locale === "en-US" ? "Check logs" : "请查看日志";
+    const prefix = preferences.locale === "en-US" ? "Command failed" : "命令失败";
+    notifications.error(`${prefix}: ${project.name} - ${project.lastError?.message ?? fallback}`);
   }
 }
 

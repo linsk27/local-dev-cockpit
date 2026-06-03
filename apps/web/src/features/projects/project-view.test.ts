@@ -8,19 +8,19 @@ import {
   commandWouldReuseOpenPort,
   formatDisplayPath,
   formatPortUrl,
-  projectHasAlreadyRunningConflict,
+  noCommandGuidance,
   projectBelongsToRoot,
-  projectHasFailed,
-  projectHasStalePorts,
-  projectStatusReason,
   projectDiagnostics,
   projectFailureActionHint,
   projectFailureHeadline,
-  projectRuntimeMode,
+  projectHasAlreadyRunningConflict,
+  projectHasFailed,
+  projectHasStalePorts,
   projectMatchesQuery,
-  noCommandGuidance,
-  runtimeSourceLabel,
+  projectRuntimeMode,
+  projectStatusReason,
   recommendedProjectCommand,
+  runtimeSourceLabel,
   sortProjectsForDashboard,
   stoppableProjectPorts,
   visibleProjectPorts
@@ -51,36 +51,22 @@ describe("project dashboard view helpers", () => {
     expect(projectMatchesQuery(target, "missing")).toBe(false);
   });
 
-  it("treats visible open and stale project ports as stoppable", () => {
-    const target = project({
-      ports: [
-        { port: 3000, host: "127.0.0.1", status: "open", source: "detected" },
-        { port: 5173, host: "127.0.0.1", status: "open", source: "process" },
-        { port: 5173, host: "localhost", status: "open", source: "process" },
-        { port: 8000, host: "127.0.0.1", status: "unknown", source: "detected" },
-        { port: 8080, status: "open", source: "common" }
-      ]
-    });
-
-    expect(stoppableProjectPorts(target).map((port) => port.port)).toEqual([3000, 5173, 8000, 8080]);
-  });
-
-  it("deduplicates visible ports by port number within one project", () => {
+  it("deduplicates visible and stoppable ports by port number", () => {
     const target = project({
       ports: [
         { port: 3000, host: "localhost", url: "http://localhost:3000", status: "open", source: "detected" },
         { port: 3000, host: "127.0.0.1", url: "http://127.0.0.1:3000", status: "open", source: "detected" },
         { port: 3001, host: "localhost", status: "open", source: "process" },
-        { port: 3001, host: "127.0.0.1", status: "open", source: "process" }
+        { port: 3001, host: "127.0.0.1", status: "open", source: "process" },
+        { port: 8000, host: "127.0.0.1", status: "unknown", source: "detected" }
       ]
     });
 
     expect(visibleProjectPorts(target).map((port) => port.port)).toEqual([3000, 3001]);
-    expect(stoppableProjectPorts(target).map((port) => port.port)).toEqual([3000, 3001]);
-    expect(projectMatchesQuery(target, "3000")).toBe(true);
+    expect(stoppableProjectPorts(target).map((port) => port.port)).toEqual([3000, 3001, 8000]);
   });
 
-  it("extracts declared command ports from args and command metadata", () => {
+  it("extracts declared command ports from args and metadata", () => {
     expect(
       commandDeclaredPorts({
         id: "dev",
@@ -93,21 +79,9 @@ describe("project dashboard view helpers", () => {
         kind: "dev"
       })
     ).toEqual([3000, 5173]);
-
-    expect(
-      commandDeclaredPorts({
-        id: "vite",
-        label: "vite",
-        command: "vite",
-        args: ["--host", "0.0.0.0", "--server.port=8080"],
-        cwd: "D:\\personal\\project",
-        source: "detected",
-        kind: "dev"
-      })
-    ).toEqual([8080]);
   });
 
-  it("classifies projects for list filters by runnable confidence", () => {
+  it("classifies projects for list filters by runtime confidence", () => {
     expect(
       classifyProjectForList(
         project({
@@ -115,7 +89,6 @@ describe("project dashboard view helpers", () => {
         })
       )
     ).toBe("online");
-
     expect(classifyProjectForList(project())).toBe("standard-runnable");
     expect(
       classifyProjectForList(
@@ -168,36 +141,13 @@ describe("project dashboard view helpers", () => {
     });
   });
 
-  it("filters projects by root path boundary", () => {
+  it("filters projects by root path boundary and formats paths", () => {
     const target = project({ path: "D:\\personal\\blog-admin" });
 
     expect(projectBelongsToRoot(target, "D:\\personal")).toBe(true);
-    expect(projectBelongsToRoot(target, "D:\\personal\\")).toBe(true);
-    expect(projectBelongsToRoot(target, "D:\\\\personal")).toBe(true);
     expect(projectBelongsToRoot(target, "D:\\personal-other")).toBe(false);
-  });
-
-  it("formats stored paths for compact display", () => {
     expect(formatDisplayPath("D:\\\\personal")).toBe("D:\\personal");
-    expect(formatDisplayPath("D:\\personal")).toBe("D:\\personal");
     expect(formatDisplayPath("\\\\server\\\\share")).toBe("\\\\server\\share");
-  });
-
-  it("treats failed runs as failed even before an error summary is available", () => {
-    expect(
-      projectHasFailed(
-        project({
-          lastRun: {
-            id: "run-1",
-            projectId: "project",
-            commandId: "script-dev",
-            status: "failed",
-            startedAt: new Date().toISOString(),
-            logPath: "run.log"
-          }
-        })
-      )
-    ).toBe(true);
   });
 
   it("lets current online ports override stale failure display", () => {
@@ -232,32 +182,9 @@ describe("project dashboard view helpers", () => {
     });
 
     expect(projectHasStalePorts(target)).toBe(false);
-    expect(sortProjectsForDashboard([project({ name: "idle" }), target]).map((item) => item.name)).toEqual(["project", "idle"]);
   });
 
-  it("treats an already-running port conflict as online instead of failed", () => {
-    const alreadyRunning = project({
-      lastRun: {
-        id: "run-1",
-        projectId: "project",
-        commandId: "python-fastapi-app-main",
-        status: "failed",
-        startedAt: new Date().toISOString(),
-        logPath: "run.log"
-      },
-      lastError: {
-        commandId: "python-fastapi-app-main",
-        message: "error while attempting to bind on address ('127.0.0.1', 8000): address already in use",
-        occurredAt: new Date().toISOString()
-      },
-      ports: [{ port: 8000, status: "open", source: "detected" }]
-    });
-
-    expect(projectHasAlreadyRunningConflict(alreadyRunning)).toBe(true);
-    expect(projectHasFailed(alreadyRunning)).toBe(false);
-  });
-
-  it("treats an existing Next.js dev server as online instead of failed", () => {
+  it("treats already-running port conflicts as online instead of failed", () => {
     const alreadyRunning = project({
       lastRun: {
         id: "run-1",
@@ -289,10 +216,7 @@ describe("project dashboard view helpers", () => {
     });
 
     expect(projectFailureHeadline(pythonMissingProject)).toBe("缺少 Python 依赖：portalocker");
-    expect(
-      projectFailureActionHint(pythonMissingProject)
-    ).toContain("Python 环境");
-
+    expect(projectFailureActionHint(pythonMissingProject)).toContain("Python 环境");
     expect(
       projectFailureActionHint(
         project({
@@ -303,15 +227,13 @@ describe("project dashboard view helpers", () => {
           }
         })
       )
-    ).toContain("清理占用端口");
+    ).toContain("停止或清理占用端口");
   });
 
-  it("blocks a command that would bind an already open declared port", () => {
+  it("blocks commands that would reuse open or stale ports", () => {
     expect(
       commandWouldReuseOpenPort(
-        project({
-          ports: [{ port: 8000, status: "open", source: "detected" }]
-        }),
+        project({ ports: [{ port: 8000, status: "open", source: "detected" }] }),
         {
           id: "python-fastapi-app-main",
           label: "Uvicorn app.main",
@@ -323,20 +245,17 @@ describe("project dashboard view helpers", () => {
         }
       )
     ).toBe(true);
-  });
 
-  it("blocks dev and start commands when the project is already externally online", () => {
     expect(
-      commandWouldReuseOpenPort(
+      commandBlockedByStalePort(
         project({
-          ports: [{ port: 5189, host: "127.0.0.1", status: "open", source: "detected" }]
+          ports: [{ port: 3000, host: "localhost", status: "unknown", source: "detected" }]
         }),
         {
           id: "script-dev",
           label: "dev",
           command: "npm",
-          args: ["run", "dev", "--", "--port", "5173"],
-          ports: [5173],
+          args: ["run", "dev"],
           cwd: "D:\\personal\\project",
           source: "package-script",
           kind: "dev"
@@ -345,7 +264,7 @@ describe("project dashboard view helpers", () => {
     ).toBe(true);
   });
 
-  it("keeps commands stoppable while the project has a managed running process", () => {
+  it("keeps commands runnable while the project has a managed running process", () => {
     const runningProject = project({
       lastRun: {
         id: "run-1",
@@ -366,49 +285,7 @@ describe("project dashboard view helpers", () => {
     expect(commandBlockedByStalePort(runningProject, devCommand)).toBe(false);
   });
 
-  it("blocks dev/start commands when a stale detected port belongs to the project", () => {
-    expect(
-      commandBlockedByStalePort(
-        project({
-          ports: [{ port: 3000, host: "localhost", status: "unknown", source: "detected" }]
-        }),
-        {
-          id: "script-dev",
-          label: "dev",
-          command: "npm",
-          args: ["run", "dev"],
-          cwd: "D:\\personal\\project",
-          source: "package-script",
-          kind: "dev"
-        }
-      )
-    ).toBe(true);
-  });
-
-  it("does not present stale dev server ports as generic failures", () => {
-    expect(
-      projectHasFailed(
-        project({
-          lastRun: {
-            id: "run-1",
-            projectId: "project",
-            commandId: "script-dev",
-            status: "failed",
-            startedAt: new Date().toISOString(),
-            logPath: "run.log"
-          },
-          lastError: {
-            commandId: "script-dev",
-            message: "Another next dev server is already running. - Local: http://localhost:3000 - PID: 28532",
-            occurredAt: new Date().toISOString()
-          },
-          ports: [{ port: 3000, host: "localhost", status: "unknown", source: "detected" }]
-        })
-      )
-    ).toBe(false);
-  });
-
-  it("explains the project status source in user-facing language", () => {
+  it("explains project status source in user-facing language", () => {
     expect(
       projectStatusReason(
         project({

@@ -73,7 +73,7 @@ function addClusterCore(
     })
   );
   cloud.position.copy(localCenter);
-  cloud.scale.setScalar(3.1 + clusterSize * 0.16);
+  cloud.scale.setScalar(4.05 + clusterSize * 0.22);
   cloud.userData.baseScale = cloud.scale.x;
   cloud.userData.phase = categoryIndex * 1.3;
   cloudObjects.push(cloud);
@@ -90,7 +90,7 @@ function addClusterCore(
     })
   );
   core.position.copy(localCenter);
-  core.scale.setScalar(0.52 + clusterSize * 0.035);
+  core.scale.setScalar(0.6 + clusterSize * 0.045);
   core.userData.baseScale = core.scale.x;
   core.userData.phase = categoryIndex * 1.3 + 0.6;
   cloudObjects.push(core);
@@ -101,7 +101,7 @@ function addClusterLabel(options: BuildRadarClusterOptions, clusterGroup: Three.
   const { category, three, tokens } = options;
   const labelTexture = createClusterLabelTexture(three, category.category, category.items.length, category.color, tokens);
   const label = new three.Sprite(new three.SpriteMaterial({ map: labelTexture, transparent: true, opacity: 0.96, depthWrite: false }));
-  label.position.set(0, 1.55 + Math.min(category.items.length, 8) * 0.04, 0.18);
+  label.position.set(0, 2.12 + Math.min(category.items.length, 8) * 0.05, 0.18);
   label.scale.set(2.35, 0.48, 1);
   clusterGroup.add(label);
 }
@@ -115,7 +115,7 @@ function addClusterOrbits(options: BuildRadarClusterOptions, clusterGroup: Three
     depthWrite: false
   });
   for (let index = 0; index < 3; index += 1) {
-    const orbit = new three.Mesh(new three.TorusGeometry(1.5 + index * 0.42, 0.004, 8, 96), orbitMaterial.clone());
+    const orbit = new three.Mesh(new three.TorusGeometry(2.25 + index * 0.72, 0.004, 8, 128), orbitMaterial.clone());
     orbit.position.copy(localCenter);
     orbit.rotation.x = Math.PI / (2.25 + index * 0.28);
     orbit.rotation.y = categoryIndex * 0.42 + index * 0.55;
@@ -167,13 +167,15 @@ function createResourceCardSprite(
       depthWrite: false
     })
   );
-  const width = clamp(3.05 + [...item.title].length * 0.025, 3.05, 4.35);
+  const width = clamp(2.82 + [...item.title].length * 0.02, 2.82, 3.95);
   card.position.copy(position);
-  card.scale.set(width, 0.92, 1);
+  card.scale.set(width, 0.84, 1);
   card.userData.resourceId = item.id;
   card.userData.baseWidth = width;
-  card.userData.baseHeight = 0.92;
+  card.userData.baseHeight = 0.84;
+  card.userData.baseX = position.x;
   card.userData.baseY = position.y;
+  card.userData.baseZ = position.z;
   card.userData.phase = categoryIndex * 1.75 + itemIndex * 0.83;
   return card;
 }

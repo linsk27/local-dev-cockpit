@@ -69,6 +69,7 @@ export function projectStatusReason(project: Project, locale: StatusReasonLocale
   }
   return locale === "en-US" ? "No runnable commands detected." : "未识别到可运行命令。";
 }
+
 export function projectHasFailed(project: Project): boolean {
   if (visibleProjectPorts(project).length > 0) return false;
   if (projectHasStalePorts(project)) return false;
@@ -171,6 +172,7 @@ export function noCommandGuidance(project: Project, locale: StatusReasonLocale =
     ? "No runnable command has been detected for this project yet. Check entry files or add a more specific root directory."
     : "暂未识别到可运行命令。请检查项目入口文件，或添加更具体的根目录。";
 }
+
 export function sortProjectsForDashboard(projects: Project[]): Project[] {
   return [...projects].sort((left, right) => {
     const onlineDelta = Number(projectIsOnline(right)) - Number(projectIsOnline(left));

@@ -18,6 +18,7 @@ export function projectDiagnostics(project: Project, locale: StatusReasonLocale 
     nextActionDiagnostic(project, locale)
   ];
 }
+
 function environmentDiagnostic(project: Project, locale: StatusReasonLocale): ProjectDiagnosticItem {
   const labels = diagnosticLabels(locale);
   if (project.commands.length === 0) {
@@ -192,7 +193,7 @@ export function projectFailureHeadline(project: Project, locale: StatusReasonLoc
   }
 
   const pythonModule =
-    message.match(/缺少 Python 依赖[:：]\s*([^。.\s]+)/i)?.[1]?.trim() ??
+    message.match(/缺少 Python 依赖[:：]\s*([^。\s]+)/i)?.[1]?.trim() ??
     message.match(/ModuleNotFoundError:\s*No module named ['"]([^'"]+)['"]/i)?.[1]?.trim();
   if (pythonModule) return isEnglish ? `Missing Python package: ${pythonModule}` : `缺少 Python 依赖：${pythonModule}`;
 
@@ -208,7 +209,7 @@ export function projectFailureHeadline(project: Project, locale: StatusReasonLoc
     return isEnglish ? "Command not found" : "命令不可用";
   }
 
-  const firstSentence = message.split(/[。.\r\n]/).map((item) => item.trim()).find(Boolean);
+  const firstSentence = message.split(/[。\r\n]/).map((item) => item.trim()).find(Boolean);
   if (!firstSentence) return isEnglish ? "Command failed" : "命令失败";
   return firstSentence.length > 42 ? `${firstSentence.slice(0, 42)}...` : firstSentence;
 }

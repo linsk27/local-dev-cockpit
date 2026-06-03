@@ -129,6 +129,15 @@ const pythonBinding = ref("");
 const pythonCandidates = ref<PythonEnvironmentCandidate[]>([]);
 const settingsLoading = ref(false);
 const savingSettings = ref(false);
+const pythonEnvironmentMarkers = new Set([
+  "requirements.txt",
+  "requirements-dev.txt",
+  "pyproject.toml",
+  "environment.yml",
+  "environment.yaml",
+  "Pipfile",
+  "poetry.lock"
+]);
 const showPythonBinding = computed(
   () =>
     props.project.kind === "python" ||
@@ -188,15 +197,6 @@ const pythonEnvironmentTitle = computed(() =>
 const pythonEnvironmentHelp = computed(() =>
   pythonEnvironmentNeedsBinding.value ? environmentLabels.value.bindNeeded : environmentLabels.value.chooseDetected
 );
-const pythonEnvironmentMarkers = new Set([
-  "requirements.txt",
-  "requirements-dev.txt",
-  "pyproject.toml",
-  "environment.yml",
-  "environment.yaml",
-  "Pipfile",
-  "poetry.lock"
-]);
 
 watch(
   () => props.project.id,

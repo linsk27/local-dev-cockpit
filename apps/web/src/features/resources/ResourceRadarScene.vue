@@ -2,7 +2,7 @@
   <div class="resource-radar-scene">
     <div v-if="items.length > maxNodes" class="resource-insight-empty">
       <strong>节点过多，已切回列表。</strong>
-      <span>当前 {{ items.length }} 条，上限 {{ maxNodes }} 条，避免长期占用显卡资源。</span>
+      <span>当前 {{ items.length }} 条，上限 {{ maxNodes }} 条，避免长时间占用显卡资源。</span>
     </div>
     <div v-else-if="items.length === 0" class="resource-insight-empty">
       <strong>还没有资源节点。</strong>
@@ -89,7 +89,7 @@ const emit = defineEmits<{
 }>();
 
 const maxNodes = 120;
-const initialCameraZ = 10.8;
+const initialCameraZ = 12.8;
 const initialRotation = { x: -0.24, y: -0.18 };
 const preferences = usePreferencesStore();
 const canvasRef = ref<HTMLCanvasElement | null>(null);
@@ -143,8 +143,6 @@ async function rebuild(): Promise<void> {
   disposeScene();
   await nextTick();
   if (!canvasRef.value || props.items.length === 0 || props.items.length > maxNodes) return;
-  // Resource Radar is an explicit interactive view; keep motion visible even
-  // when the OS has reduced-motion enabled, otherwise the 3D graph reads as frozen.
   reducedMotion = false;
   try {
     THREE = await import("./resource-radar-three");
@@ -328,7 +326,7 @@ function onPointerLeave(): void {
 function onWheel(event: WheelEvent): void {
   if (!camera) return;
   event.preventDefault();
-  camera.position.z = clamp(camera.position.z + event.deltaY * 0.01, 7.8, 18);
+  camera.position.z = clamp(camera.position.z + event.deltaY * 0.012, 8.6, 22);
   camera.updateProjectionMatrix();
 }
 

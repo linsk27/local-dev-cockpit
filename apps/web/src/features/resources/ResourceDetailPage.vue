@@ -194,7 +194,7 @@ import {
   resourceReviewBullets,
   resourceUseCaseBullets,
   statusLabel,
-  statusOptions,
+  statusOptions
 } from "./resource-display";
 
 const props = defineProps<{

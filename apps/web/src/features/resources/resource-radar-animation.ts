@@ -30,9 +30,13 @@ export function animateRadarScene(state: RadarAnimationState, seconds: number): 
   }
 
   for (const node of state.nodeObjects) {
+    const baseX = typeof node.userData.baseX === "number" ? node.userData.baseX : node.position.x;
     const baseY = typeof node.userData.baseY === "number" ? node.userData.baseY : node.position.y;
+    const baseZ = typeof node.userData.baseZ === "number" ? node.userData.baseZ : node.position.z;
     const phase = typeof node.userData.phase === "number" ? node.userData.phase : 0;
-    node.position.y = baseY + Math.sin(seconds * 2.1 + phase) * 0.12;
+    node.position.x = baseX + Math.sin(seconds * 0.72 + phase) * 0.08;
+    node.position.y = baseY + Math.sin(seconds * 1.85 + phase) * 0.18;
+    node.position.z = baseZ + Math.cos(seconds * 0.66 + phase) * 0.1;
   }
 
   for (const cloud of state.cloudObjects) {
@@ -80,7 +84,9 @@ export function animateRadarFocus(state: RadarAnimationState, seconds: number): 
       scale = 0.5;
       opacity = 0.22;
     } else if (!state.reducedMotion) {
-      targetY += Math.sin(seconds * 0.55 + group.userData.phase) * 0.09;
+      targetX += Math.sin(seconds * 0.36 + group.userData.phase) * 0.16;
+      targetY += Math.sin(seconds * 0.55 + group.userData.phase) * 0.12;
+      targetZ += Math.cos(seconds * 0.31 + group.userData.phase) * 0.22;
     }
 
     state.focusScratch.position.set(targetX, targetY, targetZ);

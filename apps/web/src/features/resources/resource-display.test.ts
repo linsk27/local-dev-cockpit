@@ -58,13 +58,13 @@ describe("resource display helpers", () => {
 
   it("builds decision bullets from structured AI analysis", () => {
     const item = resource({
-      highlights: ["组件多", "可复用"],
+      highlights: ["组件丰富", "可复用"],
       useCases: ["快速搭建动画页面"],
       evidence: ["README 提到 110+ components"]
     });
 
     expect(resourceDecisionSummary(item)).toContain("工具 / 前端开发");
-    expect(resourceHighlightBullets(item)).toEqual(["组件多", "可复用"]);
+    expect(resourceHighlightBullets(item)).toEqual(["组件丰富", "可复用"]);
     expect(resourceUseCaseBullets(item)).toEqual(["快速搭建动画页面"]);
     expect(resourceReviewBullets(item)).toEqual(["README 提到 110+ components"]);
   });

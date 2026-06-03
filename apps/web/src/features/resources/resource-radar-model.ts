@@ -43,8 +43,10 @@ export function clusterColor(index: number): string {
 export function clusterCenter(three: typeof import("./resource-radar-three"), index: number, total: number): Three.Vector3 {
   if (total <= 1) return new three.Vector3(0, 0.22, 0);
   const angle = (index / total) * Math.PI * 2 - Math.PI / 2;
-  const radius = total <= 3 ? 3.15 : 4.05;
-  return new three.Vector3(Math.cos(angle) * radius, Math.sin(angle) * 1.45, Math.sin(angle) * 2.35);
+  const radius = total <= 2 ? 4.8 : total <= 3 ? 5.65 : 6.35;
+  const verticalRadius = total <= 2 ? 1.15 : 1.85;
+  const depthRadius = total <= 2 ? 2.85 : 3.35;
+  return new three.Vector3(Math.cos(angle) * radius, Math.sin(angle) * verticalRadius, Math.sin(angle) * depthRadius);
 }
 
 export function nodePosition(
@@ -53,22 +55,26 @@ export function nodePosition(
   index: number,
   total: number
 ): Three.Vector3 {
-  if (total === 1) return new three.Vector3(center.x + 1.25, center.y - 0.16, center.z + 0.2);
+  if (total === 1) return new three.Vector3(center.x + 1.72, center.y - 0.08, center.z + 0.28);
+
   if (total <= 6) {
     const angle = (index / total) * Math.PI * 2 - Math.PI / 2;
+    const radius = 2.88 + total * 0.12;
+    const offset = index % 2 === 0 ? 0.18 : -0.24;
     return new three.Vector3(
-      center.x + Math.cos(angle) * 2.28,
-      center.y + Math.sin(angle) * 0.82 + 0.16,
-      center.z + Math.sin(angle + Math.PI / 5) * 0.9
+      center.x + Math.cos(angle) * radius + offset,
+      center.y + Math.sin(angle) * 1.18 + 0.2,
+      center.z + Math.sin(angle + Math.PI / 5) * 1.45 + offset * 0.45
     );
   }
+
   const angle = index * goldenAngle;
-  const radius = 1.35 + Math.sqrt(index + 1) * 0.26;
-  const vertical = ((index % 3) - 1) * 0.46;
+  const radius = 1.95 + Math.sqrt(index + 1) * 0.38;
+  const vertical = ((index % 3) - 1) * 0.68;
   return new three.Vector3(
     center.x + Math.cos(angle) * radius,
-    center.y + vertical + Math.sin(angle * 0.7) * 0.22,
-    center.z + Math.sin(angle) * radius * 0.76
+    center.y + vertical + Math.sin(angle * 0.7) * 0.32,
+    center.z + Math.sin(angle) * radius * 0.94
   );
 }
 
