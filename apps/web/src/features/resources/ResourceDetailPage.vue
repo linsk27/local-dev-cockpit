@@ -121,12 +121,17 @@
         </div>
       </section>
 
-      <div class="resource-primary-actions">
-        <button class="text-button" type="button" @click="$emit('copyContext')">
+      <section class="resource-ai-handoff">
+        <div>
+          <span>{{ preferences.t("resourceAiContextTitle") }}</span>
+          <strong>{{ preferences.t("resourceAiHandoffTitle") }}</strong>
+          <p>{{ preferences.t("resourceAiHandoffDescription") }}</p>
+        </div>
+        <button class="primary-button" type="button" :disabled="contextCopying" @click="$emit('copyContext')">
           <Copy :size="14" />
-          {{ preferences.t("resourceCopyToAi") }}
+          {{ contextCopying ? preferences.t("resourceCopyingContext") : preferences.t("resourceCopyContext") }}
         </button>
-      </div>
+      </section>
 
       <div class="resource-detail-grid">
         <section v-if="imageGallery.length" class="resource-detail-section resource-gallery-section">
@@ -198,6 +203,7 @@ import {
 } from "./resource-display";
 
 const props = defineProps<{
+  contextCopying: boolean;
   duplicateRelations: ResourceRelation[];
   item?: RadarItem;
   relatedResources: ResourceRelation[];

@@ -167,8 +167,16 @@ export type ResourceImportInput = z.infer<typeof resourceImportInputSchema>;
 export interface ResourceImportResult {
   added: number;
   skipped: number;
+  failed?: number;
   total: number;
   items: SkillItem[];
+}
+export interface ResourceSummary {
+  total: number;
+  updatedAt?: string;
+  statuses: Record<string, number>;
+  kinds: Record<string, number>;
+  categories: Array<{ major: string; count: number; children: Array<{ minor: string; count: number }> }>;
 }
 export type ResourceKind = SkillKind;
 export type ResourceStatus = SkillStatus;

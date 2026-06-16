@@ -85,6 +85,9 @@ export function relationReasonLabel(reason: ResourceRelationReason, preferences:
 }
 
 export function analysisNoteLabel(message: string): string {
+  if (/AI.*(timeout|timed out|超时|超过)|AbortError/i.test(message)) {
+    return "AI 增强超时，已保留本地规则生成的资源卡。可稍后重试解析。";
+  }
   if (/AI.*schema|resource card\s*schema|AI.*structure|AI returned invalid|AI analysis incomplete|AI 返回结构|结构不符合|schema/i.test(message)) {
     return "AI 返回结构不符合资源卡片要求，已使用本地规则生成预览。";
   }

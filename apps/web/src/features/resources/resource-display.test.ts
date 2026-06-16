@@ -81,6 +81,10 @@ describe("resource display helpers", () => {
     expect(analysisNoteLabel("AI returned invalid resource card schema")).toBe("AI 返回结构不符合资源卡片要求，已使用本地规则生成预览。");
   });
 
+  it("makes AI timeout notes clear that the local card remains usable", () => {
+    expect(analysisNoteLabel("AI 解析超时。")).toBe("AI 增强超时，已保留本地规则生成的资源卡。可稍后重试解析。");
+  });
+
   it("uses clean Chinese labels for insight cards", () => {
     const item = resource({
       highlights: ["亮点 1"],

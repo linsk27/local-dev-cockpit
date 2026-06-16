@@ -51,16 +51,17 @@ export async function checkForUpdates(currentVersion: string): Promise<UpdateChe
   try {
     const release = buildNpmFallbackRelease(await fetchLatestNpmVersion(currentVersion));
     const assets = selectUpdateAssets(release.assets);
+    const hasUpdate = isNewerVersion(release.version, currentVersion);
     return {
       currentVersion,
       latestVersion: release.version,
-      hasUpdate: isNewerVersion(release.version, currentVersion),
+      hasUpdate,
       source: "npm",
       releaseUrl: release.htmlUrl,
-      installerAsset: assets.installerAsset,
-      portableAsset: assets.portableAsset,
+      installerAsset: hasUpdate ? assets.installerAsset : undefined,
+      portableAsset: hasUpdate ? assets.portableAsset : undefined,
       checkedAt,
-      warning: formatNpmFallbackWarning(githubError)
+      warning: hasUpdate ? formatNpmFallbackWarning(githubError) : undefined
     };
   } catch (npmError) {
     return {

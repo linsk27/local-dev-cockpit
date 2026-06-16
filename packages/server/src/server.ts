@@ -52,10 +52,14 @@ export {
   createEditorCommand,
   createFolderPickerCommand,
   createOpenFolderCommand,
+  createWindowsStartProcessCommand,
   openProjectFolder,
   openProjectInEditor,
   parseEditorCommand,
-  resolveFolderPickerInitialPath
+  parseWindowsRegistryDefaultValue,
+  resolveFolderPickerInitialPath,
+  selectWindowsEditorExecutable,
+  windowsGuiExecutableCandidateForShim
 } from "./services/native-shell.js";
 export type { FolderPickerCommand, FolderPickerResult } from "./services/native-shell.js";
 

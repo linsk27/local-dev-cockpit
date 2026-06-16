@@ -15,6 +15,7 @@ import {
   skillUpdateInputSchema,
   type ResourceExportPayload,
   type ResourceImportResult,
+  type ResourceSummary,
   type SkillCreateInput,
   type SkillItem,
   type SkillPreviewCommitInput,
@@ -50,8 +51,44 @@ export class SkillRadarStore {
     };
   }
 
+  async summary(): Promise<ResourceSummary> {
+    const file = await this.readFile();
+    const statuses: Record<string, number> = {};
+    const kinds: Record<string, number> = {};
+    const categoryTree = new Map<string, { count: number; children: Map<string, number> }>();
+    let updatedAt = "";
+
+    for (const item of file.items) {
+      statuses[item.status] = (statuses[item.status] ?? 0) + 1;
+      kinds[item.kind] = (kinds[item.kind] ?? 0) + 1;
+      if (!updatedAt || item.updatedAt > updatedAt) updatedAt = item.updatedAt;
+      const [major, minor] = item.categoryPath ?? [];
+      if (!major) continue;
+      const entry = categoryTree.get(major) ?? { count: 0, children: new Map<string, number>() };
+      entry.count += 1;
+      if (minor) entry.children.set(minor, (entry.children.get(minor) ?? 0) + 1);
+      categoryTree.set(major, entry);
+    }
+
+    return {
+      total: file.items.length,
+      updatedAt: updatedAt || undefined,
+      statuses,
+      kinds,
+      categories: [...categoryTree.entries()]
+        .map(([major, entry]) => ({
+          major,
+          count: entry.count,
+          children: [...entry.children.entries()]
+            .map(([minor, count]) => ({ minor, count }))
+            .sort((left, right) => right.count - left.count || left.minor.localeCompare(right.minor, "zh-CN"))
+        }))
+        .sort((left, right) => right.count - left.count || left.major.localeCompare(right.major, "zh-CN"))
+    };
+  }
+
   async importData(rawInput: unknown): Promise<ResourceImportResult> {
-    const input = resourceImportInputSchema.parse(rawInput);
+    const rawItems = extractRawImportItems(rawInput);
     const file = await this.readFile();
     const existing = new Set<string>();
     for (const item of file.items) {
@@ -60,8 +97,14 @@ export class SkillRadarStore {
 
     const added: SkillItem[] = [];
     let skipped = 0;
-    for (const rawItem of input.items) {
-      const item = normalizeResourceTaxonomy(skillItemSchema.parse(rawItem));
+    let failed = 0;
+    for (const rawItem of rawItems) {
+      const parsed = skillItemSchema.safeParse(rawItem);
+      if (!parsed.success) {
+        failed += 1;
+        continue;
+      }
+      const item = normalizeResourceTaxonomy(parsed.data);
       const keys = resourceDedupKeys(item);
       if (keys.some((key) => existing.has(key))) {
         skipped += 1;
@@ -77,7 +120,8 @@ export class SkillRadarStore {
     return {
       added: added.length,
       skipped,
-      total: input.items.length,
+      failed,
+      total: rawItems.length,
       items: sortSkills([...added, ...file.items])
     };
   }
@@ -234,10 +278,23 @@ function resourceDedupKeys(item: SkillItem): string[] {
   const keys = [`id:${item.id}`];
   const url = normalizeResourceUrl(item.sourceUrl);
   if (url) keys.push(`url:${url}`);
+  const githubRepo = githubRepoKey(item);
+  if (githubRepo) keys.push(`github:${githubRepo}`);
   const title = item.title.trim().toLowerCase();
   const summary = item.summary.trim().toLowerCase().slice(0, 120);
   if (title && summary) keys.push(`title:${title}|summary:${summary}`);
   return keys;
+}
+
+function extractRawImportItems(rawInput: unknown): unknown[] {
+  const parsed = resourceImportInputSchema.safeParse(rawInput);
+  if (parsed.success) return parsed.data.items;
+  if (Array.isArray(rawInput)) return rawInput;
+  if (typeof rawInput === "object" && rawInput !== null && Array.isArray((rawInput as { items?: unknown }).items)) {
+    return (rawInput as { items: unknown[] }).items;
+  }
+  resourceImportInputSchema.parse(rawInput);
+  return [];
 }
 
 function normalizeResourceUrl(value: string | undefined): string {
@@ -250,6 +307,22 @@ function normalizeResourceUrl(value: string | undefined): string {
     return url.toString().toLowerCase();
   } catch {
     return raw.toLowerCase();
+  }
+}
+
+function githubRepoKey(item: SkillItem): string {
+  const fullName = item.rawMetadata?.repository?.fullName?.trim().toLowerCase();
+  if (fullName) return fullName;
+  const raw = item.sourceUrl?.trim();
+  if (!raw) return "";
+  try {
+    const url = new URL(raw);
+    if (!/(^|\.)github\.com$/i.test(url.hostname)) return "";
+    const [owner, repo] = url.pathname.split("/").filter(Boolean);
+    if (!owner || !repo) return "";
+    return `${owner.toLowerCase()}/${repo.replace(/\.git$/i, "").toLowerCase()}`;
+  } catch {
+    return "";
   }
 }
 

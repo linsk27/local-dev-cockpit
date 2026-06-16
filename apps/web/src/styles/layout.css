@@ -741,3 +741,155 @@ h2 {
 :root[data-theme="cream"] .root-menu-item {
   border-radius: 14px;
 }
+
+/* macOS command-center shell */
+.app-shell {
+  grid-template-columns: var(--mac-sidebar-width) minmax(0, 1fr);
+  background: var(--bg);
+}
+
+.app-shell.sidebar-collapsed {
+  grid-template-columns: 72px minmax(0, 1fr);
+}
+
+.sidebar {
+  gap: 18px;
+  padding: 16px 12px;
+  border-right-color: var(--border);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--sidebar-bg) 96%, white 4%), var(--sidebar-bg)),
+    var(--sidebar-bg);
+  box-shadow: inset -1px 0 0 color-mix(in srgb, white 5%, transparent);
+}
+
+.brand {
+  min-height: 38px;
+  padding: 0 4px;
+}
+
+.brand-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--mac-radius);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 22%, white 9%), color-mix(in srgb, var(--accent) 15%, var(--surface-soft))),
+    var(--surface-soft);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 18%, transparent);
+}
+
+.brand strong {
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.brand span,
+.sidebar-footer {
+  font-size: 11px;
+}
+
+.nav {
+  gap: 4px;
+}
+
+.nav-link {
+  height: 34px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: var(--mac-radius-sm);
+  color: var(--muted-strong);
+  font-size: 13px;
+}
+
+.nav-link:hover {
+  background: color-mix(in srgb, var(--surface-hover) 72%, transparent);
+  color: var(--text);
+}
+
+.nav-link.router-link-active {
+  border-color: color-mix(in srgb, var(--border-strong) 72%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 86%, transparent);
+  color: var(--text-strong);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.sidebar-bottom {
+  gap: 10px;
+}
+
+.sidebar-footer,
+.resource-usage-card,
+.resource-popover {
+  border-radius: var(--mac-radius);
+}
+
+.resource-usage-card {
+  min-height: 58px;
+  background: color-mix(in srgb, var(--surface-soft) 82%, transparent);
+  box-shadow: none;
+}
+
+.main-surface {
+  padding: 10px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-gradient) 88%, transparent), transparent 38%),
+    var(--bg);
+}
+
+.workspace {
+  max-width: none;
+  gap: 10px;
+  padding: 0;
+}
+
+.workspace-header {
+  min-height: 44px;
+}
+
+.compact-workspace-header {
+  min-height: 44px;
+  padding: 0;
+}
+
+.compact-workspace-header .header-actions {
+  flex: 1 1 auto;
+}
+
+.header-actions {
+  gap: 8px;
+}
+
+.search-box,
+.root-filter {
+  height: 34px;
+  border-radius: var(--mac-radius-sm);
+  background: color-mix(in srgb, var(--panel-solid) 58%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 10%, transparent);
+}
+
+.root-menu {
+  border-radius: var(--mac-radius);
+  background: color-mix(in srgb, var(--panel-solid) 94%, var(--bg));
+}
+
+:root[data-theme="cream"] .app-shell,
+:root[data-theme="cream"] .app-shell.sidebar-collapsed {
+  grid-template-columns: var(--mac-sidebar-width) minmax(0, 1fr);
+}
+
+:root[data-theme="cream"] .app-shell.sidebar-collapsed {
+  grid-template-columns: 72px minmax(0, 1fr);
+}
+
+:root[data-theme="cream"] .sidebar,
+:root[data-theme="cream"] .brand-mark,
+:root[data-theme="cream"] .nav-link,
+:root[data-theme="cream"] .nav-link.router-link-active,
+:root[data-theme="cream"] .resource-usage-card,
+:root[data-theme="cream"] .sidebar-footer,
+:root[data-theme="cream"] .search-box,
+:root[data-theme="cream"] .root-filter,
+:root[data-theme="cream"] .root-menu,
+:root[data-theme="cream"] .root-menu-item {
+  border-radius: var(--mac-radius);
+  box-shadow: none;
+}

@@ -35,7 +35,7 @@ type ClusterGroupData = {
 export function buildRadarCluster(options: BuildRadarClusterOptions): void {
   const { category, categoryIndex, center, cloudObjects, cloudTexture, clusterGroups, glowTexture, nodeById, nodeObjects, orbitObjects, rootGroup, three, tokens } =
     options;
-  const clusterSize = Math.min(9, Math.max(2, category.items.length));
+  const clusterSize = Math.min(9, Math.max(2, category.totalCount));
   const clusterGroup = new three.Group() as Three.Group & { userData: ClusterGroupData };
   clusterGroup.position.copy(center);
   clusterGroup.userData = {
@@ -99,7 +99,7 @@ function addClusterCore(
 
 function addClusterLabel(options: BuildRadarClusterOptions, clusterGroup: Three.Group): void {
   const { category, three, tokens } = options;
-  const labelTexture = createClusterLabelTexture(three, category.category, category.items.length, category.color, tokens);
+  const labelTexture = createClusterLabelTexture(three, category.category, category.totalCount, category.color, tokens);
   const label = new three.Sprite(new three.SpriteMaterial({ map: labelTexture, transparent: true, opacity: 0.96, depthWrite: false }));
   label.position.set(0, 2.12 + Math.min(category.items.length, 8) * 0.05, 0.18);
   label.scale.set(2.35, 0.48, 1);

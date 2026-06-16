@@ -21,6 +21,7 @@ afterEach(async () => {
   delete process.env.DEV_COCKPIT_AI_API_KEY;
   delete process.env.DEV_COCKPIT_AI_BASE_URL;
   delete process.env.DEV_COCKPIT_AI_MODEL;
+  delete process.env.DEV_COCKPIT_AI_TIMEOUT_MS;
 });
 
 describe("Skill Radar analyzer", () => {

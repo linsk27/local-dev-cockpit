@@ -263,3 +263,103 @@
   border-radius: 18px;
   background: rgba(248, 239, 224, 0.94);
 }
+
+/* macOS workbench component tuning */
+.surface {
+  border-radius: var(--mac-radius);
+  background: color-mix(in srgb, var(--surface-bg) 92%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 8%, transparent),
+    0 10px 28px color-mix(in srgb, var(--shadow) 52%, transparent);
+}
+
+.surface-heading {
+  min-height: 38px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.detail-tabs {
+  width: 100%;
+  padding: 3px;
+  border-radius: var(--mac-radius);
+  background: color-mix(in srgb, var(--surface-soft) 76%, transparent);
+}
+
+.detail-tab {
+  height: 29px;
+  flex: 1 1 0;
+  min-width: max-content;
+  padding: 0 9px;
+  border-radius: var(--mac-radius-sm);
+  font-size: 11.5px;
+  font-weight: 720;
+}
+
+.detail-tab.active {
+  border-color: var(--border-strong);
+  background: color-mix(in srgb, var(--panel-solid) 82%, var(--surface-hover));
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--shadow) 55%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 12%, transparent);
+}
+
+.icon-button,
+.text-button,
+.primary-button {
+  height: 32px;
+  border-radius: var(--mac-radius-sm);
+  font-size: 12px;
+  font-weight: 680;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    transform 140ms ease;
+}
+
+.icon-button {
+  width: 32px;
+}
+
+.icon-button:hover,
+.text-button:hover {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border-strong));
+  background: var(--surface-hover);
+  color: var(--text-strong);
+}
+
+.primary-button {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent-strong) 88%, white 12%), var(--accent-strong));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 24%, transparent),
+    0 6px 14px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.primary-button:disabled,
+.text-button:disabled,
+.icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  transform: none;
+}
+
+.toast {
+  border-radius: var(--mac-radius);
+  background: color-mix(in srgb, var(--panel-solid) 88%, var(--surface-bg));
+  box-shadow: 0 14px 32px color-mix(in srgb, var(--shadow) 80%, transparent);
+}
+
+:root[data-theme="cream"] .surface,
+:root[data-theme="cream"] .detail-tabs,
+:root[data-theme="cream"] .detail-tab,
+:root[data-theme="cream"] .detail-tab.active,
+:root[data-theme="cream"] .icon-button,
+:root[data-theme="cream"] .text-button,
+:root[data-theme="cream"] .primary-button,
+:root[data-theme="cream"] .toast {
+  border-radius: var(--mac-radius);
+  box-shadow: none;
+}

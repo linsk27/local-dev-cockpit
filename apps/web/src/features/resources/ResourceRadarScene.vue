@@ -1,12 +1,8 @@
 <template>
   <div class="resource-radar-scene">
-    <div v-if="items.length > maxNodes" class="resource-insight-empty">
-      <strong>节点过多，已切回列表。</strong>
-      <span>当前 {{ items.length }} 条，上限 {{ maxNodes }} 条，避免长时间占用显卡资源。</span>
-    </div>
-    <div v-else-if="items.length === 0" class="resource-insight-empty">
-      <strong>还没有资源节点。</strong>
-      <span>先在顶部粘贴一个链接或文本。</span>
+    <div v-if="items.length === 0" class="resource-insight-empty">
+      <strong>{{ preferences.locale === "zh-CN" ? "还没有资源节点。" : "No resource nodes yet." }}</strong>
+      <span>{{ preferences.locale === "zh-CN" ? "先在顶部粘贴链接或文本。" : "Paste a link or text at the top first." }}</span>
     </div>
     <div v-else class="resource-radar-stage">
       <canvas
@@ -17,11 +13,7 @@
       />
       <div
         class="resource-radar-toolbar"
-        :title="
-          preferences.locale === 'zh-CN'
-            ? '拖拽旋转，滚轮缩放，点击资源卡'
-            : 'Drag to rotate, scroll to zoom, click a resource card'
-        "
+        :title="preferences.locale === 'zh-CN' ? '拖拽旋转，滚轮缩放，点击资源卡' : 'Drag to rotate, scroll to zoom, click a resource card'"
       >
         <button type="button" @click="resetView">
           {{ preferences.locale === "zh-CN" ? "重置视角" : "Reset" }}
@@ -39,8 +31,19 @@
         >
           <span />
           <strong :title="cluster.category">{{ cluster.category }}</strong>
-          <small>{{ cluster.items.length }}</small>
+          <small>{{ cluster.totalCount }}</small>
         </button>
+      </div>
+      <div v-if="densityMode !== 'full'" class="resource-radar-density">
+        {{
+          densityMode === "representative"
+            ? preferences.locale === "zh-CN"
+              ? "代表节点模式"
+              : "Representative mode"
+            : preferences.locale === "zh-CN"
+              ? "分类聚合模式"
+              : "Cluster summary mode"
+        }}
       </div>
       <div v-if="hoverItem" class="resource-radar-hover">
         <strong :title="hoverItem.title">{{ hoverItem.title }}</strong>
@@ -68,15 +71,13 @@ import {
   clamp,
   clusterCenter,
   fract,
-  groupResourcesByMajorCategory,
+  groupResourcesForRadar,
   majorCategoryOf,
-  type ClusterGroupData
+  radarDensityMode,
+  type ClusterGroupData,
+  type RadarCluster
 } from "./resource-radar-model";
-import {
-  createCloudTexture,
-  createGlowTexture,
-  readRadarTokens
-} from "./resource-radar-textures";
+import { createCloudTexture, createGlowTexture, readRadarTokens } from "./resource-radar-textures";
 
 const props = defineProps<{
   items: RadarItem[];
@@ -88,7 +89,6 @@ const emit = defineEmits<{
   preview: [resourceId: string];
 }>();
 
-const maxNodes = 120;
 const initialCameraZ = 12.8;
 const initialRotation = { x: -0.24, y: -0.18 };
 const preferences = usePreferencesStore();
@@ -96,7 +96,8 @@ const canvasRef = ref<HTMLCanvasElement | null>(null);
 const isDragging = ref(false);
 const hoverItem = ref<RadarItem | undefined>();
 const focusedCategory = ref<string | undefined>();
-const clusters = computed(() => groupResourcesByMajorCategory(props.items));
+const densityMode = computed(() => radarDensityMode(props.items.length));
+const clusters = computed(() => groupResourcesForRadar(props.items, { mode: densityMode.value, focusedCategory: focusedCategory.value }));
 const selectedItem = computed(() => props.items.find((item) => item.id === props.selectedId));
 
 let THREE: typeof import("./resource-radar-three") | undefined;
@@ -130,6 +131,10 @@ watch(
   { deep: true, flush: "post" }
 );
 
+watch(focusedCategory, () => {
+  if (densityMode.value !== "full") void rebuild();
+});
+
 watch(
   () => props.selectedId,
   () => {
@@ -142,8 +147,8 @@ watch(
 async function rebuild(): Promise<void> {
   disposeScene();
   await nextTick();
-  if (!canvasRef.value || props.items.length === 0 || props.items.length > maxNodes) return;
-  reducedMotion = false;
+  if (!canvasRef.value || props.items.length === 0) return;
+  reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
   try {
     THREE = await import("./resource-radar-three");
     createScene(canvasRef.value);
@@ -376,9 +381,9 @@ function updateNodeVisuals(): void {
   }
 }
 
-function selectCluster(cluster: { category: string; items: RadarItem[] }): void {
+function selectCluster(cluster: RadarCluster): void {
   focusedCategory.value = cluster.category;
-  const firstId = cluster.items[0]?.id;
+  const firstId = props.items.find((item) => majorCategoryOf(item) === cluster.category)?.id;
   if (firstId) emit("preview", firstId);
 }
 

@@ -24,11 +24,8 @@
       @commit="commitPreview"
     />
 
-    <div
-      class="resource-board surface"
-      :class="{ 'detail-mode': activePage === 'detail', 'nebula-mode': activePage === 'nebula' }"
-    >
-      <div v-if="activePage !== 'detail'" class="resource-page-tabs" role="tablist" aria-label="Resource pages">
+    <div class="resource-board surface" :class="{ 'nebula-mode': activePage === 'nebula' }">
+      <div class="resource-page-tabs" role="tablist" aria-label="Resource pages">
         <button
           v-for="page in pages"
           :key="page.value"
@@ -42,41 +39,42 @@
         </button>
       </div>
 
-      <ResourceLibraryPanel
-        v-if="activePage === 'cards'"
-        v-model:query="query"
-        :active-category-major="activeCategoryMajor"
-        :active-category-node="activeCategoryNode"
-        :active-filter="activeFilter"
-        :all-items="resources.items"
-        :category-tree="categoryTree"
-        :counts="counts"
-        :empty-state-description="emptyStateDescription"
-        :empty-state-title="emptyStateTitle"
-        :filtered-items="filteredItems"
-        :filters="filters"
-        :loading="resources.loading"
-        :selected-id="selected?.id"
-        @clear-filters="clearFilters"
-        @refresh="refresh"
-        @select="selectResource"
-        @set-base-filter="setBaseFilter"
-        @set-major-category="setMajorCategory"
-        @set-minor-category="setMinorCategory"
-      />
+      <div v-if="activePage === 'cards'" class="resource-finder-workbench">
+        <ResourceLibraryPanel
+          v-model:query="query"
+          :active-category-major="activeCategoryMajor"
+          :active-category-node="activeCategoryNode"
+          :active-filter="activeFilter"
+          :all-items="resources.items"
+          :category-tree="categoryTree"
+          :counts="counts"
+          :empty-state-description="emptyStateDescription"
+          :empty-state-title="emptyStateTitle"
+          :filtered-items="filteredItems"
+          :filters="filters"
+          :loading="resources.loading"
+          :selected-id="selected?.id"
+          @clear-filters="clearFilters"
+          @refresh="refresh"
+          @select="selectResource"
+          @set-base-filter="setBaseFilter"
+          @set-major-category="setMajorCategory"
+          @set-minor-category="setMinorCategory"
+        />
 
-      <ResourceDetailPage
-        v-else-if="activePage === 'detail'"
-        :duplicate-relations="duplicateRelations"
-        :item="selected"
-        :related-resources="relatedResources"
-        :source-preview-blocks="sourcePreviewBlocks"
-        @back="activePage = 'cards'"
-        @copy-context="copyContext"
-        @remove="removeSelected"
-        @select="selectResource"
-        @set-status="setStatus"
-      />
+        <ResourceDetailPage
+          :context-copying="copyingContext"
+          :duplicate-relations="duplicateRelations"
+          :item="selected"
+          :related-resources="relatedResources"
+          :source-preview-blocks="sourcePreviewBlocks"
+          @back="activePage = 'cards'"
+          @copy-context="copyContext"
+          @remove="removeSelected"
+          @select="selectResource"
+          @set-status="setStatus"
+        />
+      </div>
 
       <section v-else class="resource-panel resource-nebula-page">
         <ResourceRadarScene :items="resources.items" :selected-id="selected?.id" @select="selectResource" @preview="focusResource" />
@@ -86,7 +84,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, type Component } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch, type Component } from "vue";
 import { FileText, Radar } from "lucide-vue-next";
 import type { ResourceStatus } from "../../api";
 import { usePreferencesStore, type MessageKey } from "../../stores/preferences";
@@ -100,15 +98,16 @@ import ResourceRadarScene from "./ResourceRadarScene.vue";
 import { isResourceStatus, sourcePreviewText, toReadableBlocks } from "./resource-display";
 import type { ResourceFilter } from "./resource-filters";
 import {
+  buildResourceIndex,
   categoryFilterValue,
-  countResourceFilters,
-  filterResources,
-  getCategoryTree,
+  countResourceIndex,
+  filterResourceIndex,
+  getCategoryTreeFromIndex,
   parseCategoryFilter
 } from "./resource-filters";
 import { getResourceRelations } from "./resource-insights";
 
-type ResourcePage = "cards" | "nebula" | "detail";
+type ResourcePage = "cards" | "nebula";
 
 const resources = useResourcesStore();
 const preferences = usePreferencesStore();
@@ -118,8 +117,11 @@ const sourceText = ref("");
 const importInput = ref<HTMLInputElement | undefined>();
 const captureExpanded = ref(false);
 const query = ref("");
+const debouncedQuery = ref("");
 const activeFilter = ref<ResourceFilter>("all");
 const activePage = ref<ResourcePage>("cards");
+const copyingContext = ref(false);
+let queryDebounceTimer: number | undefined;
 
 const baseFilters: Array<{ value: ResourceFilter; labelKey: MessageKey }> = [
   { value: "all", labelKey: "resourceAll" },
@@ -135,10 +137,12 @@ const pages: Array<{ value: ResourcePage; labelKey: MessageKey; icon: Component 
 
 const selected = computed(() => resources.selectedItem);
 const canSubmit = computed(() => sourceUrl.value.trim().length > 0 || sourceText.value.trim().length > 0);
-const filteredItems = computed(() => filterResources(resources.items, { query: query.value, filter: activeFilter.value }));
-const counts = computed(() => countResourceFilters(resources.items));
+const resourceIndex = computed(() => buildResourceIndex(resources.items));
+const filteredEntries = computed(() => filterResourceIndex(resourceIndex.value, { query: debouncedQuery.value, filter: activeFilter.value }));
+const filteredItems = computed(() => filteredEntries.value.map((entry) => entry.item));
+const counts = computed(() => countResourceIndex(resourceIndex.value));
 const filters = computed<Array<{ value: ResourceFilter; labelKey?: MessageKey; label?: string }>>(() => [...baseFilters]);
-const categoryTree = computed(() => getCategoryTree(resources.items));
+const categoryTree = computed(() => getCategoryTreeFromIndex(resourceIndex.value));
 const activeCategoryMajor = computed(() => parseCategoryFilter(activeFilter.value)?.major ?? "");
 const activeCategoryNode = computed(() => categoryTree.value.find((node) => node.major === activeCategoryMajor.value));
 const sourcePreviewBlocks = computed(() => {
@@ -157,6 +161,17 @@ const emptyStateDescription = computed(() =>
 
 onMounted(() => {
   void refresh();
+});
+
+onBeforeUnmount(() => {
+  if (queryDebounceTimer) window.clearTimeout(queryDebounceTimer);
+});
+
+watch(query, (value) => {
+  if (queryDebounceTimer) window.clearTimeout(queryDebounceTimer);
+  queryDebounceTimer = window.setTimeout(() => {
+    debouncedQuery.value = value;
+  }, resources.items.length > 300 ? 120 : 0);
 });
 
 async function refresh(): Promise<void> {
@@ -220,7 +235,7 @@ async function commitPreview(): Promise<void> {
   sourceUrl.value = "";
   sourceText.value = "";
   captureExpanded.value = false;
-  activePage.value = "detail";
+  activePage.value = "cards";
 }
 
 function cancelPreview(): void {
@@ -229,6 +244,7 @@ function cancelPreview(): void {
 
 function clearFilters(): void {
   query.value = "";
+  debouncedQuery.value = "";
   activeFilter.value = "all";
 }
 
@@ -247,7 +263,7 @@ function setMinorCategory(category: string, minor: string): void {
 
 function selectResource(id: string): void {
   resources.select(id);
-  activePage.value = "detail";
+  activePage.value = "cards";
 }
 
 function focusResource(id: string): void {
@@ -268,9 +284,23 @@ async function removeSelected(): Promise<void> {
 }
 
 async function copyContext(): Promise<void> {
-  const context = await resources.loadContext();
-  if (!context) return;
-  await navigator.clipboard.writeText(context);
-  activePage.value = "detail";
+  if (copyingContext.value) return;
+  copyingContext.value = true;
+  try {
+    const context = await resources.loadContext();
+    if (!context) {
+      notifications.error(resources.error || preferences.t("resourceCopyContextFailed"));
+      return;
+    }
+    await navigator.clipboard.writeText(context);
+    notifications.success(preferences.t("resourceContextCopied"));
+    activePage.value = "cards";
+  } catch (error) {
+    notifications.error(
+      preferences.t("resourceCopyContextFailedWithMessage", { message: error instanceof Error ? error.message : String(error) })
+    );
+  } finally {
+    copyingContext.value = false;
+  }
 }
 </script>

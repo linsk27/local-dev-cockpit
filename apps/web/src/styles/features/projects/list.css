@@ -509,3 +509,363 @@
     z-index: 2;
   }
 }
+
+/* Command Center project layout */
+.dashboard-grid {
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr) minmax(280px, var(--mac-inspector-width));
+  gap: 10px;
+}
+
+.project-list,
+.project-detail,
+.project-inspector {
+  border-radius: var(--mac-radius);
+}
+
+.project-list {
+  background: color-mix(in srgb, var(--surface-bg) 88%, transparent);
+}
+
+.project-filter-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  padding: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.project-filter-row::-webkit-scrollbar {
+  display: none;
+}
+
+.project-filter-chip {
+  flex: 0 0 auto;
+  width: auto;
+  height: 28px;
+  border-radius: var(--mac-radius-sm);
+  font-size: 11px;
+}
+
+.project-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 68px;
+}
+
+.project-row.active::before {
+  inset: 9px auto 9px 0;
+  width: 2px;
+}
+
+.project-row-select {
+  padding: 8px 8px 8px 12px;
+}
+
+.project-row-main {
+  grid-template-columns: 8px minmax(0, 1fr);
+  gap: 9px;
+}
+
+.project-row-copy {
+  gap: 3px;
+}
+
+.project-row-main strong {
+  font-size: 13px;
+}
+
+.project-row-main .project-row-path {
+  font-size: 11px;
+}
+
+.project-row-tags span,
+.project-state,
+.project-port {
+  border-radius: 6px;
+  font-size: 10.5px;
+}
+
+.project-row-tags span {
+  min-height: 18px;
+  padding: 1px 6px;
+}
+
+.project-port {
+  min-height: 24px;
+  margin-right: 8px;
+}
+
+.project-inspector {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+}
+
+.project-inspector-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  min-width: 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.project-inspector-head > div,
+.project-inspector-section,
+.project-inspector-grid > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.project-inspector span,
+.project-inspector small {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-inspector strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 13px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+}
+
+.project-inspector-head strong {
+  font-size: 16px;
+}
+
+.project-inspector-section {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.project-inspector-section > strong {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--muted-strong);
+  font-size: 12px;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.project-inspector-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.project-inspector-grid > div {
+  padding: 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--mac-radius-sm);
+  background: color-mix(in srgb, var(--surface-soft) 74%, transparent);
+}
+
+.project-inspector-ports {
+  display: grid;
+  gap: 6px;
+}
+
+.project-inspector-ports a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--mac-radius-sm);
+  background: color-mix(in srgb, var(--surface-soft) 72%, transparent);
+  color: var(--muted-strong);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.project-inspector-ports a:hover {
+  border-color: var(--accent-border);
+  color: var(--text-strong);
+}
+
+.project-inspector-ports a span {
+  color: inherit;
+  font-size: 12px;
+}
+
+@media (max-width: 1199px) {
+  .dashboard-grid {
+    grid-template-columns: minmax(260px, 330px) minmax(0, 1fr);
+  }
+
+  .project-inspector {
+    grid-column: 1 / -1;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(220px, 0.7fr);
+    align-items: start;
+  }
+
+  .project-inspector-head,
+  .project-inspector-section {
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+}
+
+@media (max-width: 920px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+
+  .project-inspector {
+    grid-column: auto;
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Product Design polish: Command Center density */
+.dashboard-grid {
+  gap: 10px;
+  padding-bottom: 2px;
+}
+
+.project-list,
+.project-detail,
+.project-inspector {
+  border-color: color-mix(in srgb, var(--border) 92%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--panel-solid) 38%, transparent), transparent 140px),
+    color-mix(in srgb, var(--surface-bg) 92%, transparent);
+}
+
+.project-list .surface-heading {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  min-height: 38px;
+  background: color-mix(in srgb, var(--panel-solid) 82%, transparent);
+  backdrop-filter: blur(14px);
+}
+
+.project-filter-row {
+  position: sticky;
+  top: 38px;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  background: color-mix(in srgb, var(--panel-solid) 76%, transparent);
+  backdrop-filter: blur(14px);
+  overflow: visible;
+}
+
+.project-filter-chip {
+  justify-content: space-between;
+  width: 100%;
+  border-color: transparent;
+  background: transparent;
+}
+
+.project-filter-chip:hover {
+  border-color: color-mix(in srgb, var(--border-strong) 82%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 76%, transparent);
+}
+
+.project-filter-chip.active {
+  border-color: color-mix(in srgb, var(--border-strong) 88%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 88%, transparent);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.project-row {
+  min-height: 62px;
+}
+
+.project-row-select {
+  padding-block: 7px;
+}
+
+.project-row-titleline {
+  gap: 6px;
+}
+
+.project-row-tags {
+  max-height: 20px;
+}
+
+.project-row-tags span,
+.project-state,
+.project-port {
+  border-color: color-mix(in srgb, var(--border) 78%, transparent);
+  background: color-mix(in srgb, var(--surface-soft) 56%, transparent);
+}
+
+.project-row:hover,
+.project-row.active {
+  background: color-mix(in srgb, var(--surface-hover) 86%, transparent);
+}
+
+.project-inspector {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  max-height: 100%;
+  background: color-mix(in srgb, var(--panel-solid) 62%, var(--surface-bg));
+}
+
+.project-list,
+.project-detail,
+.project-inspector {
+  scrollbar-color: color-mix(in srgb, var(--muted) 42%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.project-list::-webkit-scrollbar,
+.project-detail::-webkit-scrollbar,
+.project-inspector::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.project-list::-webkit-scrollbar-thumb,
+.project-detail::-webkit-scrollbar-thumb,
+.project-inspector::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 42%, transparent);
+  background-clip: padding-box;
+}
+
+.project-list::-webkit-scrollbar-track,
+.project-detail::-webkit-scrollbar-track,
+.project-inspector::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.project-inspector-head {
+  min-height: 54px;
+}
+
+.project-inspector-grid > div,
+.project-inspector-ports a {
+  border-color: color-mix(in srgb, var(--border) 84%, transparent);
+  background: color-mix(in srgb, var(--surface-soft) 58%, transparent);
+}
+
+@media (max-width: 1199px) {
+  .project-inspector {
+    position: static;
+    max-height: none;
+  }
+}

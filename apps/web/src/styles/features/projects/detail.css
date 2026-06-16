@@ -82,3 +82,35 @@
   background: var(--surface-hover);
   color: var(--text);
 }
+
+/* Product Design polish: overview should end with its content, not a full-height blank panel. */
+.project-detail:has(.overview-stack) {
+  align-self: start;
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  border-color: transparent;
+  background: transparent;
+}
+
+.project-detail:has(.overview-stack) .detail-tab-panel {
+  overflow: visible;
+}
+
+.project-detail:has(.overview-stack) .overview-stack {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.project-detail:has(.overview-stack) .detail-tabs {
+  width: 100%;
+  border-radius: var(--mac-radius);
+  background: color-mix(in srgb, var(--panel-solid) 72%, transparent);
+}
+
+.project-detail:has(.overview-stack) .detail-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  border-radius: var(--mac-radius-sm);
+}

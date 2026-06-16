@@ -264,8 +264,17 @@ export interface ResourceExportPayload {
 export interface ResourceImportResult {
   added: number;
   skipped: number;
+  failed?: number;
   total: number;
   items: RadarItem[];
+}
+
+export interface ResourceSummary {
+  total: number;
+  updatedAt?: string;
+  statuses: Record<string, number>;
+  kinds: Record<string, number>;
+  categories: Array<{ major: string; count: number; children: Array<{ minor: string; count: number }> }>;
 }
 
 export async function getProjects(options: { force?: boolean; rootId?: string } = {}): Promise<Project[]> {
@@ -298,6 +307,12 @@ export async function getSkills(): Promise<SkillItem[]> {
 }
 
 export const getResources = getSkills;
+
+export async function getResourceSummary(): Promise<ResourceSummary> {
+  const response = await fetch("/api/skills?summary=1");
+  await ensureOk(response, "Failed to load resource summary");
+  return response.json() as Promise<ResourceSummary>;
+}
 
 export async function exportResources(): Promise<ResourceExportPayload> {
   const response = await fetch("/api/skills/export");

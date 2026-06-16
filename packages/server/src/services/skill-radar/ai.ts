@@ -10,7 +10,9 @@ import {
 } from "./types.js";
 import { createTaxonomyPatch, majorCategoryForKind } from "./taxonomy.js";
 
-const AI_TIMEOUT_MS = 25_000;
+const DEFAULT_AI_TIMEOUT_MS = 60_000;
+const MIN_AI_TIMEOUT_MS = 10_000;
+const MAX_AI_TIMEOUT_MS = 180_000;
 const DEFAULT_BASE_URL = "https://api.openai.com/v1";
 const DEFAULT_MODEL = "gpt-4o-mini";
 const MAX_AI_SOURCE_TEXT = 1_200;
@@ -110,7 +112,7 @@ export async function analyzeResourceWithAi(
     });
     return { configured: true, patch: { ...parsed.data, ...taxonomy } };
   } catch (error) {
-    return { configured: true, error: readableAiException(error, "AI 解析超时。") };
+    return { configured: true, error: readableAiException(error, timeoutAiAnalysisMessage(runtime.timeoutMs)) };
   }
 }
 
@@ -403,7 +405,7 @@ export async function testAiConnection(settings?: AiSettings): Promise<AiConnect
     if (!response.ok) return { ...baseResult, ok: false, latencyMs, error: await readAiHttpError(response) };
     return { ...baseResult, ok: true, latencyMs };
   } catch (error) {
-    return { ...baseResult, ok: false, latencyMs: Date.now() - startedAt, error: readableAiException(error, "AI 连接测试超时。") };
+    return { ...baseResult, ok: false, latencyMs: Date.now() - startedAt, error: readableAiException(error, "AI 连接测试超时，请检查端点或稍后重试。") };
   }
 }
 
@@ -413,14 +415,27 @@ function resolveAiRuntimeSettings(settings?: AiSettings): {
   model: string;
   providerId: string;
   outputLocale: "zh-CN" | "en-US" | "source";
+  timeoutMs: number;
 } {
   return {
     apiKey: process.env.DEV_COCKPIT_AI_API_KEY?.trim() || settings?.apiKey?.trim() || "",
     baseUrl: process.env.DEV_COCKPIT_AI_BASE_URL?.trim() || settings?.baseUrl?.trim() || DEFAULT_BASE_URL,
     model: process.env.DEV_COCKPIT_AI_MODEL?.trim() || settings?.model?.trim() || DEFAULT_MODEL,
     providerId: process.env.DEV_COCKPIT_AI_PROVIDER_ID?.trim() || settings?.providerId?.trim() || "custom",
-    outputLocale: settings?.outputLocale ?? "zh-CN"
+    outputLocale: settings?.outputLocale ?? "zh-CN",
+    timeoutMs: parseAiTimeoutMs(process.env.DEV_COCKPIT_AI_TIMEOUT_MS)
   };
+}
+
+function parseAiTimeoutMs(raw: string | undefined): number {
+  if (!raw?.trim()) return DEFAULT_AI_TIMEOUT_MS;
+  const parsed = Number(raw.trim());
+  if (!Number.isFinite(parsed)) return DEFAULT_AI_TIMEOUT_MS;
+  return Math.max(MIN_AI_TIMEOUT_MS, Math.min(MAX_AI_TIMEOUT_MS, Math.round(parsed)));
+}
+
+function timeoutAiAnalysisMessage(timeoutMs: number): string {
+  return `AI 增强超过 ${Math.round(timeoutMs / 1000)} 秒未返回，已保留本地规则生成的资源卡。可稍后重试解析。`;
 }
 
 function languageInstruction(outputLocale: "zh-CN" | "en-US" | "source"): string {
@@ -430,11 +445,11 @@ function languageInstruction(outputLocale: "zh-CN" | "en-US" | "source"): string
 }
 
 async function requestChatCompletion(
-  runtime: { apiKey: string; baseUrl: string; model: string },
+  runtime: { apiKey: string; baseUrl: string; model: string; timeoutMs: number },
   body: { messages: Array<{ role: "system" | "user"; content: string }>; temperature: number; max_tokens?: number }
 ): Promise<Response> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), runtime.timeoutMs);
   try {
     return await fetch(`${normalizeBaseUrl(runtime.baseUrl)}/chat/completions`, {
       method: "POST",

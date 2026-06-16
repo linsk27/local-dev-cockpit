@@ -109,13 +109,61 @@
         :total-count="searchedProjects.length"
         :selected-id="activeProject?.id"
         :loading="store.loading"
-        :loading-label="loadingLabel"
+        :loading-label="rootLoadingLabel"
         :filters="projectFilterOptions"
         :active-filter="projectFilter"
         @filter="projectFilter = $event"
         @select="store.select"
       />
       <ProjectDetail v-if="activeProject" :project="activeProject" />
+      <aside v-if="activeProject" class="project-inspector surface" aria-label="Project inspector">
+        <div class="project-inspector-head">
+          <div>
+            <span>{{ preferences.t("projectOverview") }}</span>
+            <strong :title="activeProject.name">{{ activeProject.name }}</strong>
+            <small :title="activeProject.path">{{ formatDisplayPath(activeProject.path) }}</small>
+          </div>
+          <span class="status-dot" :class="projectInspectorStatusClass(activeProject)" />
+        </div>
+        <div class="project-inspector-section">
+          <span>Status</span>
+          <strong>{{ projectStatusReason(activeProject, preferences.locale) }}</strong>
+        </div>
+        <div class="project-inspector-grid">
+          <div>
+            <span>Kind</span>
+            <strong>{{ activeProject.kind }}</strong>
+          </div>
+          <div>
+            <span>{{ preferences.t("commands") }}</span>
+            <strong>{{ activeProject.commands.length }}</strong>
+          </div>
+          <div>
+            <span>Git</span>
+            <strong>{{ activeProject.git.branch }}</strong>
+          </div>
+          <div>
+            <span>{{ preferences.t("dirty") }}</span>
+            <strong>{{ activeProject.git.dirtyCount }}</strong>
+          </div>
+        </div>
+        <div class="project-inspector-section">
+          <span>Ports</span>
+          <div class="project-inspector-ports">
+            <a
+              v-for="port in visibleProjectPorts(activeProject)"
+              :key="`${port.host ?? 'host'}:${port.port}`"
+              :href="formatPortUrl(port)"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <span>{{ formatPortEndpoint(port) }}</span>
+              <ExternalLink :size="12" />
+            </a>
+            <small v-if="visibleProjectPorts(activeProject).length === 0">{{ preferences.t("idle") }}</small>
+          </div>
+        </div>
+      </aside>
       <section v-else-if="store.loading" class="empty-state">
         <RefreshCw :size="34" class="spin-icon" />
         <h2>{{ preferences.t("loadingProjects") }}</h2>
@@ -148,7 +196,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { Bot, Check, ChevronDown, FolderOpen, FolderPlus, FolderSearch, Loader2, PlayCircle, Plus, RefreshCw, Search } from "lucide-vue-next";
+import { Bot, Check, ChevronDown, ExternalLink, FolderOpen, FolderPlus, FolderSearch, Loader2, PlayCircle, Plus, RefreshCw, Search } from "lucide-vue-next";
 import { RootFolderPickerUnavailableError, addRoot, chooseRootFolder, getRoots, type RootEntry } from "../../api";
 import { useNotificationsStore } from "../../stores/notifications";
 import { usePerformanceStore } from "../../stores/performance";
@@ -161,9 +209,14 @@ import WelcomePilotModal from "./WelcomePilotModal.vue";
 import {
   buildProjectListFilters,
   formatDisplayPath,
+  formatPortEndpoint,
+  formatPortUrl,
   projectMatchesListFilter,
   projectMatchesQuery,
+  projectRuntimeMode,
+  projectStatusReason,
   sortProjectsForDashboard,
+  visibleProjectPorts,
   type ProjectListFilter
 } from "./project-view";
 
@@ -214,6 +267,10 @@ const activeProject = computed(() => {
   return visibleProjects.value.find((project) => project.id === store.selectedId) ?? visibleProjects.value[0];
 });
 
+const rootLoadingLabel = computed(() =>
+  preferences.locale === "en-US" ? `Current root: ${selectedRootLabel.value}` : `当前目录：${selectedRootLabel.value}`
+);
+
 const loadingLabel = computed(() =>
   preferences.locale === "en-US" ? `Current root: ${selectedRootLabel.value}` : `当前目录：${selectedRootLabel.value}`
 );
@@ -222,7 +279,7 @@ const workspaceAnimation = useGsapScope(workspaceRef, (element, gsap) => {
   animateSubtleEntrance(
     gsap,
     element.querySelectorAll(
-      ".compact-workspace-header, .onboarding-panel, .project-list, .project-detail, .empty-state"
+      ".compact-workspace-header, .onboarding-panel, .project-list, .project-detail, .project-inspector, .empty-state"
     ),
     { duration: 0.3, stagger: 0.04 }
   );
@@ -489,6 +546,14 @@ function readStoredProjectFilter(): ProjectListFilter {
     return value;
   }
   return "all";
+}
+
+function projectInspectorStatusClass(project: NonNullable<typeof activeProject.value>): string {
+  const mode = projectRuntimeMode(project);
+  if (mode === "managed-running" || mode === "detected-online") return "running";
+  if (mode === "stale") return "stale";
+  if (mode === "failed") return "failed";
+  return "idle";
 }
 
 onMounted(async () => {

@@ -6,6 +6,7 @@ export interface RadarCluster {
   category: string;
   color: string;
   items: RadarItem[];
+  totalCount: number;
 }
 
 export type ClusterGroupData = {
@@ -16,13 +17,26 @@ export type ClusterGroupData = {
   phase: number;
 };
 
+export type RadarDensityMode = "full" | "representative" | "aggregate";
+
 const goldenAngle = Math.PI * (3 - Math.sqrt(5));
 
 export function majorCategoryOf(item: RadarItem): string {
   return displayCategoryPath(item)[0] || item.category || "未分类";
 }
 
+export function radarDensityMode(total: number): RadarDensityMode {
+  if (total <= 120) return "full";
+  if (total <= 1000) return "representative";
+  return "aggregate";
+}
+
 export function groupResourcesByMajorCategory(items: RadarItem[]): RadarCluster[] {
+  return groupResourcesForRadar(items, { mode: "full" });
+}
+
+export function groupResourcesForRadar(items: RadarItem[], options: { mode?: RadarDensityMode; focusedCategory?: string } = {}): RadarCluster[] {
+  const mode = options.mode ?? radarDensityMode(items.length);
   const groups = new Map<string, RadarItem[]>();
   for (const item of items) {
     const major = majorCategoryOf(item);
@@ -30,9 +44,15 @@ export function groupResourcesByMajorCategory(items: RadarItem[]): RadarCluster[
     group.push(item);
     groups.set(major, group);
   }
+
   return [...groups.entries()]
-    .map(([category, groupItems], index) => ({ category, items: groupItems, color: clusterColor(index) }))
-    .sort((left, right) => right.items.length - left.items.length || left.category.localeCompare(right.category, "zh-CN"));
+    .map(([category, groupItems], index) => ({
+      category,
+      items: visibleRadarItemsForCluster(groupItems, category, mode, options.focusedCategory),
+      totalCount: groupItems.length,
+      color: clusterColor(index)
+    }))
+    .sort((left, right) => right.totalCount - left.totalCount || left.category.localeCompare(right.category, "zh-CN"));
 }
 
 export function clusterColor(index: number): string {
@@ -94,4 +114,12 @@ export function clamp(value: number, min: number, max: number): number {
 
 export function fract(value: number): number {
   return value - Math.floor(value);
+}
+
+function visibleRadarItemsForCluster(items: RadarItem[], category: string, mode: RadarDensityMode, focusedCategory?: string): RadarItem[] {
+  if (mode === "full") return items;
+  if (mode === "aggregate") return [];
+  if (focusedCategory && focusedCategory === category) return items.slice(0, 120);
+  if (focusedCategory) return items.slice(0, 1);
+  return items.slice(0, Math.min(3, Math.max(1, Math.ceil(items.length / 80))));
 }

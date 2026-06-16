@@ -30,22 +30,69 @@ export interface ParsedCategoryFilter {
   minor?: string;
 }
 
+export interface ResourceIndexEntry {
+  item: RadarItem;
+  searchText: string;
+  kind: ResourceKind;
+  status: ResourceStatus;
+  major: string;
+  minor: string;
+  categoryPath: string[];
+  sourceHost: string;
+}
+
+export function buildResourceIndex(items: RadarItem[]): ResourceIndexEntry[] {
+  return items.map((item) => {
+    const categoryPath = displayCategoryPath(item);
+    const major = categoryPath[0] || majorCategories(item)[0] || "";
+    const minor = categoryPath[1] || "";
+    const sourceHost = sourceHostFromUrl(item.sourceUrl);
+    return {
+      item,
+      searchText: [
+        item.title,
+        item.summary,
+        item.category,
+        item.kind,
+        item.status,
+        item.sourceUrl,
+        sourceHost,
+        ...categoryPath,
+        ...item.tags
+      ]
+        .filter(Boolean)
+        .join("\n")
+        .toLowerCase(),
+      kind: item.kind,
+      status: item.status,
+      major,
+      minor,
+      categoryPath,
+      sourceHost
+    };
+  });
+}
+
 export function filterResources(items: RadarItem[], options: { query: string; filter: ResourceFilter }): RadarItem[] {
+  return filterResourceIndex(buildResourceIndex(items), options).map((entry) => entry.item);
+}
+
+export function filterResourceIndex(entries: ResourceIndexEntry[], options: { query: string; filter: ResourceFilter }): ResourceIndexEntry[] {
   const query = options.query.trim().toLowerCase();
-  return items.filter((item) => {
-    if (!matchesFilter(item, options.filter)) return false;
+  return entries.filter((entry) => {
+    if (!matchesIndexedFilter(entry, options.filter)) return false;
     if (!query) return true;
-    const haystack = [item.title, item.summary, item.category, item.kind, item.status, item.sourceUrl, ...displayCategoryPath(item), ...item.tags]
-      .filter(Boolean)
-      .join("\n")
-      .toLowerCase();
-    return haystack.includes(query);
+    return entry.searchText.includes(query);
   });
 }
 
 export function countResourceFilters(items: RadarItem[]): ResourceFilterCounts {
+  return countResourceIndex(buildResourceIndex(items));
+}
+
+export function countResourceIndex(entries: ResourceIndexEntry[]): ResourceFilterCounts {
   const counts: ResourceFilterCounts = {
-    all: items.length,
+    all: entries.length,
     inbox: 0,
     useful: 0,
     archived: 0,
@@ -59,16 +106,15 @@ export function countResourceFilters(items: RadarItem[]): ResourceFilterCounts {
     article: 0,
     unknown: 0
   };
-  for (const item of items) {
-    counts[item.status] += 1;
-    counts[item.kind] += 1;
-    for (const category of majorCategories(item)) {
-      const key = categoryFilterValue(category);
+  for (const entry of entries) {
+    counts[entry.status] += 1;
+    counts[entry.kind] += 1;
+    if (entry.major) {
+      const key = categoryFilterValue(entry.major);
       counts[key] = (counts[key] ?? 0) + 1;
     }
-    const path = displayCategoryPath(item);
-    if (path[0] && path[1]) {
-      const key = categoryFilterValue(path[0], path[1]);
+    if (entry.major && entry.minor) {
+      const key = categoryFilterValue(entry.major, entry.minor);
       counts[key] = (counts[key] ?? 0) + 1;
     }
   }
@@ -89,24 +135,33 @@ export function groupResourcesByCategory(items: RadarItem[]): Array<{ category: 
 }
 
 export function getMajorCategories(items: RadarItem[]): string[] {
+  return getMajorCategoriesFromIndex(buildResourceIndex(items));
+}
+
+export function getMajorCategoriesFromIndex(entries: ResourceIndexEntry[]): string[] {
   const seen = new Set<string>();
-  for (const item of items) {
-    for (const category of majorCategories(item)) {
-      if (category) seen.add(category);
-    }
+  for (const entry of entries) {
+    if (entry.major) seen.add(entry.major);
   }
   return [...seen].sort((left, right) => left.localeCompare(right, "zh-CN"));
 }
 
 export function getCategoryTree(items: RadarItem[]): ResourceCategoryNode[] {
+  return getCategoryTreeFromIndex(buildResourceIndex(items));
+}
+
+export function getCategoryTreeFromIndex(entries: ResourceIndexEntry[]): ResourceCategoryNode[] {
+  return buildCategoryTree(entries);
+}
+
+function buildCategoryTree(entries: ResourceIndexEntry[]): ResourceCategoryNode[] {
   const tree = new Map<string, { count: number; children: Map<string, number> }>();
-  for (const item of items) {
-    const path = displayCategoryPath(item);
-    const major = path[0] || majorCategories(item)[0];
+  for (const indexed of entries) {
+    const major = indexed.major;
     if (!major) continue;
     const entry = tree.get(major) ?? { count: 0, children: new Map<string, number>() };
     entry.count += 1;
-    const minor = path[1];
+    const minor = indexed.minor;
     if (minor) entry.children.set(minor, (entry.children.get(minor) ?? 0) + 1);
     tree.set(major, entry);
   }
@@ -136,16 +191,15 @@ export function displayCategoryPath(item: RadarItem): string[] {
   return item.categoryPath?.map((part) => part.trim()).filter(Boolean) ?? [];
 }
 
-function matchesFilter(item: RadarItem, filter: ResourceFilter): boolean {
+function matchesIndexedFilter(entry: ResourceIndexEntry, filter: ResourceFilter): boolean {
   if (filter === "all") return true;
   if (filter.startsWith("category:")) {
     const parsed = parseCategoryFilter(filter);
     if (!parsed) return false;
-    const path = displayCategoryPath(item);
-    if (parsed.minor) return path[0] === parsed.major && path[1] === parsed.minor;
-    return majorCategories(item).includes(parsed.major);
+    if (parsed.minor) return entry.major === parsed.major && entry.minor === parsed.minor;
+    return entry.major === parsed.major;
   }
-  return item.status === filter || item.kind === filter;
+  return entry.status === filter || entry.kind === filter;
 }
 
 export function parseCategoryFilter(filter: ResourceFilter): ParsedCategoryFilter | undefined {
@@ -173,5 +227,14 @@ function decodeCategoryFilterPart(value: string): string {
     return decodeURIComponent(value).trim();
   } catch {
     return value.trim();
+  }
+}
+
+function sourceHostFromUrl(value: string | undefined): string {
+  if (!value) return "";
+  try {
+    return new URL(value).host.toLowerCase();
+  } catch {
+    return "";
   }
 }

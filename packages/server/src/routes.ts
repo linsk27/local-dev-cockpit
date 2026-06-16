@@ -69,6 +69,10 @@ export async function handleApiRoute(req: IncomingMessage, res: ServerResponse, 
   }
 
   if (method === "GET" && url.pathname === "/api/skills") {
+    if (url.searchParams.get("summary") === "1") {
+      sendJson(res, 200, await context.skillRadar.summary());
+      return true;
+    }
     sendJson(res, 200, { skills: await context.skillRadar.list() });
     return true;
   }

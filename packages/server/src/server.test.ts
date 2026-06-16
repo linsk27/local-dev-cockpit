@@ -15,6 +15,7 @@ import {
   createEditorCommand,
   createFolderPickerCommand,
   createOpenFolderCommand,
+  createWindowsStartProcessCommand,
   externalListenerProbeCandidates,
   filterStaleLogPorts,
   findExternalProjectPorts,
@@ -32,9 +33,12 @@ import {
   parseNpmLatest,
   projectPortCanBeStopped,
   parseStoppedChildrenOutput,
+  parseWindowsRegistryDefaultValue,
   resolveFolderPickerInitialPath,
   selectUpdateAssets,
+  selectWindowsEditorExecutable,
   stopPort,
+  windowsGuiExecutableCandidateForShim,
   writeProjectContextFiles
 } from "./server.js";
 
@@ -126,6 +130,25 @@ describe("update checks", () => {
         size: 0,
         downloadUrl: "https://github.com/linsk27/local-dev-cockpit/releases/download/v0.1.9/Dev-Cockpit-Setup-0.1.9-win-x64.exe"
       }
+    });
+  });
+
+  it("does not surface fallback download actions when npm says the current version is latest", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockRejectedValueOnce(new Error("GitHub releases request failed: 403"))
+        .mockResolvedValueOnce(new Response(JSON.stringify({ version: "0.2.4" }), { status: 200, headers: { "content-type": "application/json" } }))
+    );
+
+    await expect(checkForUpdates("0.2.4")).resolves.toMatchObject({
+      latestVersion: "0.2.4",
+      hasUpdate: false,
+      source: "npm",
+      warning: undefined,
+      installerAsset: undefined,
+      portableAsset: undefined
     });
   });
 
@@ -789,10 +812,12 @@ describe("writeProjectContextFiles", () => {
 
 describe("createOpenFolderCommand", () => {
   it("uses the native folder opener for each platform", () => {
-    expect(createOpenFolderCommand("win32", "D:\\projects\\demo")).toEqual({
-      command: "explorer.exe",
-      args: ["D:\\projects\\demo"]
-    });
+    const windowsCommand = createOpenFolderCommand("win32", "D:\\projects\\demo");
+    expect(windowsCommand.command).toBe("powershell.exe");
+    expect(windowsCommand.args).toContain("-Command");
+    expect(windowsCommand.args.at(-1)).toContain("Start-Process");
+    expect(windowsCommand.args.at(-1)).toContain("explorer.exe");
+    expect(windowsCommand.args.at(-1)).toContain("D:\\projects\\demo");
     expect(createOpenFolderCommand("darwin", "/Users/me/demo")).toEqual({
       command: "open",
       args: ["/Users/me/demo"]
@@ -857,6 +882,10 @@ describe("createEditorCommand", () => {
       command: "C:\\Program Files\\Editor\\editor.exe",
       args: ["D:\\projects\\demo"]
     });
+    expect(createEditorCommand("win32", '"D:\\Microsoft VS Code\\bin\\code.cmd" --reuse-window', "C:\\Users\\EDY\\Desktop\\华南虎官网")).toEqual({
+      command: "cmd.exe",
+      args: ["/d", "/s", "/c", "D:\\Microsoft VS Code\\bin\\code.cmd", "--reuse-window", "C:\\Users\\EDY\\Desktop\\华南虎官网"]
+    });
   });
 
   it("parses quoted editor paths and reports bad quotes", () => {
@@ -865,6 +894,44 @@ describe("createEditorCommand", () => {
       args: ["--new-window"]
     });
     expect(() => parseEditorCommand('"code')).toThrow("unclosed quote");
+  });
+
+  it("prefers Windows command shims when resolving PATH output", () => {
+    expect(selectWindowsEditorExecutable(["D:\\Microsoft VS Code\\bin\\code", "D:\\Microsoft VS Code\\bin\\code.cmd"].join("\n"))).toBe(
+      "D:\\Microsoft VS Code\\bin\\code.cmd"
+    );
+    expect(selectWindowsEditorExecutable(["C:\\Tools\\cursor.exe", "C:\\Tools\\cursor.bat"].join("\n"))).toBe("C:\\Tools\\cursor.exe");
+  });
+
+  it("maps VS Code PATH shims to the GUI executable when possible", () => {
+    expect(windowsGuiExecutableCandidateForShim("D:\\Microsoft VS Code\\bin\\code.cmd")).toBe("D:\\Microsoft VS Code\\Code.exe");
+    expect(windowsGuiExecutableCandidateForShim("D:\\Microsoft VS Code Insiders\\bin\\code-insiders.cmd")).toBe(
+      "D:\\Microsoft VS Code Insiders\\Code - Insiders.exe"
+    );
+    expect(windowsGuiExecutableCandidateForShim("C:\\Tools\\cursor.cmd")).toBeUndefined();
+  });
+
+  it("parses Windows App Paths registry output for editor resolution", () => {
+    expect(
+      parseWindowsRegistryDefaultValue(
+        [
+          "",
+          "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\Code.exe",
+          "    (Default)    REG_SZ    D:\\Microsoft VS Code\\Code.exe"
+        ].join("\n")
+      )
+    ).toBe("D:\\Microsoft VS Code\\Code.exe");
+  });
+
+  it("uses Start-Process for visible Windows editor launches", () => {
+    const command = createWindowsStartProcessCommand("D:\\Microsoft VS Code\\Code.exe", ["--new-window", "C:\\Users\\EDY\\Desktop\\华南虎官网"], "C:\\Users\\EDY\\Desktop\\华南虎官网");
+
+    expect(command.command).toBe("powershell.exe");
+    expect(command.args).toContain("-Command");
+    expect(command.args.at(-1)).toContain("Start-Process");
+    expect(command.args.at(-1)).toContain("D:\\Microsoft VS Code\\Code.exe");
+    expect(command.args.at(-1)).toContain("--new-window");
+    expect(command.args.at(-1)).toContain("SetForegroundWindow");
   });
 });
 
