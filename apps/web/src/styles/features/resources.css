@@ -47,13 +47,27 @@
 
 .resource-capture-form {
   display: grid;
-  grid-template-columns: minmax(320px, 1fr) repeat(4, auto);
+  grid-template-columns: minmax(320px, 1fr) repeat(3, auto);
+  gap: 8px;
+  min-width: 0;
+}
+
+.resource-capture-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
   min-width: 0;
 }
 
 .resource-capture-form > .text-button,
 .resource-capture-form > .primary-button {
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.resource-capture-actions > .text-button,
+.resource-capture-actions > .primary-button {
   min-width: 0;
   white-space: nowrap;
 }
@@ -985,7 +999,8 @@
 }
 
 .resource-quick-facts span,
-.resource-quick-facts a {
+.resource-quick-facts a,
+.resource-quick-facts button {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1003,12 +1018,19 @@
   white-space: nowrap;
 }
 
-.resource-quick-facts a {
+.resource-quick-facts a,
+.resource-quick-facts button {
   color: var(--accent-strong);
   text-decoration: none;
 }
 
-.resource-quick-facts a:hover {
+.resource-quick-facts button {
+  font: inherit;
+  cursor: pointer;
+}
+
+.resource-quick-facts a:hover,
+.resource-quick-facts button:hover {
   border-color: var(--accent-border);
   background: var(--accent-soft);
 }
@@ -3494,4 +3516,155 @@
 
 .resource-detail-page > :last-child {
   margin-bottom: 18px;
+}
+
+.resource-detail-image-frame {
+  width: 100%;
+  height: clamp(174px, 12vw, 218px);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  box-shadow: none;
+}
+
+.resource-detail-image-frame .resource-detail-image {
+  display: block;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  aspect-ratio: auto;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  object-fit: cover;
+  object-position: center;
+  transform: scale(1.08);
+}
+
+/* Resource preview-aware sizing: parsing inserts a preview card above the
+   workbench, so the page shell must reserve natural space for it. */
+.resource-page {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 20px);
+  max-height: calc(100vh - 20px);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.resource-page > .resource-capture,
+.resource-page > .error-banner,
+.resource-page > .resource-preview {
+  flex: 0 0 auto;
+}
+
+.resource-page > .resource-preview {
+  max-height: min(250px, 32vh);
+  overflow: auto;
+}
+
+.resource-page > .resource-board {
+  flex: 1 1 0;
+  height: auto;
+  max-height: none;
+  min-height: 0;
+}
+
+.resource-board:not(.nebula-mode) {
+  height: auto;
+  max-height: none;
+}
+
+.resource-finder-workbench,
+.resource-library-panel,
+.resource-library-panel.compact-list-mode,
+.resource-detail-page {
+  height: 100%;
+  max-height: 100%;
+}
+
+.resource-list,
+.compact-list-mode .resource-list,
+.compact-list-mode .resource-natural-list {
+  height: 100%;
+  max-height: 100%;
+}
+
+@media (min-width: 1200px) {
+  .resource-page {
+    height: calc(100vh - 20px);
+    max-height: calc(100vh - 20px);
+  }
+
+  .resource-board:not(.nebula-mode) {
+    height: auto;
+    max-height: none;
+  }
+
+  .resource-finder-workbench,
+  .resource-library-panel,
+  .resource-library-panel.compact-list-mode,
+  .resource-detail-page {
+    height: 100%;
+    max-height: 100%;
+  }
+
+  .resource-list,
+  .compact-list-mode .resource-list,
+  .compact-list-mode .resource-natural-list {
+    height: 100%;
+    max-height: 100%;
+  }
+}
+
+/* Final resource intake toolbar: URL/text entry lives in the modal now. */
+.resource-capture-actions {
+  display: flex;
+  min-width: 0;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.resource-capture-actions > .primary-button {
+  min-width: 112px;
+}
+
+.resource-capture-actions > .text-button,
+.resource-capture-actions > .primary-button {
+  flex: 0 0 auto;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+@media (max-width: 920px) {
+  .resource-capture {
+    grid-template-columns: 1fr;
+  }
+
+  .resource-capture-actions {
+    justify-content: stretch;
+  }
+
+  .resource-capture-actions > .text-button,
+  .resource-capture-actions > .primary-button {
+    flex: 1 1 0;
+  }
+}
+
+@media (max-width: 560px) {
+  .resource-capture-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .resource-capture-actions > .primary-button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .resource-capture-actions > .text-button {
+    width: 100%;
+  }
 }

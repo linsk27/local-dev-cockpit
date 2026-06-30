@@ -14,14 +14,9 @@
           <h2 :title="item.title">{{ item.title }}</h2>
           <p :title="item.summary">{{ item.summary }}</p>
         </div>
-        <img
-          v-if="previewImage(item) && !imageFailed"
-          class="resource-detail-image"
-          :src="previewImage(item)"
-          :alt="item.title"
-          loading="lazy"
-          @error="imageFailed = true"
-        />
+        <div v-if="previewImage(item) && !imageFailed" class="resource-detail-image-frame">
+          <img class="resource-detail-image" :src="previewImage(item)" :alt="item.title" loading="lazy" @error="imageFailed = true" />
+        </div>
         <div class="resource-actions">
           <div class="resource-status-switch" role="group" :aria-label="preferences.t('resourceStatus')">
             <button
@@ -51,6 +46,16 @@
           <ExternalLink :size="14" />
           {{ preferences.t("resourceSource") }}
         </a>
+        <button
+          v-if="item.sourceUrl"
+          class="resource-source-copy"
+          type="button"
+          :title="preferences.t('resourceCopySource')"
+          @click="$emit('copySource', item.sourceUrl)"
+        >
+          <Copy :size="14" />
+          {{ preferences.t("resourceCopySource") }}
+        </button>
       </div>
 
       <div v-if="item.analysisError" class="resource-analysis-note">
@@ -213,6 +218,7 @@ const props = defineProps<{
 defineEmits<{
   back: [];
   copyContext: [];
+  copySource: [url: string];
   remove: [];
   select: [itemId: string];
   setStatus: [status: ResourceStatus];

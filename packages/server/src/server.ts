@@ -1,5 +1,5 @@
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { readFileSync, promises as fs } from "node:fs";
+import { createServer, type IncomingMessage } from "node:http";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "ws";
@@ -11,6 +11,8 @@ import { ProjectScanCache } from "./services/project-scan-cache.js";
 import { handleApiRoute, sendJson } from "./routes.js";
 import { SkillRadarStore } from "./services/skill-radar/index.js";
 import { JsonStore } from "./store.js";
+import { listenOnAvailablePort } from "./services/http-listener.js";
+import { serveStaticAsset } from "./services/static-assets.js";
 
 export { commandStartBlockReason, commandSystemPortBlockReason } from "./services/command-guards.js";
 export { writeProjectContextFiles } from "./services/context-files.js";
@@ -97,10 +99,14 @@ export async function startDevCockpitServer(options: DevCockpitServerOptions = {
         sendJson(res, 404, { error: "API endpoint not found" });
         return;
       }
-      await serveStatic(req, res, webRoot);
+      await serveStaticAsset(req, res, webRoot);
     } catch (error) {
       if (isZodErrorLike(error)) {
         sendJson(res, 400, { error: formatValidationError(error) });
+        return;
+      }
+      if (isHttpStatusError(error)) {
+        sendJson(res, error.statusCode, error.body ?? { error: error.message });
         return;
       }
       sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) });
@@ -117,7 +123,7 @@ export async function startDevCockpitServer(options: DevCockpitServerOptions = {
     }
   });
 
-  const port = await listen(server, options.port ?? 8787);
+  const port = await listenOnAvailablePort(server, options.port ?? 8787);
   return {
     port,
     close: async () => {
@@ -129,6 +135,17 @@ export async function startDevCockpitServer(options: DevCockpitServerOptions = {
 
 function isZodErrorLike(error: unknown): error is ZodError {
   return error instanceof ZodError || (typeof error === "object" && error !== null && Array.isArray((error as { issues?: unknown }).issues));
+}
+
+function isHttpStatusError(error: unknown): error is Error & { statusCode: number; body?: unknown } {
+  if (!(error instanceof Error)) return false;
+  const statusCode = (error as Error & { statusCode?: unknown }).statusCode;
+  return (
+    typeof statusCode === "number" &&
+    Number.isInteger(statusCode) &&
+    statusCode >= 400 &&
+    statusCode < 600
+  );
 }
 
 function formatValidationError(error: ZodError): string {
@@ -150,62 +167,4 @@ function readOwnPackageVersion(fallback: string): string {
   } catch {
     return fallback;
   }
-}
-
-async function serveStatic(req: IncomingMessage, res: ServerResponse, webRoot?: string): Promise<void> {
-  if (!webRoot) {
-    sendJson(res, 404, { error: "Web assets not found. Build apps/web first." });
-    return;
-  }
-
-  const url = new URL(req.url ?? "/", "http://localhost");
-  const cleanPath = decodeURIComponent(url.pathname === "/" ? "/index.html" : url.pathname);
-  const filePath = path.resolve(webRoot, `.${cleanPath}`);
-  const root = path.resolve(webRoot);
-
-  if (!filePath.startsWith(root)) {
-    sendJson(res, 403, { error: "Forbidden" });
-    return;
-  }
-
-  try {
-    const file = await fs.readFile(filePath);
-    res.writeHead(200, { "content-type": contentType(filePath) });
-    res.end(file);
-  } catch {
-    try {
-      const file = await fs.readFile(path.join(root, "index.html"));
-      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-      res.end(file);
-    } catch {
-      sendJson(res, 404, { error: "Not found" });
-    }
-  }
-}
-
-function contentType(filePath: string): string {
-  if (filePath.endsWith(".js")) return "text/javascript; charset=utf-8";
-  if (filePath.endsWith(".css")) return "text/css; charset=utf-8";
-  if (filePath.endsWith(".svg")) return "image/svg+xml";
-  if (filePath.endsWith(".html")) return "text/html; charset=utf-8";
-  return "application/octet-stream";
-}
-
-async function listen(server: ReturnType<typeof createServer>, preferredPort: number): Promise<number> {
-  for (let port = preferredPort; port <= preferredPort + 12; port += 1) {
-    const result = await new Promise<"ok" | "busy">((resolve, reject) => {
-      server.once("error", (error: NodeJS.ErrnoException) => {
-        server.removeAllListeners("listening");
-        if (error.code === "EADDRINUSE") resolve("busy");
-        else reject(error);
-      });
-      server.once("listening", () => {
-        server.removeAllListeners("error");
-        resolve("ok");
-      });
-      server.listen(port, "127.0.0.1");
-    });
-    if (result === "ok") return port;
-  }
-  throw new Error(`No free port found near ${preferredPort}`);
 }

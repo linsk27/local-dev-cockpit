@@ -1,8 +1,11 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { z } from "zod";
-import type { ErrorSummary, ProcessRun } from "@local-dev-cockpit/core";
+import { aiOutputLocaleSchema, aiProviderIdSchema, type ErrorSummary, type ProcessRun } from "@local-dev-cockpit/core";
 import type { AppPaths } from "./paths.js";
+import { FileOperationQueue } from "./services/file-operation-queue.js";
+import { readJsonFile, writeJsonAtomic } from "./services/json-file.js";
+import { migrateVersionedJson } from "./services/json-migrations.js";
 
 const projectEnvironmentSchema = z.object({
   python: z.string().default("")
@@ -12,9 +15,6 @@ const DEFAULT_AI_BASE_URL = "https://api.openai.com/v1";
 const DEFAULT_AI_MODEL = "gpt-4o-mini";
 const DEFAULT_AI_PROVIDER_ID = "rayinai";
 const DEFAULT_AI_OUTPUT_LOCALE = "zh-CN";
-
-const aiProviderIdSchema = z.enum(["openai", "rayinai", "deepseek", "siliconflow", "openrouter", "ollama", "custom"]);
-const aiOutputLocaleSchema = z.enum(["zh-CN", "en-US", "source"]);
 
 const aiSettingsSchema = z.object({
   provider: z.literal("openai-compatible").default("openai-compatible"),
@@ -88,6 +88,10 @@ interface AppState {
 }
 
 export class JsonStore {
+  private readonly aiSettingsQueue = new FileOperationQueue();
+  private readonly configQueue = new FileOperationQueue();
+  private readonly stateQueue = new FileOperationQueue();
+
   constructor(private readonly paths: AppPaths, _cwd: string) {}
 
   async ensure(): Promise<void> {
@@ -103,74 +107,101 @@ export class JsonStore {
 
   async readConfig(): Promise<AppConfig> {
     await this.ensure();
-    try {
-      const parsed = configSchema.safeParse(JSON.parse(await fs.readFile(this.paths.configPath, "utf8")));
-      return parsed.success ? parsed.data : defaultConfig();
-    } catch {
-      return defaultConfig();
-    }
+    return this.readConfigFile();
+  }
+
+  private async readConfigFile(): Promise<AppConfig> {
+    return readJsonFile(
+      this.paths.configPath,
+      (value) => {
+        const parsed = configSchema.safeParse(value);
+        return parsed.success ? parsed.data : defaultConfig();
+      },
+      defaultConfig
+    );
   }
 
   async writeConfig(config: AppConfig): Promise<void> {
-    await writeJsonAtomic(this.paths.configPath, config);
+    await this.configQueue.run(() => writeJsonAtomic(this.paths.configPath, config));
   }
 
   async addRoot(root: string): Promise<AppConfig> {
-    const config = await this.readConfig();
     const sanitized = sanitizePathInput(root);
     if (!sanitized) throw new Error("Root path is empty");
     const resolved = path.resolve(sanitized);
-    if (!config.roots.includes(resolved)) {
-      config.roots.push(resolved);
-    }
-    await this.writeConfig(config);
-    return config;
+    await this.ensure();
+    return this.configQueue.run(async () => {
+      const config = await this.readConfigFile();
+      if (!config.roots.includes(resolved)) {
+        config.roots.push(resolved);
+      }
+      await writeJsonAtomic(this.paths.configPath, config);
+      return config;
+    });
   }
 
   async updateProjectEnvironment(projectPath: string, python: string): Promise<AppConfig> {
-    const config = await this.readConfig();
     const normalizedPath = path.resolve(sanitizePathInput(projectPath));
     const sanitizedPython = sanitizeEnvironmentInput(python);
-    if (sanitizedPython) {
-      config.projectEnvironments[normalizedPath] = { python: sanitizedPython };
-    } else {
-      delete config.projectEnvironments[normalizedPath];
-    }
-    await this.writeConfig(config);
-    return config;
+    await this.ensure();
+    return this.configQueue.run(async () => {
+      const config = await this.readConfigFile();
+      if (sanitizedPython) {
+        config.projectEnvironments[normalizedPath] = { python: sanitizedPython };
+      } else {
+        delete config.projectEnvironments[normalizedPath];
+      }
+      await writeJsonAtomic(this.paths.configPath, config);
+      return config;
+    });
   }
 
   async removeRoot(id: string): Promise<AppConfig> {
-    const config = await this.readConfig();
-    config.roots = config.roots.filter((root) => rootId(root) !== id);
-    await this.writeConfig(config);
-    return config;
+    await this.ensure();
+    return this.configQueue.run(async () => {
+      const config = await this.readConfigFile();
+      config.roots = config.roots.filter((root) => rootId(root) !== id);
+      await writeJsonAtomic(this.paths.configPath, config);
+      return config;
+    });
   }
 
   async updateEditorCommand(editorCommand: string): Promise<AppConfig> {
     const sanitized = sanitizeCommandInput(editorCommand);
     if (!sanitized) throw new Error("Editor command is empty");
-    const config = await this.readConfig();
-    config.editorCommand = sanitized;
-    await this.writeConfig(config);
-    return config;
+    await this.ensure();
+    return this.configQueue.run(async () => {
+      const config = await this.readConfigFile();
+      config.editorCommand = sanitized;
+      await writeJsonAtomic(this.paths.configPath, config);
+      return config;
+    });
   }
 
   async readAiSettings(): Promise<AiSettings> {
     await this.ensure();
-    try {
-      const parsed = aiSettingsSchema.safeParse(JSON.parse(await fs.readFile(this.aiSettingsPath(), "utf8")));
-      return parsed.success ? parsed.data : defaultAiSettings();
-    } catch {
-      return defaultAiSettings();
-    }
+    return this.readAiSettingsFile();
+  }
+
+  private async readAiSettingsFile(): Promise<AiSettings> {
+    return readJsonFile(
+      this.aiSettingsPath(),
+      (value) => {
+        const parsed = aiSettingsSchema.safeParse(value);
+        return parsed.success ? parsed.data : defaultAiSettings();
+      },
+      defaultAiSettings
+    );
   }
 
   async updateAiSettings(input: AiSettingsUpdate): Promise<AiSettings> {
-    const current = await this.readAiSettings();
-    const next = applyAiSettingsUpdate(current, input);
-    await writeJsonAtomic(this.aiSettingsPath(), next);
-    return next;
+    await this.ensure();
+    return this.aiSettingsQueue.run(async () => {
+      const current = await this.readAiSettingsFile();
+      const next = applyAiSettingsUpdate(current, input);
+      await writeJsonAtomic(this.aiSettingsPath(), next);
+      return next;
+    });
   }
 
   async previewAiSettings(input: AiSettingsUpdate): Promise<AiSettings> {
@@ -179,54 +210,76 @@ export class JsonStore {
 
   async readState(): Promise<AppState> {
     await this.ensure();
-    try {
-      const parsed = stateFileSchema.safeParse(JSON.parse(await fs.readFile(this.paths.statePath, "utf8")));
-      if (!parsed.success) return defaultState();
-      return {
-        runs: parseRecord(parsed.data.runs, processRunSchema),
-        errors: parseRecord(parsed.data.errors, errorSummarySchema)
-      };
-    } catch {
-      return defaultState();
-    }
+    return this.readStateFile();
+  }
+
+  private async readStateFile(): Promise<AppState> {
+    return readJsonFile(
+      this.paths.statePath,
+      (value) => {
+        const parsed = stateFileSchema.safeParse(migrateVersionedJson(value, STATE_VERSION));
+        if (!parsed.success) return defaultState();
+        return {
+          runs: parseRecord(parsed.data.runs, processRunSchema),
+          errors: parseRecord(parsed.data.errors, errorSummarySchema)
+        };
+      },
+      defaultState
+    );
   }
 
   async recordRun(run: ProcessRun): Promise<void> {
-    const state = await this.readState();
-    state.runs[run.projectId] = run;
-    if (run.status !== "failed") {
-      delete state.errors[run.projectId];
-    }
-    await this.writeState(state);
+    await this.ensure();
+    await this.stateQueue.run(async () => {
+      const state = await this.readStateFile();
+      state.runs[run.projectId] = run;
+      if (run.status !== "failed") {
+        delete state.errors[run.projectId];
+      }
+      await this.writeStateFile(state);
+    });
   }
 
   async markRunStopped(projectId: string, runId: string): Promise<ProcessRun | undefined> {
-    const state = await this.readState();
-    const run = state.runs[projectId];
-    if (!run || run.id !== runId) return undefined;
-    const stoppedRun: ProcessRun = {
-      ...run,
-      status: "stopped",
-      exitedAt: run.exitedAt ?? new Date().toISOString()
-    };
-    state.runs[projectId] = stoppedRun;
-    await this.writeState(state);
-    return stoppedRun;
+    await this.ensure();
+    return this.stateQueue.run(async () => {
+      const state = await this.readStateFile();
+      const run = state.runs[projectId];
+      if (!run || run.id !== runId) return undefined;
+      const stoppedRun: ProcessRun = {
+        ...run,
+        status: "stopped",
+        exitedAt: run.exitedAt ?? new Date().toISOString()
+      };
+      state.runs[projectId] = stoppedRun;
+      await this.writeStateFile(state);
+      return stoppedRun;
+    });
   }
 
   async clearError(projectId: string): Promise<void> {
-    const state = await this.readState();
-    delete state.errors[projectId];
-    await this.writeState(state);
+    await this.ensure();
+    await this.stateQueue.run(async () => {
+      const state = await this.readStateFile();
+      delete state.errors[projectId];
+      await this.writeStateFile(state);
+    });
   }
 
   async recordError(projectId: string, error: ErrorSummary): Promise<void> {
-    const state = await this.readState();
-    state.errors[projectId] = error;
-    await this.writeState(state);
+    await this.ensure();
+    await this.stateQueue.run(async () => {
+      const state = await this.readStateFile();
+      state.errors[projectId] = error;
+      await this.writeStateFile(state);
+    });
   }
 
   private async writeState(state: AppState): Promise<void> {
+    await this.stateQueue.run(() => this.writeStateFile(state));
+  }
+
+  private async writeStateFile(state: AppState): Promise<void> {
     await writeJsonAtomic(this.paths.statePath, { version: STATE_VERSION, ...state });
   }
 
@@ -269,13 +322,6 @@ export function toPublicAiSettings(settings: AiSettings): PublicAiSettings {
     hasApiKey: Boolean(envApiKey || settings.apiKey),
     source: envApiKey ? "env" : settings.apiKey ? "local" : "none"
   };
-}
-
-async function writeJsonAtomic(filePath: string, data: unknown): Promise<void> {
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
-  await fs.writeFile(tempPath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
-  await fs.rename(tempPath, filePath);
 }
 
 function parseRecord<T>(raw: Record<string, unknown>, schema: z.ZodType<T>): Record<string, T> {

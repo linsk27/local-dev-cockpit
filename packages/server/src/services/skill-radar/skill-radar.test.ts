@@ -7,7 +7,7 @@ import { analyzeSkillInput } from "./analyzer.js";
 import { analyzeResourceWithAi, testAiConnection } from "./ai.js";
 import { createSkillContext, createSkillDraft } from "./context.js";
 import { fetchResourceMetadata } from "./fetcher.js";
-import { SkillRadarStore } from "./store.js";
+import { DuplicateResourceError, SkillRadarStore } from "./store.js";
 import { createTaxonomyPatch } from "./taxonomy.js";
 import type { SkillItem } from "./types.js";
 
@@ -241,6 +241,34 @@ describe("SkillRadarStore", () => {
     await expect(store.get(preview.id)).resolves.toMatchObject({ id: preview.id, title: preview.title });
   });
 
+  it("rejects duplicate resources when committing a reviewed preview", async () => {
+    const store = new SkillRadarStore(await createPaths());
+    const first = await store.commitPreview({
+      preview: analyzeSkillInput({ sourceUrl: "https://github.com/example/repo" })
+    });
+    const duplicatePreview = analyzeSkillInput({ sourceUrl: "https://github.com/example/repo/issues" });
+
+    await expect(store.commitPreview({ preview: duplicatePreview })).rejects.toMatchObject({
+      name: "DuplicateResourceError",
+      statusCode: 409,
+      existing: { id: first.id, title: first.title }
+    });
+    await expect(store.commitPreview({ preview: duplicatePreview })).rejects.toBeInstanceOf(DuplicateResourceError);
+    await expect(store.list()).resolves.toHaveLength(1);
+  });
+
+  it("rejects duplicate resources when creating directly", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("not found", { status: 404, headers: { "content-type": "text/plain" } })));
+    const store = new SkillRadarStore(await createPaths());
+    const first = await store.create({ sourceUrl: "https://example.com/resources/tool" });
+
+    await expect(store.create({ sourceUrl: "https://example.com/resources/tool/" })).rejects.toMatchObject({
+      statusCode: 409,
+      existing: { id: first.id, title: first.title }
+    });
+    await expect(store.list()).resolves.toHaveLength(1);
+  });
+
   it("exports and imports resources with dedupe", async () => {
     const source = new SkillRadarStore(await createPaths());
     const target = new SkillRadarStore(await createPaths());
@@ -269,6 +297,24 @@ describe("SkillRadarStore", () => {
       skipped: 1,
       total: 1
     });
+  });
+
+  it("serializes concurrent resource imports", async () => {
+    const store = new SkillRadarStore(await createPaths());
+    const first = analyzeSkillInput({
+      sourceUrl: "https://github.com/example/resource-one",
+      sourceText: "First resource for concurrent import coverage."
+    });
+    const second = analyzeSkillInput({
+      sourceUrl: "https://github.com/example/resource-two",
+      sourceText: "Second resource for concurrent import coverage."
+    });
+
+    await Promise.all([store.importData({ items: [first] }), store.importData({ items: [second] })]);
+
+    await expect(store.list()).resolves.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: first.id }), expect.objectContaining({ id: second.id })])
+    );
   });
 
   it("runs optional AI analysis during import when a key is configured", async () => {

@@ -2,7 +2,7 @@ export { analyzeSkillInput } from "./analyzer.js";
 export { analyzeResourceWithAi, testAiConnection } from "./ai.js";
 export { createSkillContext, createSkillDraft } from "./context.js";
 export { fetchResourceMetadata } from "./fetcher.js";
-export { SkillRadarStore, SkillRadarStore as ResourceRadarStore } from "./store.js";
+export { DuplicateResourceError, SkillRadarStore, SkillRadarStore as ResourceRadarStore } from "./store.js";
 export type {
   AnalysisSource,
   SkillContextPayload,

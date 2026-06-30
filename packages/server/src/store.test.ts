@@ -48,6 +48,25 @@ describe("JsonStore roots", () => {
     expect(afterRemove.roots).not.toContain(path.resolve(root));
   });
 
+  it("serializes concurrent root updates", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-store-"));
+    const store = new JsonStore(
+      {
+        dataDir: tmp,
+        configPath: path.join(tmp, "config.json"),
+        statePath: path.join(tmp, "state.json"),
+        logsDir: path.join(tmp, "logs")
+      },
+      tmp
+    );
+    const roots = ["app", "api", "worker", "docs"].map((name) => path.join(tmp, name));
+
+    await Promise.all(roots.map((root) => store.addRoot(root)));
+
+    const config = await store.readConfig();
+    expect([...config.roots].sort()).toEqual(roots.map((root) => path.resolve(root)).sort());
+  });
+
   it("keeps pasted Windows drive paths absolute after hidden bidi characters", async () => {
     expect(sanitizePathInput("\u202AC:\\Users\\EDY\\Desktop")).toBe("C:\\Users\\EDY\\Desktop");
     expect(sanitizePathInput("?C:\\Users\\EDY\\Desktop")).toBe("C:\\Users\\EDY\\Desktop");
@@ -187,5 +206,31 @@ describe("JsonStore roots", () => {
 
     expect(stopped?.status).toBe("stopped");
     expect(state.runs[run.projectId]?.status).toBe("stopped");
+  });
+
+  it("serializes concurrent run state updates", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "dev-cockpit-store-"));
+    const store = new JsonStore(
+      {
+        dataDir: tmp,
+        configPath: path.join(tmp, "config.json"),
+        statePath: path.join(tmp, "state.json"),
+        logsDir: path.join(tmp, "logs")
+      },
+      tmp
+    );
+    const runs: ProcessRun[] = ["project-a", "project-b", "project-c"].map((projectId) => ({
+      id: `run-${projectId}`,
+      projectId,
+      commandId: "script-dev",
+      status: "running",
+      startedAt: new Date().toISOString(),
+      logPath: path.join(tmp, `${projectId}.log`)
+    }));
+
+    await Promise.all(runs.map((run) => store.recordRun(run)));
+
+    const state = await store.readState();
+    expect(Object.keys(state.runs).sort()).toEqual(["project-a", "project-b", "project-c"]);
   });
 });

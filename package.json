@@ -12,7 +12,9 @@
     "test": "pnpm --filter @local-dev-cockpit/core test && pnpm --filter @local-dev-cockpit/server test && pnpm --filter @local-dev-cockpit/web test && pnpm --filter local-dev-cockpit test",
     "typecheck": "pnpm --filter @local-dev-cockpit/core build && pnpm --filter @local-dev-cockpit/server build && pnpm -r typecheck",
     "release:check": "pnpm typecheck && pnpm test && pnpm build",
+    "check:encoding": "node scripts/check-text-encoding.mjs",
     "verify:smoke": "node scripts/verify-smoke.mjs",
+    "verify:visual": "node scripts/visual-smoke.mjs",
     "desktop:icon": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/generate-desktop-icon.ps1"
   },
   "keywords": [
@@ -30,16 +32,11 @@
     "workspace-recovery",
     "project-dashboard"
   ],
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "electron",
-      "electron-winstaller"
-    ]
-  },
   "devDependencies": {
     "@types/node": "^20.19.24",
     "@vitejs/plugin-vue": "^5.2.4",
     "esbuild": "^0.25.12",
+    "playwright": "^1.61.1",
     "typescript": "^5.9.3",
     "vite": "^5.4.21",
     "vitest": "^3.2.4",

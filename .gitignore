@@ -3,6 +3,7 @@ dist
 .turbo
 .vite
 coverage
+.artifacts
 *.log
 .DS_Store
 apps/web/dist

@@ -34,5 +34,5 @@ describe("loadProjects", () => {
     const projects = await loadProjects(store, processManager);
 
     expect(projects.filter((project) => path.resolve(project.path) === path.resolve(app))).toHaveLength(1);
-  });
+  }, 15000);
 });

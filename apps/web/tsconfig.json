@@ -10,9 +10,9 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
+      "@local-dev-cockpit/core": ["../../packages/core/src/index.ts"],
       "@/*": ["src/*"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.vue", "vite.config.ts"]
 }
-
