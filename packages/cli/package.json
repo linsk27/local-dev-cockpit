@@ -4,10 +4,10 @@
   "description": "Local developer cockpit for projects, processes, logs, ports, Git state, and AI context.",
   "license": "MIT",
   "type": "module",
-  "homepage": "https://github.com/linsk27/local-dev-cockpit#readme",
+  "homepage": "https://github.com/linsk-labs/local-dev-cockpit#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/linsk27/local-dev-cockpit.git",
+    "url": "git+https://github.com/linsk-labs/local-dev-cockpit.git",
     "directory": "packages/cli"
   },
   "bin": {

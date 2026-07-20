@@ -20,7 +20,7 @@ npx local-dev-cockpit
 http://localhost:8787
 ```
 
-Windows 桌面版下载：[GitHub Releases](https://github.com/linsk27/local-dev-cockpit/releases)
+Windows 桌面版下载：[GitHub Releases](https://github.com/linsk-labs/local-dev-cockpit/releases)
 
 ## 适合谁
 

@@ -84,7 +84,7 @@ describe("update checks", () => {
         new Response(
           JSON.stringify({
             tag_name: "v0.1.9",
-            html_url: "https://github.com/linsk27/local-dev-cockpit/releases/tag/v0.1.9",
+            html_url: "https://github.com/linsk-labs/local-dev-cockpit/releases/tag/v0.1.9",
             assets: [
               {
                 name: "Dev-Cockpit-Setup-0.1.9-win-x64.exe",
@@ -124,11 +124,11 @@ describe("update checks", () => {
       hasUpdate: true,
       source: "npm",
       warning: expect.stringContaining("npm registry"),
-      releaseUrl: "https://github.com/linsk27/local-dev-cockpit/releases/tag/v0.1.9",
+      releaseUrl: "https://github.com/linsk-labs/local-dev-cockpit/releases/tag/v0.1.9",
       installerAsset: {
         name: "Dev-Cockpit-Setup-0.1.9-win-x64.exe",
         size: 0,
-        downloadUrl: "https://github.com/linsk27/local-dev-cockpit/releases/download/v0.1.9/Dev-Cockpit-Setup-0.1.9-win-x64.exe"
+        downloadUrl: "https://github.com/linsk-labs/local-dev-cockpit/releases/download/v0.1.9/Dev-Cockpit-Setup-0.1.9-win-x64.exe"
       }
     });
   });
@@ -157,7 +157,7 @@ describe("update checks", () => {
 
     await expect(checkForUpdates("0.1.8")).resolves.toMatchObject({
       hasUpdate: false,
-      releaseUrl: "https://github.com/linsk27/local-dev-cockpit/releases/latest",
+      releaseUrl: "https://github.com/linsk-labs/local-dev-cockpit/releases/latest",
       error: expect.stringContaining("无法连接 GitHub Releases，也无法连接 npm registry")
     });
   });

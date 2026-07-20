@@ -1,4 +1,4 @@
-const GITHUB_REPOSITORY = "linsk27/local-dev-cockpit";
+const GITHUB_REPOSITORY = "linsk-labs/local-dev-cockpit";
 const GITHUB_RELEASES_URL = `https://github.com/${GITHUB_REPOSITORY}/releases`;
 const LATEST_RELEASE_URL = `https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/latest`;
 const NPM_LATEST_URL = "https://registry.npmjs.org/local-dev-cockpit/latest";

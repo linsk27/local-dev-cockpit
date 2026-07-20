@@ -12,7 +12,7 @@ npx local-dev-cockpit
 http://localhost:8787
 ```
 
-桌面版下载：[GitHub Releases](https://github.com/linsk27/local-dev-cockpit/releases)
+桌面版下载：[GitHub Releases](https://github.com/linsk-labs/local-dev-cockpit/releases)
 
 ## 常用命令
 
@@ -43,4 +43,4 @@ Resource Radar 支持粘贴 GitHub、Demo、工具、教程、Prompt、MCP 或�
 
 完整说明和截图见仓库 README：
 
-https://github.com/linsk27/local-dev-cockpit#readme
+https://github.com/linsk-labs/local-dev-cockpit#readme
